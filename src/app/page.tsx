@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import MapboxLanguage from "@mapbox/mapbox-gl-language";
-import { LocateFixed, List, Search, Copy, Check, LogOut, SlidersHorizontal, X, Star, CheckCircle2, Utensils, Wine, Gamepad2, Landmark, Coffee, ShoppingBag, Camera, BedDouble, Waves, Plus, Shield, Lock, Unlock } from "lucide-react";
+import { LocateFixed, List, Search, Copy, Check, LogOut, SlidersHorizontal, X, Star, CheckCircle2, Utensils, Wine, Gamepad2, Landmark, Coffee, ShoppingBag, Camera, BedDouble, Waves, Plus, Shield, Lock, Unlock, Share2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -623,12 +623,34 @@ export default function Home() {
     setRoomDialogOpen(true);
   }
 
+  function getRoomUrl() {
+    if (!room) return "";
+    return `${window.location.origin}${window.location.pathname}?code=${room.share_code}`;
+  }
+
   function copyRoomCode() {
-    if (!room) return;
-    const url = `${window.location.origin}${window.location.pathname}?code=${room.share_code}`;
+    const url = getRoomUrl();
+    if (!url) return;
     navigator.clipboard.writeText(url);
     setCodeCopied(true);
     setTimeout(() => setCodeCopied(false), 2000);
+  }
+
+  async function shareRoomUrl() {
+    const url = getRoomUrl();
+    if (!url || !room) return;
+    const shareData = {
+      title: room.name ?? "KokoMap ルーム",
+      text: `「${room.name ?? room.share_code}」に参加しませんか？`,
+      url,
+    };
+    if (navigator.share) {
+      try { await navigator.share(shareData); } catch { /* キャンセル等は無視 */ }
+    } else {
+      navigator.clipboard.writeText(url);
+      setCodeCopied(true);
+      setTimeout(() => setCodeCopied(false), 2000);
+    }
   }
 
   async function toggleRoomOpen() {
@@ -874,11 +896,19 @@ export default function Home() {
             )}
             <button
               onClick={copyRoomCode}
-              title="コードをコピー"
+              title="URLをコピー"
               className="flex items-center gap-1 px-2 py-1 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
             >
               {codeCopied ? <Check className="size-3.5 text-green-600" /> : <Copy className="size-3.5" />}
               <span className="text-xs">{codeCopied ? "コピー済" : "コピー"}</span>
+            </button>
+            <button
+              onClick={shareRoomUrl}
+              title="シェア"
+              className="flex items-center gap-1 px-2 py-1 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+            >
+              <Share2 className="size-3.5" />
+              <span className="text-xs">シェア</span>
             </button>
             <button
               onClick={handleLeaveRoom}
@@ -1021,10 +1051,17 @@ export default function Home() {
                   )}
                   <button
                     onClick={copyRoomCode}
-                    title="コードをコピー"
+                    title="URLをコピー"
                     className="p-1.5 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground cursor-pointer"
                   >
                     {codeCopied ? <Check className="size-3.5 text-green-600" /> : <Copy className="size-3.5" />}
+                  </button>
+                  <button
+                    onClick={shareRoomUrl}
+                    title="シェア"
+                    className="p-1.5 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground cursor-pointer"
+                  >
+                    <Share2 className="size-3.5" />
                   </button>
                   <button
                     onClick={handleLeaveRoom}
