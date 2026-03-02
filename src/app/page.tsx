@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import MapboxLanguage from "@mapbox/mapbox-gl-language";
-import { LocateFixed, List, Search, Copy, Check, LogOut, SlidersHorizontal, X, Star, CheckCircle2, Utensils, Wine, Gamepad2, Landmark, Coffee, ShoppingBag, Camera, BedDouble, Waves, Plus, Shield, Lock, Unlock, Share2, Users, Crown, Eye } from "lucide-react";
+import { LocateFixed, List, Search, Copy, Check, LogOut, SlidersHorizontal, X, Star, CheckCircle2, Utensils, Wine, Gamepad2, Landmark, Coffee, ShoppingBag, Camera, BedDouble, Waves, Plus, Shield, Lock, Unlock, Share2, Users, Crown, Eye, ChevronUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -1058,7 +1058,7 @@ export default function Home() {
           <button
             onClick={handleLocateMe}
             className="absolute z-10 bg-white rounded-full shadow-lg p-2.5 hover:bg-gray-50 hover:shadow-xl active:scale-95 transition-all cursor-pointer right-3 md:bottom-6"
-            style={{ bottom: 'calc(5.5rem + env(safe-area-inset-bottom, 0px))' }}
+            style={{ bottom: 'calc(7.5rem + env(safe-area-inset-bottom, 0px))' }}
             title="現在地へ移動"
           >
             <LocateFixed className="size-5 text-gray-700" />
@@ -1070,7 +1070,7 @@ export default function Home() {
               onClick={() => { setEditPlace(undefined); setSheetOpen(true); }}
               disabled={!room}
               className="md:hidden absolute right-3 z-10 bg-primary text-primary-foreground rounded-full shadow-lg p-3 hover:opacity-90 active:scale-95 transition-all disabled:opacity-40 cursor-pointer"
-              style={{ bottom: 'calc(1.125rem + env(safe-area-inset-bottom, 0px))' }}
+              style={{ bottom: 'calc(4rem + env(safe-area-inset-bottom, 0px))' }}
               title="場所を追加"
             >
               <Plus className="size-5" />
@@ -1079,28 +1079,40 @@ export default function Home() {
 
           {/* モバイル: 常時表示のペークバー（スライドアップトリガー） */}
           <div
-            className="md:hidden absolute left-0 right-0 z-10 bg-white rounded-t-2xl shadow-[0_-4px_20px_rgba(0,0,0,0.10)] cursor-pointer"
-            style={{ bottom: 0, paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
-            onClick={() => { setDrawerOpen(true); setDrawerSnap(0.45); }}
+            className="md:hidden absolute left-0 right-0 z-10"
+            style={{ bottom: 0 }}
           >
-            {/* ドラッグハンドル */}
-            <div className="flex justify-center pt-2.5 pb-1">
-              <div className="w-10 h-1 rounded-full bg-gray-300" />
-            </div>
-            {/* タイトル行 */}
-            <div className="flex items-center justify-between px-5 pb-3 pt-1">
-              <div className="flex items-center gap-2">
-                <List className="size-4 text-gray-600" />
-                <span className="text-sm font-semibold">スポット一覧</span>
-                <span className="text-xs text-muted-foreground">{countLabel}</span>
+            <button
+              className="w-full bg-white rounded-t-3xl shadow-[0_-6px_24px_rgba(0,0,0,0.13)] active:bg-gray-50 transition-colors"
+              style={{ paddingBottom: 'max(1.25rem, env(safe-area-inset-bottom, 0px))' }}
+              onClick={() => { setDrawerOpen(true); setDrawerSnap(0.45); }}
+            >
+              {/* ドラッグハンドル（太め・目立つ） */}
+              <div className="flex flex-col items-center gap-1 pt-3 pb-1">
+                <div className="w-12 h-1.5 rounded-full bg-gray-300" />
               </div>
-              {activeFilterCount > 0 && (
-                <span className="flex items-center gap-1 text-xs text-primary font-medium">
-                  <SlidersHorizontal className="size-3" />
-                  {activeFilterCount}件絞込中
-                </span>
-              )}
-            </div>
+              {/* タイトル行 */}
+              <div className="flex items-center justify-between px-5 py-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="bg-primary/10 rounded-full p-1.5">
+                    <List className="size-4 text-primary" />
+                  </div>
+                  <div className="text-left">
+                    <p className="text-sm font-bold leading-tight">スポット一覧</p>
+                    <p className="text-xs text-muted-foreground leading-tight">{countLabel} · タップして開く</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  {activeFilterCount > 0 && (
+                    <span className="flex items-center gap-1 text-xs text-primary font-medium bg-primary/10 rounded-full px-2.5 py-1">
+                      <SlidersHorizontal className="size-3" />
+                      {activeFilterCount}
+                    </span>
+                  )}
+                  <ChevronUp className="size-5 text-gray-400" />
+                </div>
+              </div>
+            </button>
           </div>
         </div>
 
