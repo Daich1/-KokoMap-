@@ -30,6 +30,7 @@ export type Room = {
   id: string;
   share_code: string;
   name: string | null;
+  is_open: boolean;
   created_at: string;
 };
 

@@ -129,6 +129,11 @@ export function RoomJoinDialog({
         setIsLoading(false);
         return;
       }
+      if (!data.is_open) {
+        setError("このルームは現在参加を受け付けていません");
+        setIsLoading(false);
+        return;
+      }
       onJoined(data as Room, userName.trim(), false);
     } catch {
       setError("接続に失敗しました");

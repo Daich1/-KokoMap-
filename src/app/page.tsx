@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import MapboxLanguage from "@mapbox/mapbox-gl-language";
-import { LocateFixed, List, Search, Copy, Check, LogOut, SlidersHorizontal, X, Star, CheckCircle2, Utensils, Wine, Gamepad2, Landmark, Coffee, ShoppingBag, Camera, BedDouble, Waves, Plus, Shield } from "lucide-react";
+import { LocateFixed, List, Search, Copy, Check, LogOut, SlidersHorizontal, X, Star, CheckCircle2, Utensils, Wine, Gamepad2, Landmark, Coffee, ShoppingBag, Camera, BedDouble, Waves, Plus, Shield, Lock, Unlock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -631,6 +631,13 @@ export default function Home() {
     setTimeout(() => setCodeCopied(false), 2000);
   }
 
+  async function toggleRoomOpen() {
+    if (!room) return;
+    const next = !room.is_open;
+    await supabase.from("rooms").update({ is_open: next }).eq("id", room.id);
+    setRoom({ ...room, is_open: next });
+  }
+
   const countLabel =
     filteredPlaces.length === places.length
       ? `${places.length}件`
@@ -855,6 +862,16 @@ export default function Home() {
             </span>
           </div>
           <div className="flex items-center gap-0.5 shrink-0">
+            {isRoomAdmin && (
+              <button
+                onClick={toggleRoomOpen}
+                title={room.is_open ? "参加を締め切る" : "参加を再開する"}
+                className={`flex items-center gap-1 px-2 py-1 rounded-md text-xs transition-colors cursor-pointer ${room.is_open ? "text-green-700 hover:bg-green-50" : "text-red-600 hover:bg-red-50"}`}
+              >
+                {room.is_open ? <Unlock className="size-3.5" /> : <Lock className="size-3.5" />}
+                <span>{room.is_open ? "参加中" : "締切中"}</span>
+              </button>
+            )}
             <button
               onClick={copyRoomCode}
               title="コードをコピー"
@@ -993,6 +1010,15 @@ export default function Home() {
                   </span>
                 </div>
                 <div className="flex gap-1 shrink-0">
+                  {isRoomAdmin && (
+                    <button
+                      onClick={toggleRoomOpen}
+                      title={room.is_open ? "参加を締め切る" : "参加を再開する"}
+                      className={`p-1.5 rounded transition-colors cursor-pointer ${room.is_open ? "text-green-700 hover:bg-green-50" : "text-red-600 hover:bg-red-50"}`}
+                    >
+                      {room.is_open ? <Unlock className="size-3.5" /> : <Lock className="size-3.5" />}
+                    </button>
+                  )}
                   <button
                     onClick={copyRoomCode}
                     title="コードをコピー"
