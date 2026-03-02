@@ -264,7 +264,7 @@ function GridCard({ place, onSelect, distanceText }: Omit<PlaceCardProps, "compa
   );
 }
 
-// ── コンパクトカード（通常サイドバー）────────────────────────────
+// ── コンパクトカード（Airbnb スタイル横並び）────────────────────────────
 function CompactCard({ place, onSelect, distanceText }: Omit<PlaceCardProps, "compact">) {
   const { spotStatuses } = useMapStore();
   const currentStatus: SpotStatus | null = spotStatuses[place.id] ?? null;
@@ -284,69 +284,67 @@ function CompactCard({ place, onSelect, distanceText }: Omit<PlaceCardProps, "co
 
   return (
     <div
-      className="flex flex-col shrink-0 min-w-0 rounded-xl border bg-card shadow-sm hover:shadow-md transition-all cursor-pointer overflow-hidden group"
+      className="flex gap-3 rounded-2xl bg-white shadow-sm hover:shadow-md active:scale-[0.98] transition-all cursor-pointer overflow-hidden border border-gray-100 p-3"
       onClick={() => onSelect(place)}
     >
-      <ImageArea
-        images={images}
-        name={place.name}
-        businessHours={place.business_hours}
-        openingHoursText={place.opening_hours_text}
-        compact={true}
-      />
-
-      <div className="p-3 flex flex-col gap-1.5 min-w-0">
-        <h3 className="font-semibold text-sm leading-tight truncate">{place.name}</h3>
-
-        {distanceText && (
-          <div className="flex items-center gap-1 text-xs text-blue-600">
-            <Navigation2 className="size-3 shrink-0" />
-            <span>{distanceText}</span>
+      {/* サムネイル（正方形） */}
+      <div className="relative w-[88px] h-[88px] rounded-xl overflow-hidden bg-gray-100 shrink-0">
+        {images.length > 0 ? (
+          <img
+            src={images[0]}
+            alt={place.name}
+            className="w-full h-full object-cover"
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center">
+            <MapPin className="size-7 text-gray-300" />
           </div>
         )}
+        {(place.business_hours || place.opening_hours_text) && (
+          <div className="absolute top-1.5 left-1.5 pointer-events-none">
+            <BusinessHoursBadge businessHours={place.business_hours} openingHoursText={place.opening_hours_text} />
+          </div>
+        )}
+      </div>
 
-        {(budgetText || durationLabel) && (
-          <div className="flex items-center justify-between gap-2 text-sm text-muted-foreground">
-            {budgetText ? (
-              <span className="flex items-center gap-1 shrink truncate min-w-0">
-                <Wallet className="size-3.5 shrink-0" />
-                <span className="truncate">{budgetText}</span>
-              </span>
-            ) : (
-              <span />
-            )}
-            {durationLabel && (
-              <span className="flex items-center gap-1 shrink-0 ml-auto whitespace-nowrap">
-                <Clock className="size-3.5 shrink-0" />
-                {durationLabel}
+      {/* テキスト情報 */}
+      <div className="flex-1 min-w-0 flex flex-col justify-between py-0.5">
+        <div>
+          <div className="flex items-start justify-between gap-1">
+            <h3 className="font-semibold text-sm leading-tight line-clamp-2 flex-1">{place.name}</h3>
+            {distanceText && (
+              <span className="shrink-0 flex items-center gap-0.5 text-[10px] text-blue-500 font-medium mt-0.5">
+                <Navigation2 className="size-2.5" />
+                {distanceText}
               </span>
             )}
           </div>
-        )}
 
-        {place.categories && place.categories.length > 0 && (
-          <div className="flex flex-wrap gap-1 mt-1">
-            {place.categories.slice(0, 3).map((cat) => (
-              <Badge key={cat} variant="secondary" className="text-xs px-2 py-0.5">
-                {cat}
-              </Badge>
-            ))}
-            {place.categories.length > 3 && (
-              <Badge variant="outline" className="text-xs px-2 py-0.5">
-                +{place.categories.length - 3}
-              </Badge>
-            )}
-          </div>
-        )}
+          {place.categories && place.categories.length > 0 && (
+            <p className="text-[11px] text-gray-500 mt-0.5">
+              {place.categories.slice(0, 2).join(" · ")}
+            </p>
+          )}
+
+          {(budgetText || durationLabel) && (
+            <div className="flex items-center gap-2 text-[11px] text-gray-400 mt-0.5">
+              {budgetText && (
+                <span className="flex items-center gap-0.5">
+                  <Wallet className="size-2.5 shrink-0" />
+                  {budgetText}
+                </span>
+              )}
+              {durationLabel && (
+                <span className="flex items-center gap-0.5">
+                  <Clock className="size-2.5 shrink-0" />
+                  {durationLabel}
+                </span>
+              )}
+            </div>
+          )}
+        </div>
 
         <StatusToggle placeId={place.id} currentStatus={currentStatus} compact={true} />
-
-        {place.created_by_name && (
-          <div className="flex items-center gap-1.5 mt-1 pt-2 border-t">
-            <UserAvatar name={place.created_by_name} />
-            <span className="text-xs text-muted-foreground truncate">{place.created_by_name}</span>
-          </div>
-        )}
       </div>
     </div>
   );
