@@ -1018,67 +1018,67 @@ export default function Home() {
 
       {/* ── モバイル: ルーム情報ヘッダーバー ── */}
       {room && (
-        <div className="md:hidden shrink-0 flex items-center justify-between px-3 bg-background border-b gap-2" style={{ minHeight: '52px' }}>
+        <div className="md:hidden shrink-0 flex items-center justify-between px-4 bg-background border-b gap-2" style={{ minHeight: '104px' }}>
           {/* 左: ロール + コード */}
-          <div className="flex items-center gap-2 min-w-0 flex-1">
+          <div className="flex items-center gap-3 min-w-0 flex-1">
             {myRole && (
-              <span className={`flex items-center gap-0.5 text-[10px] font-bold rounded-full px-1.5 py-0.5 shrink-0 border
+              <span className={`flex items-center gap-1 text-xs font-bold rounded-full px-2.5 py-1 shrink-0 border
                 ${myRole === "leader" ? "text-yellow-700 bg-yellow-50 border-yellow-200" :
                   myRole === "admin"  ? "text-blue-700 bg-blue-50 border-blue-200" :
                   myRole === "viewer" ? "text-gray-500 bg-gray-50 border-gray-200" :
                   "text-green-700 bg-green-50 border-green-200"}`}>
-                {myRole === "leader" ? <Crown className="size-2.5" /> :
-                 myRole === "admin"  ? <Shield className="size-2.5" /> :
-                 myRole === "viewer" ? <Eye className="size-2.5" /> :
-                 <Users className="size-2.5" />}
+                {myRole === "leader" ? <Crown className="size-3.5" /> :
+                 myRole === "admin"  ? <Shield className="size-3.5" /> :
+                 myRole === "viewer" ? <Eye className="size-3.5" /> :
+                 <Users className="size-3.5" />}
                 {ROLE_LABELS[myRole]}
               </span>
             )}
             {room.name && (
-              <span className="text-xs font-medium truncate max-w-[80px]">{room.name}</span>
+              <span className="text-sm font-medium truncate max-w-[90px]">{room.name}</span>
             )}
-            <span className="text-xs text-muted-foreground shrink-0 font-mono font-bold tracking-wider">{room.share_code}</span>
+            <span className="text-sm text-muted-foreground shrink-0 font-mono font-bold tracking-wider">{room.share_code}</span>
           </div>
           {/* 右: アイコンのみボタン群 */}
-          <div className="flex items-center shrink-0">
+          <div className="flex items-center shrink-0 gap-1">
             {canManageRoom && (
               <button
                 onClick={toggleRoomOpen}
                 title={room.is_open ? "参加を締め切る" : "参加を再開する"}
-                className={`p-2.5 rounded-md transition-colors cursor-pointer ${room.is_open ? "text-green-600 hover:bg-green-50" : "text-red-500 hover:bg-red-50"}`}
+                className={`p-3 rounded-xl transition-colors cursor-pointer ${room.is_open ? "text-green-600 hover:bg-green-50" : "text-red-500 hover:bg-red-50"}`}
               >
-                {room.is_open ? <Unlock className="size-4" /> : <Lock className="size-4" />}
+                {room.is_open ? <Unlock className="size-5" /> : <Lock className="size-5" />}
               </button>
             )}
             {canManageMembers && (
               <button
                 onClick={() => setMemberManageOpen(true)}
                 title="メンバー管理"
-                className="p-2.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+                className="p-3 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
               >
-                <Users className="size-4" />
+                <Users className="size-5" />
               </button>
             )}
             <button
               onClick={copyRoomCode}
               title="コードをコピー"
-              className="p-2.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+              className="p-3 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
             >
-              {codeCopied ? <Check className="size-4 text-green-600" /> : <Copy className="size-4" />}
+              {codeCopied ? <Check className="size-5 text-green-600" /> : <Copy className="size-5" />}
             </button>
             <button
               onClick={shareRoomUrl}
               title="シェア"
-              className="p-2.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+              className="p-3 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
             >
-              <Share2 className="size-4" />
+              <Share2 className="size-5" />
             </button>
             <button
               onClick={handleLeaveRoom}
               title="ルームを変更"
-              className="p-2.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+              className="p-3 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
             >
-              <LogOut className="size-4" />
+              <LogOut className="size-5" />
             </button>
           </div>
         </div>
@@ -1129,7 +1129,7 @@ export default function Home() {
           <button
             onClick={handleLocateMe}
             className="absolute z-10 bg-white rounded-full shadow-lg p-2.5 hover:bg-gray-50 hover:shadow-xl active:scale-95 transition-all cursor-pointer right-3 md:bottom-6"
-            style={{ bottom: 'calc(10rem + env(safe-area-inset-bottom, 0px))' }}
+            style={{ bottom: 'calc(13rem + env(safe-area-inset-bottom, 0px))' }}
             title="現在地へ移動"
           >
             <LocateFixed className="size-5 text-gray-700" />
@@ -1141,7 +1141,7 @@ export default function Home() {
               onClick={() => { setEditPlace(undefined); setSheetOpen(true); }}
               disabled={!room}
               className="md:hidden absolute right-3 z-10 bg-primary text-primary-foreground rounded-full shadow-lg p-3 hover:opacity-90 active:scale-95 transition-all disabled:opacity-40 cursor-pointer"
-              style={{ bottom: 'calc(6.5rem + env(safe-area-inset-bottom, 0px))' }}
+              style={{ bottom: 'calc(9.5rem + env(safe-area-inset-bottom, 0px))' }}
               title="場所を追加"
             >
               <Plus className="size-5" />
@@ -1170,28 +1170,28 @@ export default function Home() {
               onTouchEnd={() => { peekTouchStartY.current = null; }}
             >
               {/* ドラッグハンドル */}
-              <div className="flex flex-col items-center pt-3 pb-2">
-                <div className="w-10 h-1 rounded-full bg-gray-300" />
+              <div className="flex flex-col items-center pt-4 pb-3">
+                <div className="w-12 h-1.5 rounded-full bg-gray-300" />
               </div>
               {/* タイトル行 */}
-              <div className="flex items-center justify-between px-5 pb-4 pt-1">
-                <div className="flex items-center gap-2.5">
-                  <div className="bg-primary/10 rounded-full p-1.5">
-                    <List className="size-4 text-primary" />
+              <div className="flex items-center justify-between px-6 pb-6 pt-2">
+                <div className="flex items-center gap-3">
+                  <div className="bg-primary/10 rounded-full p-2.5">
+                    <List className="size-5 text-primary" />
                   </div>
                   <div className="text-left">
-                    <p className="text-sm font-bold leading-tight">スポット一覧</p>
-                    <p className="text-xs text-muted-foreground leading-tight">{countLabel}</p>
+                    <p className="text-base font-bold leading-tight">スポット一覧</p>
+                    <p className="text-sm text-muted-foreground leading-tight mt-0.5">{countLabel}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
                   {activeFilterCount > 0 && (
-                    <span className="flex items-center gap-1 text-xs text-primary font-medium bg-primary/10 rounded-full px-2.5 py-1">
-                      <SlidersHorizontal className="size-3" />
+                    <span className="flex items-center gap-1 text-sm text-primary font-medium bg-primary/10 rounded-full px-3 py-1.5">
+                      <SlidersHorizontal className="size-4" />
                       {activeFilterCount}
                     </span>
                   )}
-                  <ChevronUp className="size-5 text-gray-400" />
+                  <ChevronUp className="size-6 text-gray-400" />
                 </div>
               </div>
             </button>
