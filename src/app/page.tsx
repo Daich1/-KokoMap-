@@ -116,8 +116,8 @@ export default function Home() {
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [geocodedAddress, setGeocodedAddress] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [drawerSnap, setDrawerSnap] = useState<number | string | null>(0.45);
+  const [drawerOpen, setDrawerOpen] = useState(true);
+  const [drawerSnap, setDrawerSnap] = useState<number | string | null>(0.13);
   const [mapLoaded, setMapLoaded] = useState(false);
   const [roomDialogOpen, setRoomDialogOpen] = useState(!room);
   const [memberManageOpen, setMemberManageOpen] = useState(false);
@@ -352,14 +352,28 @@ export default function Home() {
 
     wantBtn.addEventListener("click", (e) => {
       e.stopPropagation();
-      useMapStore.getState().setSpotStatus(place.id, "want_to_go");
-      applyPopupStatusStyles(wantBtn, visitedBtn, "want_to_go");
+      const store = useMapStore.getState();
+      const cur = store.spotStatuses[place.id] ?? null;
+      if (cur === "want_to_go") {
+        store.removeSpotStatus(place.id);
+        applyPopupStatusStyles(wantBtn, visitedBtn, null);
+      } else {
+        store.setSpotStatus(place.id, "want_to_go");
+        applyPopupStatusStyles(wantBtn, visitedBtn, "want_to_go");
+      }
     });
 
     visitedBtn.addEventListener("click", (e) => {
       e.stopPropagation();
-      useMapStore.getState().setSpotStatus(place.id, "visited");
-      applyPopupStatusStyles(wantBtn, visitedBtn, "visited");
+      const store = useMapStore.getState();
+      const cur = store.spotStatuses[place.id] ?? null;
+      if (cur === "visited") {
+        store.removeSpotStatus(place.id);
+        applyPopupStatusStyles(wantBtn, visitedBtn, null);
+      } else {
+        store.setSpotStatus(place.id, "visited");
+        applyPopupStatusStyles(wantBtn, visitedBtn, "visited");
+      }
     });
 
     statusRow.appendChild(wantBtn);
@@ -1040,11 +1054,11 @@ export default function Home() {
             {expanded ? "リスト表示" : "リストを隠す"}
           </button>
 
-          {/* 現在地ボタン: モバイルではFABの上に配置 */}
+          {/* 現在地ボタン */}
           <button
             onClick={handleLocateMe}
             className="absolute z-10 bg-white rounded-full shadow-lg p-2.5 hover:bg-gray-50 hover:shadow-xl active:scale-95 transition-all cursor-pointer right-3 md:bottom-6"
-            style={{ bottom: 'calc(4rem + env(safe-area-inset-bottom, 0px))' }}
+            style={{ bottom: 'calc(9rem + env(safe-area-inset-bottom, 0px))' }}
             title="現在地へ移動"
           >
             <LocateFixed className="size-5 text-gray-700" />
@@ -1056,34 +1070,12 @@ export default function Home() {
               onClick={() => { setEditPlace(undefined); setSheetOpen(true); }}
               disabled={!room}
               className="md:hidden absolute right-3 z-10 bg-primary text-primary-foreground rounded-full shadow-lg p-3 hover:opacity-90 active:scale-95 transition-all disabled:opacity-40 cursor-pointer"
-              style={{ bottom: 'calc(1.125rem + env(safe-area-inset-bottom, 0px))' }}
+              style={{ bottom: 'calc(5.5rem + env(safe-area-inset-bottom, 0px))' }}
               title="場所を追加"
             >
               <Plus className="size-5" />
             </button>
           )}
-
-          {/* モバイル: スポット一覧ボタン */}
-          <div
-            className="md:hidden absolute left-1/2 -translate-x-1/2 z-10"
-            style={{ bottom: 'calc(1rem + env(safe-area-inset-bottom, 0px))' }}
-          >
-            <Button
-              className="rounded-full shadow-lg pl-4 pr-3 gap-2"
-              onClick={() => setDrawerOpen(true)}
-            >
-              <List className="size-4" />
-              スポット一覧
-              <span className="flex items-center gap-1 text-xs opacity-90 bg-white/20 rounded-full px-2 py-0.5">
-                {countLabel}
-                {activeFilterCount > 0 && (
-                  <span className="flex size-4 items-center justify-center rounded-full bg-white text-primary text-[10px] font-bold">
-                    {activeFilterCount}
-                  </span>
-                )}
-              </span>
-            </Button>
-          </div>
         </div>
 
         {/* ── PC: 右リストパネル ── */}
@@ -1226,14 +1218,15 @@ export default function Home() {
 
       </div>
 
-      {/* ── モバイル Drawer ── */}
+      {/* ── モバイル Drawer（常時ペーク表示） ── */}
       <Drawer
         open={drawerOpen}
         onOpenChange={(v) => {
-          setDrawerOpen(v);
-          if (v) setDrawerSnap(0.45);
+          // 閉じようとしたら最小スナップに戻す（完全非表示にしない）
+          if (!v) setDrawerSnap(0.13);
+          else setDrawerOpen(true);
         }}
-        snapPoints={[0.45, 1]}
+        snapPoints={[0.13, 0.45, 1]}
         activeSnapPoint={drawerSnap}
         setActiveSnapPoint={setDrawerSnap}
         modal={false}
@@ -1301,7 +1294,7 @@ export default function Home() {
             className="overflow-y-auto flex flex-col gap-3 p-4"
             style={{
               flex: 1,
-              overflowY: drawerSnap !== 0.45 ? "auto" : "hidden",
+              overflowY: drawerSnap === 1 ? "auto" : "hidden",
             }}
           >
             {filteredPlaces.length === 0 ? (
