@@ -117,13 +117,7 @@ export default function Home() {
   const [geocodedAddress, setGeocodedAddress] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [drawerSnap, setDrawerSnap] = useState<number | string | null>(0.13);
-
-  // モバイル: マウント直後にドロワーをペーク状態で表示
-  useEffect(() => {
-    const timer = setTimeout(() => setDrawerOpen(true), 100);
-    return () => clearTimeout(timer);
-  }, []);
+  const [drawerSnap, setDrawerSnap] = useState<number | string | null>(0.45);
   const [mapLoaded, setMapLoaded] = useState(false);
   const [roomDialogOpen, setRoomDialogOpen] = useState(!room);
   const [memberManageOpen, setMemberManageOpen] = useState(false);
@@ -626,7 +620,7 @@ export default function Home() {
 
   function handleSelectPlace(place: Place) {
     map.current?.flyTo({ center: [place.lng, place.lat], zoom: 15, duration: 1200 });
-    setDrawerSnap(0.13);
+    setDrawerOpen(false);
     setDetailPlace(place);
     setDetailOpen(true);
   }
@@ -1064,7 +1058,7 @@ export default function Home() {
           <button
             onClick={handleLocateMe}
             className="absolute z-10 bg-white rounded-full shadow-lg p-2.5 hover:bg-gray-50 hover:shadow-xl active:scale-95 transition-all cursor-pointer right-3 md:bottom-6"
-            style={{ bottom: 'calc(9rem + env(safe-area-inset-bottom, 0px))' }}
+            style={{ bottom: 'calc(5.5rem + env(safe-area-inset-bottom, 0px))' }}
             title="現在地へ移動"
           >
             <LocateFixed className="size-5 text-gray-700" />
@@ -1076,12 +1070,38 @@ export default function Home() {
               onClick={() => { setEditPlace(undefined); setSheetOpen(true); }}
               disabled={!room}
               className="md:hidden absolute right-3 z-10 bg-primary text-primary-foreground rounded-full shadow-lg p-3 hover:opacity-90 active:scale-95 transition-all disabled:opacity-40 cursor-pointer"
-              style={{ bottom: 'calc(5.5rem + env(safe-area-inset-bottom, 0px))' }}
+              style={{ bottom: 'calc(1.125rem + env(safe-area-inset-bottom, 0px))' }}
               title="場所を追加"
             >
               <Plus className="size-5" />
             </button>
           )}
+
+          {/* モバイル: 常時表示のペークバー（スライドアップトリガー） */}
+          <div
+            className="md:hidden absolute left-0 right-0 z-10 bg-white rounded-t-2xl shadow-[0_-4px_20px_rgba(0,0,0,0.10)] cursor-pointer"
+            style={{ bottom: 0, paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+            onClick={() => { setDrawerOpen(true); setDrawerSnap(0.45); }}
+          >
+            {/* ドラッグハンドル */}
+            <div className="flex justify-center pt-2.5 pb-1">
+              <div className="w-10 h-1 rounded-full bg-gray-300" />
+            </div>
+            {/* タイトル行 */}
+            <div className="flex items-center justify-between px-5 pb-3 pt-1">
+              <div className="flex items-center gap-2">
+                <List className="size-4 text-gray-600" />
+                <span className="text-sm font-semibold">スポット一覧</span>
+                <span className="text-xs text-muted-foreground">{countLabel}</span>
+              </div>
+              {activeFilterCount > 0 && (
+                <span className="flex items-center gap-1 text-xs text-primary font-medium">
+                  <SlidersHorizontal className="size-3" />
+                  {activeFilterCount}件絞込中
+                </span>
+              )}
+            </div>
+          </div>
         </div>
 
         {/* ── PC: 右リストパネル ── */}
@@ -1227,8 +1247,11 @@ export default function Home() {
       {/* ── モバイル Drawer（常時ペーク表示） ── */}
       <Drawer
         open={drawerOpen}
-        dismissible={false}
-        snapPoints={[0.13, 0.45, 1]}
+        onOpenChange={(v) => {
+          setDrawerOpen(v);
+          if (v) setDrawerSnap(0.45);
+        }}
+        snapPoints={[0.45, 1]}
         activeSnapPoint={drawerSnap}
         setActiveSnapPoint={setDrawerSnap}
         modal={false}
@@ -1326,7 +1349,7 @@ export default function Home() {
                 onClick={() => {
                   setEditPlace(undefined);
                   setSheetOpen(true);
-                  setDrawerSnap(0.13);
+                  setDrawerOpen(false);
                 }}
                 disabled={!room}
               >
