@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import MapboxLanguage from "@mapbox/mapbox-gl-language";
-import { LocateFixed, List, Search, Copy, Check, LogOut, SlidersHorizontal, X, Star, CheckCircle2, Utensils, Wine, Gamepad2, Landmark, Coffee, ShoppingBag, Camera, BedDouble, Waves, Plus, Shield, Lock, Unlock, Share2, Users, Crown, Eye, MapPin } from "lucide-react";
+import { LocateFixed, List, Search, Copy, Check, LogOut, SlidersHorizontal, X, Star, CheckCircle2, Utensils, Wine, Gamepad2, Landmark, Coffee, ShoppingBag, Camera, BedDouble, Waves, Plus, Shield, Lock, Unlock, Share2, Users, Crown, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -51,6 +51,20 @@ const CATEGORY_ICONS = {
   "風呂": Waves,
 } as const;
 
+// ── ポップアップのステータスボタンスタイル更新（純粋関数）────────────
+function applyPopupStatusStyles(
+  wantBtn: HTMLButtonElement,
+  visitedBtn: HTMLButtonElement,
+  status: SpotStatus | null
+) {
+  const base = "flex-1 text-[11px] rounded-md py-1 border transition-colors truncate";
+  const activeWant = `${base} bg-amber-50 text-amber-700 border-amber-300 font-semibold`;
+  const activeVisit = `${base} bg-green-50 text-green-700 border-green-300 font-semibold`;
+  const inactive = `${base} text-gray-400 border-gray-200 hover:bg-gray-50`;
+
+  wantBtn.className = status === "want_to_go" ? activeWant : inactive;
+  visitedBtn.className = status === "visited" ? activeVisit : inactive;
+}
 
 export default function Home() {
   const mapContainer = useRef<HTMLDivElement>(null);
@@ -59,6 +73,10 @@ export default function Home() {
   const markers = useRef<Map<string, mapboxgl.Marker>>(new Map());
   const previewMarkerRef = useRef<mapboxgl.Marker | null>(null);
   const popupClickRef = useRef<(place: Place) => void>(() => {});
+  // ポップアップ内のステータスボタン要素を保持（spotStatuses 変化時に DOM 更新用）
+  const popupStatusEls = useRef<
+    Map<string, { wantBtn: HTMLButtonElement; visitedBtn: HTMLButtonElement }>
+  >(new Map());
   const geoWatchRef = useRef<number | null>(null);
 
   // ── Zustand ストア ────────────────────────────────────
@@ -83,8 +101,6 @@ export default function Home() {
     setCurrentUser,
     setUserLocation,
     loadSpotStatuses,
-    setSpotStatus,
-    removeSpotStatus,
   } = useMapStore();
 
   // 権限ヘルパー
@@ -105,7 +121,6 @@ export default function Home() {
   const [mapLoaded, setMapLoaded] = useState(false);
   const [roomDialogOpen, setRoomDialogOpen] = useState(!room);
   const [memberManageOpen, setMemberManageOpen] = useState(false);
-  const [previewPlace, setPreviewPlace] = useState<Place | null>(null);
   const [urlCode, setUrlCode] = useState<string | undefined>(undefined);
 
   // URL の ?code= パラメータを検出してダイアログに渡す（room hydration より先に実行）
@@ -179,6 +194,13 @@ export default function Home() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // ── spotStatuses 変化時にポップアップ DOM を更新 ─────────
+  useEffect(() => {
+    popupStatusEls.current.forEach(({ wantBtn, visitedBtn }, placeId) => {
+      const status: SpotStatus | null = spotStatuses[placeId] ?? null;
+      applyPopupStatusStyles(wantBtn, visitedBtn, status);
+    });
+  }, [spotStatuses]);
 
   // Derived: filtered + sorted places
   const filteredPlaces = useMemo(() => {
@@ -253,37 +275,129 @@ export default function Home() {
     );
   }
 
-  // ── マーカー追加（Airbnb スタイルのピルマーカー）──────
+  // ── マーカー追加（冪等: 既存は削除してから追加）──────
   const addMarker = useCallback((place: Place) => {
     if (!map.current) return;
 
+    // 既存マーカーを除去（idempotent）
     markers.current.get(place.id)?.remove();
     markers.current.delete(place.id);
+    popupStatusEls.current.delete(place.id);
 
-    // デフォルトの Mapbox ピンにクリックハンドラを付与
-    const marker = new mapboxgl.Marker()
-      .setLngLat([place.lng, place.lat])
-      .addTo(map.current);
+    const popupEl = document.createElement("div");
+    popupEl.className =
+      "w-44 overflow-hidden cursor-pointer transition-opacity hover:opacity-90 active:opacity-75";
 
-    marker.getElement().style.cursor = "pointer";
-    marker.getElement().addEventListener("click", (e) => {
+    const imageWrap = document.createElement("div");
+    imageWrap.className =
+      "h-24 w-full overflow-hidden bg-gray-100 flex items-center justify-center";
+
+    if (place.image_urls && place.image_urls.length > 0) {
+      const img = document.createElement("img");
+      img.src = place.image_urls[0];
+      img.alt = place.name;
+      img.className = "h-full w-full object-cover";
+      imageWrap.appendChild(img);
+    } else {
+      imageWrap.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>`;
+    }
+
+    const info = document.createElement("div");
+    info.className = "p-3 flex flex-col gap-1.5";
+
+    const titleEl = document.createElement("p");
+    titleEl.className = "font-semibold text-sm truncate";
+    titleEl.textContent = place.name;
+    info.appendChild(titleEl);
+
+    if (place.categories && place.categories.length > 0) {
+      const catsRow = document.createElement("div");
+      catsRow.className = "flex gap-1 flex-wrap";
+      place.categories.slice(0, 2).forEach((cat) => {
+        const badge = document.createElement("span");
+        badge.className =
+          "inline-flex items-center rounded-full border border-gray-200 px-2 py-0.5 text-xs font-medium text-gray-600";
+        badge.textContent = cat;
+        catsRow.appendChild(badge);
+      });
+      info.appendChild(catsRow);
+    }
+
+    const budgetParts: string[] = [];
+    if (place.budget_min != null)
+      budgetParts.push(`¥${place.budget_min.toLocaleString()}`);
+    if (place.budget_max != null)
+      budgetParts.push(`¥${place.budget_max.toLocaleString()}`);
+    if (budgetParts.length > 0) {
+      const budgetEl = document.createElement("p");
+      budgetEl.className = "text-xs text-gray-400";
+      budgetEl.textContent = budgetParts.join(" 〜 ");
+      info.appendChild(budgetEl);
+    }
+
+    // ── ステータストグルボタン ───────────────────────────
+    const statusRow = document.createElement("div");
+    statusRow.className = "flex gap-1 mt-0.5";
+
+    const wantBtn = document.createElement("button");
+    wantBtn.textContent = "⭐ 行きたい";
+
+    const visitedBtn = document.createElement("button");
+    visitedBtn.textContent = "✅ 行った";
+
+    // 初期スタイル（未登録は null = 未選択）
+    const initialStatus: SpotStatus | null =
+      useMapStore.getState().spotStatuses[place.id] ?? null;
+    applyPopupStatusStyles(wantBtn, visitedBtn, initialStatus);
+
+    wantBtn.addEventListener("click", (e) => {
       e.stopPropagation();
-      if (window.innerWidth >= 768) {
-        // Desktop: 詳細を直接開く
-        popupClickRef.current(place);
-      } else {
-        // Mobile: プレビューカードを表示
-        setPreviewPlace(place);
-        map.current?.panTo([place.lng, place.lat], { duration: 400 });
-      }
+      useMapStore.getState().setSpotStatus(place.id, "want_to_go");
+      applyPopupStatusStyles(wantBtn, visitedBtn, "want_to_go");
     });
 
+    visitedBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      useMapStore.getState().setSpotStatus(place.id, "visited");
+      applyPopupStatusStyles(wantBtn, visitedBtn, "visited");
+    });
+
+    statusRow.appendChild(wantBtn);
+    statusRow.appendChild(visitedBtn);
+    info.appendChild(statusRow);
+
+    // ボタン要素を登録（Zustand 更新時に DOM 同期するため）
+    popupStatusEls.current.set(place.id, { wantBtn, visitedBtn });
+
+    popupEl.appendChild(imageWrap);
+    popupEl.appendChild(info);
+
+    let markerInstance: mapboxgl.Marker | null = null;
+    popupEl.addEventListener("click", () => {
+      markerInstance?.getPopup()?.remove();
+      popupClickRef.current(place);
+    });
+
+    const popup = new mapboxgl.Popup({
+      offset: 12,
+      closeButton: false,
+      maxWidth: "none",
+      className: "custom-popup",
+    }).setDOMContent(popupEl);
+
+    const marker = new mapboxgl.Marker()
+      .setLngLat([place.lng, place.lat])
+      .setPopup(popup)
+      .addTo(map.current);
+
+    markerInstance = marker;
     markers.current.set(place.id, marker);
   }, []);
 
   const removeMarker = useCallback((placeId: string) => {
     markers.current.get(placeId)?.remove();
     markers.current.delete(placeId);
+    popupStatusEls.current.delete(placeId);
   }, []);
 
   // addMarker/removeMarker を Realtime 内で使うためのref
@@ -312,10 +426,7 @@ export default function Home() {
     });
 
     map.current.on("click", async (e) => {
-      if (!pickingModeRef.current) {
-        setPreviewPlace(null);
-        return;
-      }
+      if (!pickingModeRef.current) return;
       const { lat, lng } = e.lngLat;
       pickingModeRef.current = false;
       setCoords({ lat, lng });
@@ -338,6 +449,7 @@ export default function Home() {
     // 既存マーカーをすべてクリア
     markers.current.forEach((m) => m.remove());
     markers.current.clear();
+    popupStatusEls.current.clear();
 
     supabase
       .from("places")
@@ -495,7 +607,6 @@ export default function Home() {
   function handleSelectPlace(place: Place) {
     map.current?.flyTo({ center: [place.lng, place.lat], zoom: 15, duration: 1200 });
     setDrawerOpen(false);
-    setPreviewPlace(null);
     setDetailPlace(place);
     setDetailOpen(true);
   }
@@ -577,6 +688,7 @@ export default function Home() {
     clearRoom();
     markers.current.forEach((m) => m.remove());
     markers.current.clear();
+    popupStatusEls.current.clear();
     setRoomDialogOpen(true);
   }
 
@@ -827,86 +939,83 @@ export default function Home() {
 
       </div>
 
+      {/* ── モバイル: ルーム情報ヘッダーバー ── */}
+      {room && (
+        <div className="md:hidden shrink-0 flex items-center justify-between px-3 py-2 bg-background border-b gap-2">
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            {myRole && (
+              <span className={`flex items-center gap-0.5 text-[10px] font-bold rounded-full px-1.5 py-0.5 shrink-0 border
+                ${myRole === "leader" ? "text-yellow-700 bg-yellow-50 border-yellow-200" :
+                  myRole === "admin"  ? "text-blue-700 bg-blue-50 border-blue-200" :
+                  myRole === "viewer" ? "text-gray-500 bg-gray-50 border-gray-200" :
+                  "text-green-700 bg-green-50 border-green-200"}`}>
+                {myRole === "leader" ? <Crown className="size-2.5" /> :
+                 myRole === "admin"  ? <Shield className="size-2.5" /> :
+                 myRole === "viewer" ? <Eye className="size-2.5" /> :
+                 <Users className="size-2.5" />}
+                {ROLE_LABELS[myRole]}
+              </span>
+            )}
+            {room.name && (
+              <span className="text-xs font-medium truncate max-w-[100px]">{room.name}</span>
+            )}
+            <span className="text-xs text-muted-foreground shrink-0">
+              コード: <span className="font-mono font-bold text-foreground tracking-wider">{room.share_code}</span>
+            </span>
+          </div>
+          <div className="flex items-center gap-0.5 shrink-0">
+            {canManageRoom && (
+              <button
+                onClick={toggleRoomOpen}
+                title={room.is_open ? "参加を締め切る" : "参加を再開する"}
+                className={`flex items-center gap-1 px-2 py-1 rounded-md text-xs transition-colors cursor-pointer ${room.is_open ? "text-green-700 hover:bg-green-50" : "text-red-600 hover:bg-red-50"}`}
+              >
+                {room.is_open ? <Unlock className="size-3.5" /> : <Lock className="size-3.5" />}
+                <span>{room.is_open ? "参加中" : "締切中"}</span>
+              </button>
+            )}
+            {canManageMembers && (
+              <button
+                onClick={() => setMemberManageOpen(true)}
+                title="メンバー管理"
+                className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+              >
+                <Users className="size-3.5" />
+              </button>
+            )}
+            <button
+              onClick={copyRoomCode}
+              title="コードをコピー"
+              className="flex items-center gap-1 px-2 py-1 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+            >
+              {codeCopied ? <Check className="size-3.5 text-green-600" /> : <Copy className="size-3.5" />}
+              <span className="text-xs">{codeCopied ? "コピー済" : "コピー"}</span>
+            </button>
+            <button
+              onClick={shareRoomUrl}
+              title="シェア"
+              className="flex items-center gap-1 px-2 py-1 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+            >
+              <Share2 className="size-3.5" />
+              <span className="text-xs">シェア</span>
+            </button>
+            <button
+              onClick={handleLeaveRoom}
+              title="ルームを変更"
+              className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+            >
+              <LogOut className="size-3.5" />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* ── メインコンテンツ（マップ＋リスト） ── */}
       <div className="flex flex-1 overflow-hidden">
 
         {/* ── マップ（PC: 左 flex-1、モバイル: 全画面） ── */}
         <div className="relative flex-1 overflow-hidden">
           <div ref={mapContainer} className="w-full h-full" />
-
-          {/* ── モバイル: フローティングルーム情報ピル ── */}
-          {room && (
-            <div
-              className="md:hidden absolute left-3 right-3 z-10 pointer-events-none"
-              style={{ top: "max(0.75rem, env(safe-area-inset-top, 0px))" }}
-            >
-              <div className="flex items-center gap-2 bg-white/95 backdrop-blur-sm rounded-2xl shadow-lg px-3 py-2 pointer-events-auto">
-                {/* 役職バッジ */}
-                {myRole && (
-                  <span className={`flex items-center gap-0.5 text-[10px] font-bold rounded-full px-1.5 py-0.5 shrink-0 border
-                    ${myRole === "leader" ? "text-yellow-700 bg-yellow-50 border-yellow-200" :
-                      myRole === "admin"  ? "text-blue-700 bg-blue-50 border-blue-200" :
-                      myRole === "viewer" ? "text-gray-500 bg-gray-50 border-gray-200" :
-                      "text-green-700 bg-green-50 border-green-200"}`}>
-                    {myRole === "leader" ? <Crown className="size-2.5" /> :
-                     myRole === "admin"  ? <Shield className="size-2.5" /> :
-                     myRole === "viewer" ? <Eye className="size-2.5" /> :
-                     <Users className="size-2.5" />}
-                    {ROLE_LABELS[myRole]}
-                  </span>
-                )}
-                {/* ルーム名 + コード */}
-                <div className="flex-1 min-w-0">
-                  {room.name && (
-                    <p className="text-xs font-semibold truncate leading-none">{room.name}</p>
-                  )}
-                  <p className="text-[10px] text-gray-400 font-mono leading-tight">{room.share_code}</p>
-                </div>
-                {/* アクションボタン群 */}
-                <div className="flex items-center gap-0.5 shrink-0">
-                  {canManageRoom && (
-                    <button
-                      onClick={toggleRoomOpen}
-                      title={room.is_open ? "参加を締め切る" : "参加を再開する"}
-                      className={`p-1.5 rounded-full transition-colors cursor-pointer ${room.is_open ? "text-green-600 hover:bg-green-50" : "text-red-500 hover:bg-red-50"}`}
-                    >
-                      {room.is_open ? <Unlock className="size-3.5" /> : <Lock className="size-3.5" />}
-                    </button>
-                  )}
-                  {canManageMembers && (
-                    <button
-                      onClick={() => setMemberManageOpen(true)}
-                      title="メンバー管理"
-                      className="p-1.5 rounded-full text-gray-500 hover:text-gray-800 hover:bg-gray-100 transition-colors cursor-pointer"
-                    >
-                      <Users className="size-3.5" />
-                    </button>
-                  )}
-                  <button
-                    onClick={copyRoomCode}
-                    title="コードをコピー"
-                    className="p-1.5 rounded-full text-gray-500 hover:text-gray-800 hover:bg-gray-100 transition-colors cursor-pointer"
-                  >
-                    {codeCopied ? <Check className="size-3.5 text-green-600" /> : <Copy className="size-3.5" />}
-                  </button>
-                  <button
-                    onClick={shareRoomUrl}
-                    title="シェア"
-                    className="p-1.5 rounded-full text-gray-500 hover:text-gray-800 hover:bg-gray-100 transition-colors cursor-pointer"
-                  >
-                    <Share2 className="size-3.5" />
-                  </button>
-                  <button
-                    onClick={handleLeaveRoom}
-                    title="ルームを変更"
-                    className="p-1.5 rounded-full text-gray-500 hover:text-gray-800 hover:bg-gray-100 transition-colors cursor-pointer"
-                  >
-                    <LogOut className="size-3.5" />
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
 
           {pickingMode && (
             <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 bg-white rounded-full shadow-lg px-5 py-2.5 flex items-center gap-3 text-sm font-medium whitespace-nowrap">
@@ -920,86 +1029,6 @@ export default function Home() {
             </div>
           )}
 
-          {/* ── モバイル: ピンタップ時のプレビューカード ── */}
-          {previewPlace && (
-            <div
-              className="md:hidden absolute left-3 right-3 z-20 animate-in slide-in-from-bottom-4 duration-300"
-              style={{ bottom: "calc(5.5rem + env(safe-area-inset-bottom, 0px))" }}
-            >
-              <div
-                className="bg-white rounded-2xl shadow-2xl overflow-hidden active:scale-[0.98] transition-transform cursor-pointer"
-                onClick={() => handleSelectPlace(previewPlace)}
-              >
-                <div className="flex gap-3 p-3">
-                  {/* サムネイル */}
-                  <div className="w-20 h-20 rounded-xl overflow-hidden bg-gray-100 shrink-0 flex items-center justify-center">
-                    {previewPlace.image_urls && previewPlace.image_urls.length > 0 ? (
-                      <img
-                        src={previewPlace.image_urls[0]}
-                        alt={previewPlace.name}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <MapPin className="size-6 text-gray-300" />
-                    )}
-                  </div>
-                  {/* 情報 */}
-                  <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-sm truncate">{previewPlace.name}</p>
-                    {previewPlace.categories && previewPlace.categories.length > 0 && (
-                      <p className="text-[11px] text-gray-500 mt-0.5">
-                        {previewPlace.categories.slice(0, 2).join(" · ")}
-                      </p>
-                    )}
-                    {distanceMap.get(previewPlace.id) && (
-                      <p className="text-[11px] text-gray-400 mt-0.5">{distanceMap.get(previewPlace.id)}</p>
-                    )}
-                    <p className="text-[11px] text-primary font-medium mt-1">詳細を見る →</p>
-                  </div>
-                  {/* 閉じるボタン */}
-                  <button
-                    onClick={(e) => { e.stopPropagation(); setPreviewPlace(null); }}
-                    className="p-1 rounded-full hover:bg-gray-100 text-gray-400 shrink-0 self-start -mt-0.5 -mr-0.5"
-                  >
-                    <X className="size-3.5" />
-                  </button>
-                </div>
-                {/* ステータスボタン */}
-                <div className="flex gap-2 px-3 pb-3">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (spotStatuses[previewPlace.id] === "want_to_go") removeSpotStatus(previewPlace.id);
-                      else setSpotStatus(previewPlace.id, "want_to_go");
-                    }}
-                    className={cn(
-                      "flex-1 text-[11px] py-1.5 rounded-lg border font-medium transition-colors",
-                      spotStatuses[previewPlace.id] === "want_to_go"
-                        ? "bg-amber-50 text-amber-700 border-amber-200"
-                        : "text-gray-400 border-gray-200 hover:bg-gray-50"
-                    )}
-                  >
-                    ⭐ 行きたい
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (spotStatuses[previewPlace.id] === "visited") removeSpotStatus(previewPlace.id);
-                      else setSpotStatus(previewPlace.id, "visited");
-                    }}
-                    className={cn(
-                      "flex-1 text-[11px] py-1.5 rounded-lg border font-medium transition-colors",
-                      spotStatuses[previewPlace.id] === "visited"
-                        ? "bg-green-50 text-green-700 border-green-200"
-                        : "text-gray-400 border-gray-200 hover:bg-gray-50"
-                    )}
-                  >
-                    ✅ 行った
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
 
           {/* PC: リスト切替ボタン */}
           <button
@@ -1210,33 +1239,23 @@ export default function Home() {
         modal={false}
       >
         <DrawerContent className="flex flex-col md:hidden fixed">
-          <DrawerHeader className="pb-2 text-left">
+          <DrawerHeader className="pb-0 text-left">
             <div className="flex items-center justify-between">
-              <div>
-                <DrawerTitle className="text-base font-bold">スポット一覧</DrawerTitle>
-                <p className="text-xs text-muted-foreground mt-0.5">{countLabel}</p>
-              </div>
-              <div className="flex items-center gap-2">
-                {activeFilterCount > 0 && (
-                  <button
-                    onClick={clearAllFilters}
-                    className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer bg-muted rounded-full px-2.5 py-1"
-                  >
-                    <X className="size-3" />
-                    クリア({activeFilterCount})
-                  </button>
-                )}
-                {canAdd && (
-                  <button
-                    onClick={() => { setDrawerOpen(false); setEditPlace(undefined); setSheetOpen(true); }}
-                    disabled={!room}
-                    className="flex items-center gap-1.5 bg-primary text-primary-foreground rounded-full px-3 py-1.5 text-xs font-medium shadow-sm hover:opacity-90 active:scale-95 transition-all disabled:opacity-40 cursor-pointer"
-                  >
-                    <Plus className="size-3.5" />
-                    追加
-                  </button>
-                )}
-              </div>
+              <DrawerTitle className="text-sm">
+                スポット一覧
+                <span className="ml-2 text-muted-foreground font-normal">
+                  {countLabel}
+                </span>
+              </DrawerTitle>
+              {activeFilterCount > 0 && (
+                <button
+                  onClick={clearAllFilters}
+                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer bg-muted rounded-full px-2 py-0.5"
+                >
+                  <X className="size-3" />
+                  フィルター({activeFilterCount})クリア
+                </button>
+              )}
             </div>
           </DrawerHeader>
 
@@ -1305,7 +1324,22 @@ export default function Home() {
             )}
           </div>
 
-          <DrawerFooter className="pt-0" style={{ paddingBottom: 'max(1rem, calc(env(safe-area-inset-bottom, 0px) + 0.5rem))' }} />
+          {canAdd && (
+            <DrawerFooter className="pt-0" style={{ paddingBottom: 'max(1rem, calc(env(safe-area-inset-bottom, 0px) + 0.5rem))' }}>
+              <Button
+                className="w-full rounded-full font-medium gap-2"
+                onClick={() => {
+                  setEditPlace(undefined);
+                  setSheetOpen(true);
+                  setDrawerOpen(false);
+                }}
+                disabled={!room}
+              >
+                <Plus className="size-4" />
+                スポットを追加する
+              </Button>
+            </DrawerFooter>
+          )}
         </DrawerContent>
       </Drawer>
 
