@@ -153,6 +153,8 @@ export function RoomJoinDialog({
     setCreatedCode(null);
     setUseCustomCode(false);
     setCustomCode("");
+    setRoomName("");
+    setShareCode("");
   }
 
   return (

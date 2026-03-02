@@ -22,7 +22,7 @@ import { PlaceDetailSheet } from "@/components/PlaceDetailSheet";
 import { PlaceCard } from "@/components/PlaceCard";
 import { RoomJoinDialog } from "@/components/RoomJoinDialog";
 import { supabase, type Place, type Room, type SpotStatus } from "@/lib/supabase";
-import { useMapStore, type MapBounds } from "@/store/useMapStore";
+import { useMapStore } from "@/store/useMapStore";
 import { reverseGeocode } from "@/lib/geocoding";
 import { PRESET_CATEGORIES } from "@/lib/constants";
 import { cn } from "@/lib/utils";
@@ -78,7 +78,6 @@ export default function Home() {
     isRoomAdmin,
     spotStatuses,
     userLocation,
-    mapBounds,
     setRoom,
     clearRoom,
     setIsRoomAdmin,
@@ -89,10 +88,7 @@ export default function Home() {
     setCurrentUser,
     setUserLocation,
     loadSpotStatuses,
-    setMapBounds,
   } = useMapStore();
-
-  const filteredPlacesRef = useRef<Place[]>([]);
 
   const [sheetOpen, setSheetOpen] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
@@ -232,7 +228,6 @@ export default function Home() {
 
   // filteredPlaces が変わったらマーカー表示/非表示を更新
   useEffect(() => {
-    filteredPlacesRef.current = filteredPlaces;
     const filteredIds = new Set(filteredPlaces.map((p) => p.id));
     markers.current.forEach((marker, id) => {
       marker.getElement().style.display = filteredIds.has(id) ? "" : "none";
@@ -393,14 +388,6 @@ export default function Home() {
 
     map.current.on("load", () => {
       setMapLoaded(true);
-      const b = map.current!.getBounds();
-      if (b) setMapBounds({ north: b.getNorth(), south: b.getSouth(), east: b.getEast(), west: b.getWest() });
-    });
-
-    map.current.on("moveend", () => {
-      if (!map.current) return;
-      const b = map.current.getBounds();
-      if (b) setMapBounds({ north: b.getNorth(), south: b.getSouth(), east: b.getEast(), west: b.getWest() });
     });
 
     map.current.on("click", async (e) => {
@@ -655,7 +642,11 @@ export default function Home() {
   async function toggleRoomOpen() {
     if (!room) return;
     const next = !room.is_open;
-    await supabase.from("rooms").update({ is_open: next }).eq("id", room.id);
+    const { error } = await supabase.from("rooms").update({ is_open: next }).eq("id", room.id);
+    if (error) {
+      console.error("Failed to update room:", error);
+      return;
+    }
     setRoom({ ...room, is_open: next });
   }
 
@@ -666,6 +657,7 @@ export default function Home() {
 
   // アクティブフィルター数（バッジ表示用）
   const activeFilterCount = [
+    filterCategories.length > 0,
     !!filterBudgetMin,
     !!filterBudgetMax,
     filterOpenNow,
@@ -895,7 +887,7 @@ export default function Home() {
             )}
             <button
               onClick={copyRoomCode}
-              title="URLをコピー"
+              title="コードをコピー"
               className="flex items-center gap-1 px-2 py-1 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
             >
               {codeCopied ? <Check className="size-3.5 text-green-600" /> : <Copy className="size-3.5" />}
@@ -1050,7 +1042,7 @@ export default function Home() {
                   )}
                   <button
                     onClick={copyRoomCode}
-                    title="URLをコピー"
+                    title="コードをコピー"
                     className="p-1.5 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground cursor-pointer"
                   >
                     {codeCopied ? <Check className="size-3.5 text-green-600" /> : <Copy className="size-3.5" />}

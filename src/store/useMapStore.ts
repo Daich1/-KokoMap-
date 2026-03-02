@@ -21,7 +21,6 @@ interface MapStore {
   isRoomAdmin: boolean;
   spotStatuses: Record<string, SpotStatus>; // place_id → status
   userLocation: { lat: number; lng: number } | null;
-  mapBounds: MapBounds | null;
 
   setRoom: (room: Room) => void;
   clearRoom: () => void;
@@ -36,7 +35,6 @@ interface MapStore {
   removeSpotStatus: (placeId: string) => void;
   setUserLocation: (loc: { lat: number; lng: number } | null) => void;
   loadSpotStatuses: (userId: string) => Promise<void>;
-  setMapBounds: (bounds: MapBounds | null) => void;
 }
 
 function generateId() {
@@ -52,7 +50,6 @@ export const useMapStore = create<MapStore>()(
       isRoomAdmin: false,
       spotStatuses: {},
       userLocation: null,
-      mapBounds: null,
 
       setRoom: (room) => set({ room }),
       clearRoom: () => set({ room: null, places: [], isRoomAdmin: false }),
@@ -121,7 +118,6 @@ export const useMapStore = create<MapStore>()(
       },
 
       setUserLocation: (loc) => set({ userLocation: loc }),
-      setMapBounds: (bounds) => set({ mapBounds: bounds }),
 
       loadSpotStatuses: async (userId) => {
         const { data, error } = await supabase

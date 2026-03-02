@@ -328,7 +328,7 @@ export function PlaceDetailSheet({
           <AlertDialogHeader>
             <AlertDialogTitle>スポットを削除しますか？</AlertDialogTitle>
             <AlertDialogDescription>
-              「{place.name}」を削除します。削除後も管理者が復元できます。
+              「{place.name}」を削除します。この操作は取り消せません。
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
