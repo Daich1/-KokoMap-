@@ -1,0 +1,4 @@
+Project uses Next.js 15 App Router + Tailwind + Supabase.
+Folder structure: /app, /components, /lib, /hooks.
+Naming: kebab-case for files, PascalCase for components.
+Always use shadcn/ui components when UI needed.

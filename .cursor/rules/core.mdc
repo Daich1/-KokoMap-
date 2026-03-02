@@ -1,0 +1,6 @@
+- Follow SOLID, DRY, KISS principles strictly.
+- Use TypeScript best practices: strict typing, no any.
+- Prefer functional components in React/Next.js.
+- Always add JSDoc comments for functions.
+- Test-first mindset: suggest tests before implementation if missing.
+- Never hallucinate APIs or packages; reference existing ones.

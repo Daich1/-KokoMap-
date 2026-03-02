@@ -1,0 +1,1246 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>minimal-map — NOCTUA redesign preview</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,300&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+/* ─── Reset ─── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* ─── Tokens ─── */
+:root {
+  --bg:          #06090f;
+  --surface:     #0d1117;
+  --surface2:    #131921;
+  --glass:       rgba(13,17,23,0.72);
+  --glass-border: rgba(255,255,255,0.07);
+  --text:        #e8eaf0;
+  --text-dim:    #7a8091;
+  --text-dimmer: #3f4455;
+  --amber:       #f59e0b;
+  --amber-dim:   rgba(245,158,11,0.12);
+  --teal:        #2dd4bf;
+  --teal-dim:    rgba(45,212,191,0.12);
+  --crimson:     #f43f5e;
+  --crimson-dim: rgba(244,63,94,0.12);
+  --indigo:      #818cf8;
+  --indigo-dim:  rgba(129,140,248,0.12);
+  --green:       #4ade80;
+  --border:      rgba(255,255,255,0.06);
+  --radius-sm:   6px;
+  --radius:      10px;
+  --radius-lg:   16px;
+  --radius-xl:   22px;
+}
+
+body {
+  font-family: 'DM Sans', system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  height: 100vh;
+  overflow: hidden;
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ─── Scrollbar ─── */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+/* ─── Layout ─── */
+.layout {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+/* ─── Top Bar ─── */
+.topbar {
+  flex-shrink: 0;
+  height: 52px;
+  background: var(--glass);
+  backdrop-filter: blur(20px) saturate(1.4);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+  border-bottom: 1px solid var(--glass-border);
+  display: flex;
+  align-items: center;
+  position: relative;
+  z-index: 20;
+}
+
+.topbar-cats {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 16px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  flex: 1;
+  height: 100%;
+}
+.topbar-cats::-webkit-scrollbar { display: none; }
+
+.cat-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 14px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 500;
+  border: 1px solid transparent;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.18s ease;
+  color: var(--text-dim);
+  letter-spacing: 0.01em;
+}
+.cat-pill:hover {
+  border-color: var(--border);
+  color: var(--text);
+  background: rgba(255,255,255,0.04);
+}
+.cat-pill.active {
+  background: var(--amber);
+  color: #000;
+  font-weight: 600;
+  border-color: var(--amber);
+}
+.cat-pill svg { width: 14px; height: 14px; }
+
+.topbar-right {
+  display: flex;
+  align-items: center;
+  padding-right: 12px;
+  padding-left: 8px;
+  gap: 6px;
+  height: 100%;
+  background: linear-gradient(to right, transparent, var(--glass) 40%);
+  position: absolute;
+  right: 420px;
+  top: 0;
+}
+
+.filter-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 14px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 500;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  cursor: pointer;
+  background: rgba(255,255,255,0.03);
+  transition: all 0.18s;
+  white-space: nowrap;
+}
+.filter-btn:hover { border-color: rgba(255,255,255,0.18); color: var(--text); }
+.filter-btn svg { width: 14px; height: 14px; }
+
+/* side spacer */
+.topbar-spacer {
+  width: 420px;
+  flex-shrink: 0;
+  border-left: 1px solid var(--glass-border);
+  height: 100%;
+}
+
+/* ─── Main ─── */
+.main {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* ─── Map area ─── */
+.map-area {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  background: var(--bg);
+}
+
+/* Fake map with tiled grid pattern */
+.map-bg {
+  position: absolute;
+  inset: 0;
+  background:
+    /* subtle dark grid lines */
+    linear-gradient(rgba(255,255,255,0.015) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.015) 1px, transparent 1px),
+    /* base dark map color */
+    linear-gradient(135deg, #060a12 0%, #0a1020 40%, #080d18 100%);
+  background-size: 48px 48px, 48px 48px, 100% 100%;
+}
+
+/* Faint "map roads" illustration */
+.map-roads {
+  position: absolute;
+  inset: 0;
+  opacity: 0.18;
+  background-image:
+    /* horizontal "roads" */
+    linear-gradient(transparent 38%, rgba(255,255,255,0.06) 38%, rgba(255,255,255,0.06) 39%, transparent 39%),
+    linear-gradient(transparent 62%, rgba(255,255,255,0.04) 62%, rgba(255,255,255,0.04) 63%, transparent 63%),
+    /* vertical "roads" */
+    linear-gradient(90deg, transparent 28%, rgba(255,255,255,0.06) 28%, rgba(255,255,255,0.06) 29%, transparent 29%),
+    linear-gradient(90deg, transparent 55%, rgba(255,255,255,0.04) 55%, rgba(255,255,255,0.04) 56%, transparent 56%),
+    linear-gradient(90deg, transparent 74%, rgba(255,255,255,0.04) 74%, rgba(255,255,255,0.04) 75%, transparent 75%);
+  background-size: 100% 100%;
+  pointer-events: none;
+}
+
+/* Ambient glow blobs */
+.map-glow {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  filter: blur(80px);
+}
+.glow-amber {
+  width: 400px; height: 400px;
+  background: rgba(245,158,11,0.06);
+  top: 15%; left: 20%;
+}
+.glow-teal {
+  width: 500px; height: 300px;
+  background: rgba(45,212,191,0.04);
+  bottom: 20%; right: 15%;
+}
+.glow-indigo {
+  width: 300px; height: 300px;
+  background: rgba(129,140,248,0.05);
+  top: 40%; left: 40%;
+}
+
+/* ─── Map Markers ─── */
+.marker {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  cursor: pointer;
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+  filter: drop-shadow(0 4px 12px rgba(0,0,0,0.5));
+}
+.marker:hover { transform: translate(-50%, -100%) scale(1.12); }
+
+.marker-pin {
+  width: 32px;
+  height: 32px;
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid rgba(255,255,255,0.2);
+}
+.marker-pin.amber { background: linear-gradient(135deg, #f59e0b, #d97706); }
+.marker-pin.teal  { background: linear-gradient(135deg, #2dd4bf, #0d9488); }
+.marker-pin.crimson { background: linear-gradient(135deg, #f43f5e, #be123c); }
+.marker-pin.indigo { background: linear-gradient(135deg, #818cf8, #6366f1); }
+
+.marker-icon {
+  transform: rotate(45deg);
+  font-size: 13px;
+  line-height: 1;
+}
+
+.marker-cluster {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  width: 40px; height: 40px;
+  border-radius: 50%;
+  background: rgba(13,17,23,0.85);
+  backdrop-filter: blur(8px);
+  border: 2px solid var(--amber);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--amber);
+  cursor: pointer;
+  box-shadow: 0 0 0 4px var(--amber-dim), 0 4px 16px rgba(0,0,0,0.4);
+  transition: transform 0.2s;
+  font-family: 'JetBrains Mono', monospace;
+}
+.marker-cluster:hover { transform: translate(-50%, -50%) scale(1.1); }
+
+/* Marker positions */
+.m1 { top: 32%; left: 22%; }
+.m2 { top: 55%; left: 38%; }
+.m3 { top: 28%; left: 52%; }
+.m4 { top: 48%; left: 60%; }
+.m5 { top: 68%; left: 28%; }
+.m6 { top: 38%; left: 70%; }
+.mc1 { top: 25%; left: 45%; }
+.mc2 { top: 72%; left: 55%; }
+
+/* ─── Floating UI controls ─── */
+.map-controls {
+  position: absolute;
+  right: 16px;
+  bottom: 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 10;
+}
+.map-ctrl-btn {
+  width: 40px; height: 40px;
+  border-radius: var(--radius);
+  background: var(--glass);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--glass-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.18s;
+  color: var(--text-dim);
+}
+.map-ctrl-btn:hover {
+  border-color: rgba(255,255,255,0.18);
+  color: var(--text);
+  background: rgba(13,17,23,0.9);
+}
+.map-ctrl-btn svg { width: 18px; height: 18px; }
+
+/* Search area pill */
+.search-area-pill {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  background: var(--glass);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--glass-border);
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 18px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.18s;
+  white-space: nowrap;
+  color: var(--text-dim);
+}
+.search-area-pill:hover { border-color: rgba(255,255,255,0.18); color: var(--text); }
+.search-area-pill svg { width: 14px; height: 14px; }
+
+/* ─── Popup ─── */
+.map-popup {
+  position: absolute;
+  top: 22%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 196px;
+  background: var(--glass);
+  backdrop-filter: blur(20px);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.04);
+  animation: popup-in 0.24s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+@keyframes popup-in {
+  from { opacity: 0; transform: translateX(-50%) scale(0.88) translateY(8px); }
+  to   { opacity: 1; transform: translateX(-50%) scale(1)    translateY(0); }
+}
+.popup-img {
+  width: 100%; height: 90px;
+  object-fit: cover;
+  background: linear-gradient(135deg, #1a2035, #0d1830);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  position: relative;
+  overflow: hidden;
+}
+.popup-img::after {
+  content: '';
+  position: absolute;
+  inset-x: 0; bottom: 0; height: 32px;
+  background: linear-gradient(to top, var(--glass), transparent);
+}
+.popup-img-placeholder {
+  width: 100%; height: 90px;
+  background: linear-gradient(135deg, #131a2c 0%, #0e1628 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  opacity: 0.4;
+}
+.popup-body {
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.popup-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.popup-cat {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  background: var(--amber-dim);
+  color: var(--amber);
+  width: fit-content;
+}
+.popup-budget {
+  font-size: 11px;
+  color: var(--text-dim);
+  font-family: 'JetBrains Mono', monospace;
+}
+.popup-actions {
+  display: flex;
+  gap: 5px;
+  margin-top: 2px;
+}
+.popup-action-btn {
+  flex: 1;
+  padding: 4px 0;
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  font-weight: 500;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: all 0.15s;
+  text-align: center;
+}
+.popup-action-btn.active-want {
+  background: var(--amber-dim);
+  border-color: rgba(245,158,11,0.3);
+  color: var(--amber);
+}
+.popup-action-btn.active-visit {
+  background: var(--teal-dim);
+  border-color: rgba(45,212,191,0.3);
+  color: var(--teal);
+}
+
+/* ─── Sidebar ─── */
+.sidebar {
+  width: 420px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border-left: 1px solid var(--glass-border);
+  overflow: hidden;
+  position: relative;
+}
+
+/* Sidebar ambient glow */
+.sidebar::before {
+  content: '';
+  position: absolute;
+  top: -100px;
+  right: -60px;
+  width: 300px; height: 300px;
+  background: radial-gradient(circle, rgba(245,158,11,0.04) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ─── Sidebar Header ─── */
+.sidebar-header {
+  flex-shrink: 0;
+  position: relative;
+  z-index: 1;
+}
+
+.sidebar-titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.sidebar-title {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.sidebar-title-main {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: 0.01em;
+  line-height: 1.2;
+}
+
+.sidebar-title-sub {
+  font-size: 12px;
+  color: var(--text-dim);
+  font-weight: 400;
+  letter-spacing: 0.02em;
+}
+
+.count-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--amber-dim);
+  border: 1px solid rgba(245,158,11,0.2);
+  border-radius: 999px;
+  padding: 2px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--amber);
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.add-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 16px;
+  border-radius: 999px;
+  background: var(--amber);
+  color: #000;
+  font-size: 13px;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  transition: all 0.18s;
+  letter-spacing: 0.01em;
+}
+.add-btn:hover {
+  background: #fbbf24;
+  box-shadow: 0 0 20px rgba(245,158,11,0.3);
+  transform: translateY(-1px);
+}
+.add-btn svg { width: 14px; height: 14px; }
+
+/* ─── Room info ─── */
+.room-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 20px;
+  background: rgba(255,255,255,0.02);
+  border-bottom: 1px solid var(--border);
+}
+.room-info {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.room-name {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text);
+}
+.room-code-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+.room-code {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--indigo);
+  letter-spacing: 0.08em;
+}
+.room-actions {
+  display: flex;
+  gap: 4px;
+}
+.room-btn {
+  width: 28px; height: 28px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: transparent;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  color: var(--text-dim);
+  transition: all 0.15s;
+}
+.room-btn:hover { border-color: rgba(255,255,255,0.18); color: var(--text); }
+.room-btn svg { width: 13px; height: 13px; }
+
+/* ─── Search bar ─── */
+.search-bar {
+  display: flex;
+  align-items: center;
+  padding: 10px 16px;
+  gap: 8px;
+  border-bottom: 1px solid var(--border);
+}
+.search-input-wrap {
+  flex: 1;
+  position: relative;
+}
+.search-input-icon {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-dimmer);
+  width: 14px; height: 14px;
+}
+.search-input {
+  width: 100%;
+  height: 34px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0 10px 0 32px;
+  font-size: 13px;
+  color: var(--text);
+  font-family: 'DM Sans', sans-serif;
+  outline: none;
+  transition: all 0.18s;
+}
+.search-input::placeholder { color: var(--text-dimmer); }
+.search-input:focus {
+  border-color: rgba(245,158,11,0.4);
+  background: rgba(245,158,11,0.03);
+}
+
+/* ─── Sidebar list ─── */
+.sidebar-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  position: relative;
+  z-index: 1;
+}
+
+/* ─── Place Card ─── */
+.place-card {
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  overflow: hidden;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+}
+.place-card::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 3px;
+  background: transparent;
+  transition: background 0.2s;
+  z-index: 1;
+}
+.place-card:hover {
+  border-color: rgba(255,255,255,0.12);
+  transform: translateY(-1px);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+}
+.place-card:hover::before {
+  background: var(--amber);
+}
+.place-card.status-want::before { background: var(--amber); }
+.place-card.status-visited::before { background: var(--teal); }
+
+.card-img {
+  width: 100%;
+  height: 130px;
+  object-fit: cover;
+  background: linear-gradient(135deg, #131a2c 0%, #0e1628 100%);
+  display: block;
+  position: relative;
+  overflow: hidden;
+}
+.card-img-placeholder {
+  width: 100%;
+  height: 130px;
+  background: linear-gradient(135deg, #131a2c 0%, #0e1628 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 32px;
+  opacity: 0.3;
+}
+.card-img-wrap {
+  position: relative;
+  overflow: hidden;
+}
+.card-img-wrap img {
+  width: 100%;
+  height: 130px;
+  object-fit: cover;
+  display: block;
+  transition: transform 0.4s ease;
+}
+.place-card:hover .card-img-wrap img { transform: scale(1.04); }
+
+.card-img-overlay {
+  position: absolute;
+  inset-x: 0; bottom: 0; height: 48px;
+  background: linear-gradient(to top, rgba(13,17,23,0.8), transparent);
+  pointer-events: none;
+}
+
+.card-open-badge {
+  position: absolute;
+  top: 8px; left: 8px;
+  background: rgba(74,222,128,0.15);
+  border: 1px solid rgba(74,222,128,0.3);
+  color: var(--green);
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 4px;
+  letter-spacing: 0.04em;
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.card-open-dot {
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: var(--green);
+  animation: pulse-dot 1.8s ease-in-out infinite;
+}
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.card-body {
+  padding: 11px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.card-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  letter-spacing: 0.005em;
+}
+
+.card-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.card-cats {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.card-cat {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: rgba(255,255,255,0.05);
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+}
+
+.card-distance {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  color: var(--teal);
+  font-weight: 500;
+  white-space: nowrap;
+  font-family: 'JetBrains Mono', monospace;
+}
+.card-distance svg { width: 11px; height: 11px; }
+
+.card-budget {
+  font-size: 12px;
+  color: var(--text-dim);
+  font-family: 'JetBrains Mono', monospace;
+  letter-spacing: 0.02em;
+}
+
+.card-status-row {
+  display: flex;
+  gap: 5px;
+}
+
+.status-btn {
+  flex: 1;
+  padding: 5px 0;
+  border-radius: var(--radius-sm);
+  font-size: 11.5px;
+  font-weight: 500;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: all 0.15s;
+  text-align: center;
+  letter-spacing: 0.01em;
+}
+.status-btn:hover { border-color: rgba(255,255,255,0.15); color: var(--text); }
+.status-btn.active-want {
+  background: var(--amber-dim);
+  border-color: rgba(245,158,11,0.35);
+  color: var(--amber);
+  font-weight: 600;
+}
+.status-btn.active-visited {
+  background: var(--teal-dim);
+  border-color: rgba(45,212,191,0.35);
+  color: var(--teal);
+  font-weight: 600;
+}
+
+.card-creator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-top: 7px;
+  border-top: 1px solid var(--border);
+}
+.creator-avatar {
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--indigo), #6366f1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  font-weight: 700;
+  color: white;
+  flex-shrink: 0;
+}
+.creator-name {
+  font-size: 11px;
+  color: var(--text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ─── Empty state ─── */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 200px;
+  gap: 8px;
+  color: var(--text-dimmer);
+}
+.empty-icon { font-size: 32px; opacity: 0.4; }
+.empty-text { font-size: 13px; font-style: italic; }
+
+/* ─── Section heading inside list ─── */
+.list-section-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-dimmer);
+  padding: 4px 4px 2px;
+}
+
+/* ─── Scrollbar for sidebar ─── */
+.sidebar-list::-webkit-scrollbar { width: 3px; }
+.sidebar-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+/* ─── Entrance animations ─── */
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.place-card { animation: fade-up 0.35s ease both; }
+.place-card:nth-child(1) { animation-delay: 0.05s; }
+.place-card:nth-child(2) { animation-delay: 0.10s; }
+.place-card:nth-child(3) { animation-delay: 0.15s; }
+.place-card:nth-child(4) { animation-delay: 0.20s; }
+.place-card:nth-child(5) { animation-delay: 0.25s; }
+
+/* ─── Tooltip note ─── */
+.design-note {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(13,17,23,0.9);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--glass-border);
+  border-radius: 999px;
+  padding: 8px 20px;
+  font-size: 12px;
+  color: var(--text-dim);
+  z-index: 100;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  animation: fade-up 0.5s 0.8s ease both;
+}
+.design-note strong { color: var(--amber); font-weight: 600; }
+
+/* ─── SVG icons (inline) ─── */
+svg { display: inline-block; vertical-align: middle; }
+</style>
+</head>
+<body>
+<div class="layout">
+
+  <!-- ─── Top Category Bar ─── -->
+  <div class="topbar">
+    <div class="topbar-cats">
+      <button class="cat-pill active">すべて</button>
+
+      <button class="cat-pill">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l19-9-9 19-2-8-8-2z"/></svg>
+        食事
+      </button>
+      <button class="cat-pill">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 22h8M7 10h10l1 7H6l1-7ZM12 10V3M9 3h6"/></svg>
+        飲み
+      </button>
+      <button class="cat-pill">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="m8 21 4-4 4 4"/></svg>
+        娯楽
+      </button>
+      <button class="cat-pill">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        観光
+      </button>
+      <button class="cat-pill">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 8h1a4 4 0 1 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4V8z"/><line x1="6" y1="2" x2="6" y2="4"/><line x1="10" y1="2" x2="10" y2="4"/><line x1="14" y1="2" x2="14" y2="4"/></svg>
+        カフェ・休憩
+      </button>
+      <button class="cat-pill">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+        買い物
+      </button>
+      <button class="cat-pill">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>
+        映え・絶景
+      </button>
+      <button class="cat-pill">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4v16"/><path d="M2 8h18a2 2 0 0 1 0 4H7a2 2 0 0 0 0 4h15"/><path d="M2 20h20"/></svg>
+        宿
+      </button>
+      <button class="cat-pill">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12h20M2 12c0 4.4 3.6 8 8 8h4c4.4 0 8-3.6 8-8M2 12c0-4.4 3.6-8 8-8h4c4.4 0 8 3.6 8 8M12 2v4M12 18v4"/></svg>
+        風呂
+      </button>
+    </div>
+
+    <div class="topbar-right">
+      <button class="filter-btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="11" y1="18" x2="13" y2="18"/></svg>
+        フィルター
+      </button>
+    </div>
+
+    <div class="topbar-spacer"></div>
+  </div>
+
+  <!-- ─── Main ─── -->
+  <div class="main">
+
+    <!-- ─── Map ─── -->
+    <div class="map-area">
+      <div class="map-bg"></div>
+      <div class="map-roads"></div>
+      <div class="map-glow glow-amber"></div>
+      <div class="map-glow glow-teal"></div>
+      <div class="map-glow glow-indigo"></div>
+
+      <!-- Markers -->
+      <div class="marker m1">
+        <div class="marker-pin amber"><span class="marker-icon">🍜</span></div>
+      </div>
+      <div class="marker m2">
+        <div class="marker-pin teal"><span class="marker-icon">✅</span></div>
+      </div>
+      <div class="marker m3">
+        <div class="marker-pin crimson"><span class="marker-icon">📸</span></div>
+      </div>
+      <div class="marker m4">
+        <div class="marker-pin indigo"><span class="marker-icon">☕</span></div>
+      </div>
+      <div class="marker m5">
+        <div class="marker-pin amber"><span class="marker-icon">⭐</span></div>
+      </div>
+      <div class="marker m6">
+        <div class="marker-pin teal"><span class="marker-icon">🏛</span></div>
+      </div>
+
+      <!-- Clusters -->
+      <div class="marker-cluster mc1">+8</div>
+      <div class="marker-cluster mc2">+5</div>
+
+      <!-- Popup -->
+      <div class="map-popup" style="top:14%;left:24%">
+        <div class="popup-img-placeholder">🍜</div>
+        <div class="popup-body">
+          <div class="popup-name">麺屋 一燈</div>
+          <div class="popup-cat">食事</div>
+          <div class="popup-budget">¥800 〜 ¥1,200</div>
+          <div class="popup-actions">
+            <button class="popup-action-btn active-want">⭐ 行きたい</button>
+            <button class="popup-action-btn">✅ 行った</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Search this area -->
+      <div class="search-area-pill">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.51"/></svg>
+        このエリアで検索
+      </div>
+
+      <!-- Controls -->
+      <div class="map-controls">
+        <button class="map-ctrl-btn" title="現在地">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>
+        </button>
+        <button class="map-ctrl-btn" title="ズームイン">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+        </button>
+        <button class="map-ctrl-btn" title="ズームアウト">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- ─── Sidebar ─── -->
+    <div class="sidebar">
+
+      <!-- Header -->
+      <div class="sidebar-header">
+        <div class="sidebar-titlebar">
+          <div class="sidebar-title">
+            <span class="sidebar-title-main">スポット一覧</span>
+            <span class="sidebar-title-sub">旅のしおり — 東京</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <span class="count-badge">14件</span>
+            <button class="add-btn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              追加する
+            </button>
+          </div>
+        </div>
+
+        <!-- Room info -->
+        <div class="room-bar">
+          <div class="room-info">
+            <span class="room-name">2025 秋 — 東京旅行</span>
+            <div class="room-code-row">
+              コード:&nbsp;<span class="room-code">TKY-8X4Z</span>
+            </div>
+          </div>
+          <div class="room-actions">
+            <button class="room-btn" title="コードをコピー">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            </button>
+            <button class="room-btn" title="ルームを変更">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Search -->
+        <div class="search-bar">
+          <div class="search-input-wrap">
+            <svg class="search-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input class="search-input" type="text" placeholder="名前やメモで検索..." />
+          </div>
+        </div>
+      </div>
+
+      <!-- List -->
+      <div class="sidebar-list">
+        <div class="list-section-label">行きたい — 8件</div>
+
+        <!-- Card 1 (want to go + image) -->
+        <div class="place-card status-want">
+          <div class="card-img-wrap">
+            <div class="card-img-placeholder">🍜</div>
+            <div class="card-img-overlay"></div>
+            <div class="card-open-badge">
+              <span class="card-open-dot"></span>
+              営業中
+            </div>
+          </div>
+          <div class="card-body">
+            <div class="card-name">麺屋 一燈 — 新小岩</div>
+            <div class="card-meta">
+              <div class="card-cats">
+                <span class="card-cat">食事</span>
+                <span class="card-cat">ラーメン</span>
+              </div>
+              <span class="card-distance">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>
+                1.2km
+              </span>
+            </div>
+            <div class="card-budget">¥800 〜 ¥1,200</div>
+            <div class="card-status-row">
+              <button class="status-btn active-want">⭐ 行きたい</button>
+              <button class="status-btn">✅ 行った</button>
+            </div>
+            <div class="card-creator">
+              <div class="creator-avatar">Y</div>
+              <span class="creator-name">Yuta</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card 2 (visited) -->
+        <div class="place-card status-visited">
+          <div class="card-img-wrap">
+            <div class="card-img-placeholder">🏛</div>
+            <div class="card-img-overlay"></div>
+          </div>
+          <div class="card-body">
+            <div class="card-name">浅草寺</div>
+            <div class="card-meta">
+              <div class="card-cats">
+                <span class="card-cat">観光</span>
+                <span class="card-cat">映え・絶景</span>
+              </div>
+              <span class="card-distance">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>
+                3.8km
+              </span>
+            </div>
+            <div class="card-status-row">
+              <button class="status-btn">⭐ 行きたい</button>
+              <button class="status-btn active-visited">✅ 行った</button>
+            </div>
+            <div class="card-creator">
+              <div class="creator-avatar" style="background:linear-gradient(135deg,#2dd4bf,#0891b2)">M</div>
+              <span class="creator-name">Mika</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card 3 -->
+        <div class="place-card">
+          <div class="card-img-wrap">
+            <div class="card-img-placeholder">☕</div>
+            <div class="card-img-overlay"></div>
+            <div class="card-open-badge">
+              <span class="card-open-dot"></span>
+              営業中
+            </div>
+          </div>
+          <div class="card-body">
+            <div class="card-name">猿田彦珈琲 表参道店</div>
+            <div class="card-meta">
+              <div class="card-cats">
+                <span class="card-cat">カフェ・休憩</span>
+              </div>
+              <span class="card-distance">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>
+                6.1km
+              </span>
+            </div>
+            <div class="card-budget">¥600 〜 ¥900</div>
+            <div class="card-status-row">
+              <button class="status-btn">⭐ 行きたい</button>
+              <button class="status-btn">✅ 行った</button>
+            </div>
+            <div class="card-creator">
+              <div class="creator-avatar" style="background:linear-gradient(135deg,#f43f5e,#be123c)">A</div>
+              <span class="creator-name">Aiko</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card 4 -->
+        <div class="place-card">
+          <div class="card-body" style="padding-top:14px">
+            <div class="card-name">新宿御苑</div>
+            <div class="card-meta">
+              <div class="card-cats">
+                <span class="card-cat">観光</span>
+              </div>
+              <span class="card-distance">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>
+                4.4km
+              </span>
+            </div>
+            <div class="card-budget">¥500</div>
+            <div class="card-status-row">
+              <button class="status-btn">⭐ 行きたい</button>
+              <button class="status-btn">✅ 行った</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="list-section-label" style="margin-top:6px">その他 — 6件</div>
+
+        <!-- Card 5 -->
+        <div class="place-card">
+          <div class="card-body" style="padding-top:14px">
+            <div class="card-name">居酒屋 とりきち</div>
+            <div class="card-meta">
+              <div class="card-cats">
+                <span class="card-cat">飲み</span>
+                <span class="card-cat">食事</span>
+              </div>
+            </div>
+            <div class="card-budget">¥2,500 〜 ¥4,000</div>
+            <div class="card-status-row">
+              <button class="status-btn">⭐ 行きたい</button>
+              <button class="status-btn">✅ 行った</button>
+            </div>
+            <div class="card-creator">
+              <div class="creator-avatar">Y</div>
+              <span class="creator-name">Yuta</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="design-note">
+  🎨 <strong>NOCTUA</strong> デザインプレビュー — 静的モックアップ（実際のコードには含まれません）
+</div>
+</body>
+</html>
