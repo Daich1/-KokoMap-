@@ -1069,17 +1069,6 @@ export default function Home() {
               <LogOut className="size-3.5" />
             </button>
           </div>
-          {/* ユーザー名 + ログアウト */}
-          <div className="shrink-0 flex items-center gap-1 pl-1 border-l ml-0.5">
-            <span className="text-[11px] text-muted-foreground max-w-[60px] truncate">{currentUser.name}</span>
-            <button
-              onClick={handleLogout}
-              title="ログアウト"
-              className="p-1.5 rounded-md text-muted-foreground hover:text-red-500 hover:bg-red-50 transition-colors cursor-pointer"
-            >
-              <LogOut className="size-3" />
-            </button>
-          </div>
         </div>
       )}
 
@@ -1112,6 +1101,17 @@ export default function Home() {
             <List className="size-3.5" />
             {expanded ? "リスト表示" : "リストを隠す"}
           </button>
+
+          {/* モバイル: ログアウトボタン（右上） */}
+          {authUser && (
+            <button
+              onClick={handleLogout}
+              title="ログアウト"
+              className="md:hidden absolute top-3 right-3 z-20 bg-white rounded-full shadow-md p-2.5 text-muted-foreground hover:text-red-500 hover:bg-red-50 transition-colors cursor-pointer"
+            >
+              <LogOut className="size-4" />
+            </button>
+          )}
 
           {/* 現在地ボタン */}
           <button
