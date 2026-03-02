@@ -116,8 +116,14 @@ export default function Home() {
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [geocodedAddress, setGeocodedAddress] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
-  const [drawerOpen, setDrawerOpen] = useState(true);
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerSnap, setDrawerSnap] = useState<number | string | null>(0.13);
+
+  // モバイル: マウント直後にドロワーをペーク状態で表示
+  useEffect(() => {
+    const timer = setTimeout(() => setDrawerOpen(true), 100);
+    return () => clearTimeout(timer);
+  }, []);
   const [mapLoaded, setMapLoaded] = useState(false);
   const [roomDialogOpen, setRoomDialogOpen] = useState(!room);
   const [memberManageOpen, setMemberManageOpen] = useState(false);
@@ -620,7 +626,7 @@ export default function Home() {
 
   function handleSelectPlace(place: Place) {
     map.current?.flyTo({ center: [place.lng, place.lat], zoom: 15, duration: 1200 });
-    setDrawerOpen(false);
+    setDrawerSnap(0.13);
     setDetailPlace(place);
     setDetailOpen(true);
   }
@@ -1221,11 +1227,7 @@ export default function Home() {
       {/* ── モバイル Drawer（常時ペーク表示） ── */}
       <Drawer
         open={drawerOpen}
-        onOpenChange={(v) => {
-          // 閉じようとしたら最小スナップに戻す（完全非表示にしない）
-          if (!v) setDrawerSnap(0.13);
-          else setDrawerOpen(true);
-        }}
+        dismissible={false}
         snapPoints={[0.13, 0.45, 1]}
         activeSnapPoint={drawerSnap}
         setActiveSnapPoint={setDrawerSnap}
@@ -1324,7 +1326,7 @@ export default function Home() {
                 onClick={() => {
                   setEditPlace(undefined);
                   setSheetOpen(true);
-                  setDrawerOpen(false);
+                  setDrawerSnap(0.13);
                 }}
                 disabled={!room}
               >
