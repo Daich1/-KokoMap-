@@ -65,8 +65,11 @@ export function PlaceDetailSheet({
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
-  const { spotStatuses, setSpotStatus, removeSpotStatus, currentUser, isRoomAdmin } = useMapStore();
-  const canDelete = isRoomAdmin || (place?.created_by_id === currentUser.id);
+  const { spotStatuses, setSpotStatus, removeSpotStatus, currentUser, myRole } = useMapStore();
+  const isPrivileged = myRole === "leader" || myRole === "admin";
+  const isOwn = place?.created_by_id === currentUser.id;
+  const canEdit = isPrivileged || isOwn;
+  const canDelete = isPrivileged || isOwn;
   const currentStatus: SpotStatus | null = place
     ? (spotStatuses[place.id] ?? null)
     : null;
@@ -175,6 +178,7 @@ export function PlaceDetailSheet({
             <div className="flex items-start justify-between gap-3">
               <h2 className="text-xl font-bold leading-tight">{place.name}</h2>
               <div className="flex gap-1 shrink-0">
+                {canEdit && (
                 <Button
                   variant="ghost"
                   size="icon"
@@ -187,6 +191,7 @@ export function PlaceDetailSheet({
                 >
                   <Pencil className="size-4" />
                 </Button>
+                )}
                 {canDelete && (
                   <Button
                     variant="ghost"

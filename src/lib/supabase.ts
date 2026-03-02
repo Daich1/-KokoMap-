@@ -6,6 +6,15 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 export type SpotStatus = "want_to_go" | "visited";
+export type RoomRole = "leader" | "admin" | "member" | "viewer";
+
+export type RoomMember = {
+  room_id: string;
+  user_id: string;
+  user_name: string;
+  role: RoomRole;
+  joined_at: string;
+};
 
 export type UserSpotStatus = {
   id: string;

@@ -1,30 +1,27 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { type Place, type Room, type SpotStatus, supabase } from "@/lib/supabase";
+import { type Place, type Room, type SpotStatus, type RoomRole, type RoomMember, supabase } from "@/lib/supabase";
 
 export interface CurrentUser {
   id: string;
   name: string;
 }
 
-export type MapBounds = {
-  north: number;
-  south: number;
-  east: number;
-  west: number;
-};
-
 interface MapStore {
   places: Place[];
   room: Room | null;
   currentUser: CurrentUser;
-  isRoomAdmin: boolean;
-  spotStatuses: Record<string, SpotStatus>; // place_id → status
+  myRole: RoomRole | null;
+  roomMembers: RoomMember[];
+  spotStatuses: Record<string, SpotStatus>;
   userLocation: { lat: number; lng: number } | null;
 
   setRoom: (room: Room) => void;
   clearRoom: () => void;
-  setIsRoomAdmin: (v: boolean) => void;
+  setMyRole: (role: RoomRole | null) => void;
+  setRoomMembers: (members: RoomMember[]) => void;
+  upsertRoomMember: (member: RoomMember) => void;
+  removeRoomMember: (userId: string) => void;
   setPlaces: (places: Place[]) => void;
   addPlace: (place: Place) => void;
   upsertPlace: (place: Place) => void;
@@ -47,23 +44,38 @@ export const useMapStore = create<MapStore>()(
       places: [],
       room: null,
       currentUser: { id: generateId(), name: "" },
-      isRoomAdmin: false,
+      myRole: null,
+      roomMembers: [],
       spotStatuses: {},
       userLocation: null,
 
       setRoom: (room) => set({ room }),
-      clearRoom: () => set({ room: null, places: [], isRoomAdmin: false }),
-      setIsRoomAdmin: (v) => set({ isRoomAdmin: v }),
+      clearRoom: () => set({ room: null, places: [], myRole: null, roomMembers: [] }),
+      setMyRole: (role) => set({ myRole: role }),
+      setRoomMembers: (members) => set({ roomMembers: members }),
+      upsertRoomMember: (member) =>
+        set((state) => {
+          const exists = state.roomMembers.some((m) => m.user_id === member.user_id);
+          return {
+            roomMembers: exists
+              ? state.roomMembers.map((m) => (m.user_id === member.user_id ? member : m))
+              : [...state.roomMembers, member],
+          };
+        }),
+      removeRoomMember: (userId) =>
+        set((state) => ({
+          roomMembers: state.roomMembers.filter((m) => m.user_id !== userId),
+        })),
+
       setPlaces: (places) => set({ places }),
 
-      // 重複チェック付き追加（Realtime と local save の二重適用を防ぐ）
+      // 重複チェック付き追加
       addPlace: (place) =>
         set((state) => {
           if (state.places.some((p) => p.id === place.id)) return state;
           return { places: [place, ...state.places] };
         }),
 
-      // ID一致の1件のみを差し替える最適な更新
       upsertPlace: (place) =>
         set((state) => ({
           places: state.places.map((p) => (p.id === place.id ? place : p)),
@@ -78,11 +90,9 @@ export const useMapStore = create<MapStore>()(
 
       // ── ステータス管理 ──────────────────────────────────────────
       setSpotStatus: (placeId, status) => {
-        // 楽観的 UI 更新（即座に反映）
         set((state) => ({
           spotStatuses: { ...state.spotStatuses, [placeId]: status },
         }));
-        // バックグラウンドで Supabase へ upsert
         const { currentUser } = get();
         supabase
           .from("user_spot_status")
@@ -139,11 +149,10 @@ export const useMapStore = create<MapStore>()(
     }),
     {
       name: "minimal-map-store",
-      // room, currentUser, isRoomAdmin, spotStatuses を永続化（places と userLocation は毎回取得）
       partialize: (state) => ({
         room: state.room,
         currentUser: state.currentUser,
-        isRoomAdmin: state.isRoomAdmin,
+        myRole: state.myRole,
         spotStatuses: state.spotStatuses,
       }),
     }

@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import MapboxLanguage from "@mapbox/mapbox-gl-language";
-import { LocateFixed, List, Search, Copy, Check, LogOut, SlidersHorizontal, X, Star, CheckCircle2, Utensils, Wine, Gamepad2, Landmark, Coffee, ShoppingBag, Camera, BedDouble, Waves, Plus, Shield, Lock, Unlock, Share2 } from "lucide-react";
+import { LocateFixed, List, Search, Copy, Check, LogOut, SlidersHorizontal, X, Star, CheckCircle2, Utensils, Wine, Gamepad2, Landmark, Coffee, ShoppingBag, Camera, BedDouble, Waves, Plus, Shield, Lock, Unlock, Share2, Users, Crown, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -21,13 +21,22 @@ import { AddPlaceSheet } from "@/components/AddPlaceSheet";
 import { PlaceDetailSheet } from "@/components/PlaceDetailSheet";
 import { PlaceCard } from "@/components/PlaceCard";
 import { RoomJoinDialog } from "@/components/RoomJoinDialog";
-import { supabase, type Place, type Room, type SpotStatus } from "@/lib/supabase";
+import { MemberManageSheet } from "@/components/MemberManageSheet";
+import { supabase, type Place, type Room, type SpotStatus, type RoomMember } from "@/lib/supabase";
 import { useMapStore } from "@/store/useMapStore";
+import { toast } from "sonner";
 import { reverseGeocode } from "@/lib/geocoding";
 import { PRESET_CATEGORIES } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { calcDistance, formatDistance } from "@/lib/geo";
 import { isPlaceOpenNow } from "@/lib/openNow";
+
+const ROLE_LABELS: Record<string, string> = {
+  leader: "リーダー",
+  admin:  "管理者",
+  member: "メンバー",
+  viewer: "閲覧者",
+};
 
 // ── カテゴリアイコンマッピング ──────────────────────────────────────
 const CATEGORY_ICONS = {
@@ -75,12 +84,16 @@ export default function Home() {
     places,
     room,
     currentUser,
-    isRoomAdmin,
+    myRole,
+    roomMembers,
     spotStatuses,
     userLocation,
     setRoom,
     clearRoom,
-    setIsRoomAdmin,
+    setMyRole,
+    setRoomMembers,
+    upsertRoomMember,
+    removeRoomMember,
     setPlaces,
     addPlace,
     upsertPlace,
@@ -89,6 +102,11 @@ export default function Home() {
     setUserLocation,
     loadSpotStatuses,
   } = useMapStore();
+
+  // 権限ヘルパー
+  const canAdd = myRole !== "viewer" && myRole !== null;
+  const canManageRoom = myRole === "leader";
+  const canManageMembers = myRole === "leader";
 
   const [sheetOpen, setSheetOpen] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
@@ -102,6 +120,7 @@ export default function Home() {
   const [drawerSnap, setDrawerSnap] = useState<number | string | null>(0.45);
   const [mapLoaded, setMapLoaded] = useState(false);
   const [roomDialogOpen, setRoomDialogOpen] = useState(!room);
+  const [memberManageOpen, setMemberManageOpen] = useState(false);
   const [urlCode, setUrlCode] = useState<string | undefined>(undefined);
 
   // URL の ?code= パラメータを検出してダイアログに渡す（room hydration より先に実行）
@@ -138,6 +157,22 @@ export default function Home() {
     loadSpotStatuses(currentUser.id);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser.id]);
+
+  // ── 初期化: ルームのメンバー一覧とロールを取得 ──────────
+  useEffect(() => {
+    if (!room) return;
+    supabase
+      .from("room_members")
+      .select("*")
+      .eq("room_id", room.id)
+      .then(({ data }) => {
+        if (!data) return;
+        setRoomMembers(data as RoomMember[]);
+        const me = data.find((m: RoomMember) => m.user_id === currentUser.id);
+        if (me) setMyRole(me.role);
+      });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [room?.id]);
 
   // ── ジオロケーション（watchPosition）────────────────────
   useEffect(() => {
@@ -434,25 +469,25 @@ export default function Home() {
   // ── Supabase Realtime 購読 ───────────────────────────
   useEffect(() => {
     if (!room) return;
+    const myId = currentUser.id;
 
-    const channel = supabase
-      .channel(`room-${room.id}`)
+    // ── places チャンネル ──
+    const placesChannel = supabase
+      .channel(`room-places-${room.id}`)
       .on(
         "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "places",
-          filter: `room_id=eq.${room.id}`,
-        },
+        { event: "*", schema: "public", table: "places", filter: `room_id=eq.${room.id}` },
         (payload) => {
           const store = useMapStore.getState();
-
           if (payload.eventType === "INSERT") {
             const place = payload.new as Place;
             if (place.deleted_at) return;
             store.addPlace(place);
             addMarkerRef.current(place);
+            // 他のユーザーが追加したスポットを通知
+            if (place.created_by_id !== myId) {
+              toast.info(`📍 ${place.created_by_name ?? "誰か"}さんが「${place.name}」を追加しました`);
+            }
           } else if (payload.eventType === "UPDATE") {
             const place = payload.new as Place;
             if (place.deleted_at) {
@@ -460,16 +495,49 @@ export default function Home() {
               removeMarkerRef.current(place.id);
             } else {
               store.upsertPlace(place);
-              addMarkerRef.current(place); // remove + re-add (idempotent)
+              addMarkerRef.current(place);
             }
           }
         }
       )
       .subscribe();
 
+    // ── room_members チャンネル ──
+    const membersChannel = supabase
+      .channel(`room-members-${room.id}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "room_members", filter: `room_id=eq.${room.id}` },
+        (payload) => {
+          const store = useMapStore.getState();
+          if (payload.eventType === "INSERT") {
+            const member = payload.new as RoomMember;
+            store.upsertRoomMember(member);
+            // リーダーに参加通知
+            if (store.myRole === "leader" && member.user_id !== myId) {
+              toast.success(`👋 ${member.user_name}さんが参加しました`);
+            }
+          } else if (payload.eventType === "UPDATE") {
+            const member = payload.new as RoomMember;
+            store.upsertRoomMember(member);
+            // 自分のロールが変わったら即時反映
+            if (member.user_id === myId) {
+              store.setMyRole(member.role);
+              toast.info(`ロールが「${ROLE_LABELS[member.role]}」に変更されました`);
+            }
+          } else if (payload.eventType === "DELETE") {
+            const old = payload.old as { user_id: string };
+            store.removeRoomMember(old.user_id);
+          }
+        }
+      )
+      .subscribe();
+
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(placesChannel);
+      supabase.removeChannel(membersChannel);
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [room?.id]);
 
   useEffect(() => {
@@ -594,16 +662,30 @@ export default function Home() {
     }
   }
 
-  function handleRoomJoined(joinedRoom: Room, userName: string, isCreator: boolean) {
+  async function handleRoomJoined(joinedRoom: Room, userName: string, isCreator: boolean) {
+    const role = isCreator ? "leader" : "member";
+    const updatedUser = { ...currentUser, name: userName };
     setRoom(joinedRoom);
-    setCurrentUser({ ...currentUser, name: userName });
-    setIsRoomAdmin(isCreator);
+    setCurrentUser(updatedUser);
+    setMyRole(role);
     setRoomDialogOpen(false);
+    setUrlCode(undefined);
+
+    // room_members に登録（upsert で重複OK）
+    await supabase.from("room_members").upsert(
+      { room_id: joinedRoom.id, user_id: updatedUser.id, user_name: userName, role },
+      { onConflict: "room_id,user_id" }
+    );
   }
 
-  function handleLeaveRoom() {
+  async function handleLeaveRoom() {
+    if (room) {
+      await supabase.from("room_members")
+        .delete()
+        .eq("room_id", room.id)
+        .eq("user_id", currentUser.id);
+    }
     clearRoom();
-    // マーカーをすべて除去
     markers.current.forEach((m) => m.remove());
     markers.current.clear();
     popupStatusEls.current.clear();
@@ -861,10 +943,17 @@ export default function Home() {
       {room && (
         <div className="md:hidden shrink-0 flex items-center justify-between px-3 py-2 bg-background border-b gap-2">
           <div className="flex items-center gap-2 min-w-0 flex-1">
-            {isRoomAdmin && (
-              <span className="flex items-center gap-0.5 text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-1.5 py-0.5 shrink-0">
-                <Shield className="size-2.5" />
-                管理者
+            {myRole && (
+              <span className={`flex items-center gap-0.5 text-[10px] font-bold rounded-full px-1.5 py-0.5 shrink-0 border
+                ${myRole === "leader" ? "text-yellow-700 bg-yellow-50 border-yellow-200" :
+                  myRole === "admin"  ? "text-blue-700 bg-blue-50 border-blue-200" :
+                  myRole === "viewer" ? "text-gray-500 bg-gray-50 border-gray-200" :
+                  "text-green-700 bg-green-50 border-green-200"}`}>
+                {myRole === "leader" ? <Crown className="size-2.5" /> :
+                 myRole === "admin"  ? <Shield className="size-2.5" /> :
+                 myRole === "viewer" ? <Eye className="size-2.5" /> :
+                 <Users className="size-2.5" />}
+                {ROLE_LABELS[myRole]}
               </span>
             )}
             {room.name && (
@@ -875,7 +964,7 @@ export default function Home() {
             </span>
           </div>
           <div className="flex items-center gap-0.5 shrink-0">
-            {isRoomAdmin && (
+            {canManageRoom && (
               <button
                 onClick={toggleRoomOpen}
                 title={room.is_open ? "参加を締め切る" : "参加を再開する"}
@@ -883,6 +972,15 @@ export default function Home() {
               >
                 {room.is_open ? <Unlock className="size-3.5" /> : <Lock className="size-3.5" />}
                 <span>{room.is_open ? "参加中" : "締切中"}</span>
+              </button>
+            )}
+            {canManageMembers && (
+              <button
+                onClick={() => setMemberManageOpen(true)}
+                title="メンバー管理"
+                className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+              >
+                <Users className="size-3.5" />
               </button>
             )}
             <button
@@ -952,16 +1050,18 @@ export default function Home() {
             <LocateFixed className="size-5 text-gray-700" />
           </button>
 
-          {/* モバイル: ＋ 追加 FAB */}
-          <button
-            onClick={() => { setEditPlace(undefined); setSheetOpen(true); }}
-            disabled={!room}
-            className="md:hidden absolute right-3 z-10 bg-primary text-primary-foreground rounded-full shadow-lg p-3 hover:opacity-90 active:scale-95 transition-all disabled:opacity-40 cursor-pointer"
-            style={{ bottom: 'calc(1.125rem + env(safe-area-inset-bottom, 0px))' }}
-            title="場所を追加"
-          >
-            <Plus className="size-5" />
-          </button>
+          {/* モバイル: ＋ 追加 FAB（閲覧者には非表示） */}
+          {canAdd && (
+            <button
+              onClick={() => { setEditPlace(undefined); setSheetOpen(true); }}
+              disabled={!room}
+              className="md:hidden absolute right-3 z-10 bg-primary text-primary-foreground rounded-full shadow-lg p-3 hover:opacity-90 active:scale-95 transition-all disabled:opacity-40 cursor-pointer"
+              style={{ bottom: 'calc(1.125rem + env(safe-area-inset-bottom, 0px))' }}
+              title="場所を追加"
+            >
+              <Plus className="size-5" />
+            </button>
+          )}
 
           {/* モバイル: スポット一覧ボタン */}
           <div
@@ -1004,7 +1104,7 @@ export default function Home() {
                 size="sm"
                 className="rounded-full font-medium gap-1 hover:scale-105 hover:shadow-md transition-all cursor-pointer"
                 onClick={() => { setEditPlace(undefined); setSheetOpen(true); }}
-                disabled={!room}
+                disabled={!room || !canAdd}
               >
                 ＋ 追加する
               </Button>
@@ -1015,10 +1115,17 @@ export default function Home() {
               <div className="flex items-center justify-between px-5 py-2 bg-muted/40 border-b">
                 <div className="flex flex-col min-w-0 gap-0.5">
                   <div className="flex items-center gap-1.5">
-                    {isRoomAdmin && (
-                      <span className="flex items-center gap-0.5 text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-1.5 py-0.5 shrink-0">
-                        <Shield className="size-2.5" />
-                        管理者
+                    {myRole && (
+                      <span className={`flex items-center gap-0.5 text-[10px] font-bold rounded-full px-1.5 py-0.5 shrink-0 border
+                        ${myRole === "leader" ? "text-yellow-700 bg-yellow-50 border-yellow-200" :
+                          myRole === "admin"  ? "text-blue-700 bg-blue-50 border-blue-200" :
+                          myRole === "viewer" ? "text-gray-500 bg-gray-50 border-gray-200" :
+                          "text-green-700 bg-green-50 border-green-200"}`}>
+                        {myRole === "leader" ? <Crown className="size-2.5" /> :
+                         myRole === "admin"  ? <Shield className="size-2.5" /> :
+                         myRole === "viewer" ? <Eye className="size-2.5" /> :
+                         <Users className="size-2.5" />}
+                        {ROLE_LABELS[myRole]}
                       </span>
                     )}
                     {room.name && (
@@ -1031,13 +1138,22 @@ export default function Home() {
                   </span>
                 </div>
                 <div className="flex gap-1 shrink-0">
-                  {isRoomAdmin && (
+                  {canManageRoom && (
                     <button
                       onClick={toggleRoomOpen}
                       title={room.is_open ? "参加を締め切る" : "参加を再開する"}
                       className={`p-1.5 rounded transition-colors cursor-pointer ${room.is_open ? "text-green-700 hover:bg-green-50" : "text-red-600 hover:bg-red-50"}`}
                     >
                       {room.is_open ? <Unlock className="size-3.5" /> : <Lock className="size-3.5" />}
+                    </button>
+                  )}
+                  {canManageMembers && (
+                    <button
+                      onClick={() => setMemberManageOpen(true)}
+                      title="メンバー管理"
+                      className="p-1.5 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground cursor-pointer"
+                    >
+                      <Users className="size-3.5" />
                     </button>
                   )}
                   <button
@@ -1208,20 +1324,22 @@ export default function Home() {
             )}
           </div>
 
-          <DrawerFooter className="pt-0" style={{ paddingBottom: 'max(1rem, calc(env(safe-area-inset-bottom, 0px) + 0.5rem))' }}>
-            <Button
-              className="w-full rounded-full font-medium gap-2"
-              onClick={() => {
-                setEditPlace(undefined);
-                setSheetOpen(true);
-                setDrawerOpen(false);
-              }}
-              disabled={!room}
-            >
-              <Plus className="size-4" />
-              スポットを追加する
-            </Button>
-          </DrawerFooter>
+          {canAdd && (
+            <DrawerFooter className="pt-0" style={{ paddingBottom: 'max(1rem, calc(env(safe-area-inset-bottom, 0px) + 0.5rem))' }}>
+              <Button
+                className="w-full rounded-full font-medium gap-2"
+                onClick={() => {
+                  setEditPlace(undefined);
+                  setSheetOpen(true);
+                  setDrawerOpen(false);
+                }}
+                disabled={!room}
+              >
+                <Plus className="size-4" />
+                スポットを追加する
+              </Button>
+            </DrawerFooter>
+          )}
         </DrawerContent>
       </Drawer>
 
@@ -1253,6 +1371,18 @@ export default function Home() {
         initialCode={urlCode}
         onJoined={handleRoomJoined}
       />
+
+      {/* メンバー管理シート */}
+      {room && (
+        <MemberManageSheet
+          open={memberManageOpen}
+          onOpenChange={setMemberManageOpen}
+          roomId={room.id}
+          myUserId={currentUser.id}
+          members={roomMembers}
+          onRoleChanged={upsertRoomMember}
+        />
+      )}
     </div>
   );
 }
