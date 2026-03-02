@@ -81,6 +81,7 @@ export default function Home() {
     Map<string, { wantBtn: HTMLButtonElement; visitedBtn: HTMLButtonElement }>
   >(new Map());
   const geoWatchRef = useRef<number | null>(null);
+  const peekTouchStartY = useRef<number | null>(null);
 
   // ── Zustand ストア ────────────────────────────────────
   const {
@@ -1159,6 +1160,17 @@ export default function Home() {
               className="w-full bg-white rounded-t-3xl shadow-[0_-6px_24px_rgba(0,0,0,0.13)] active:bg-gray-50 transition-colors"
               style={{ paddingBottom: 'max(1.25rem, env(safe-area-inset-bottom, 0px))' }}
               onClick={() => { setDrawerOpen(true); setDrawerSnap(0.45); }}
+              onTouchStart={(e) => { peekTouchStartY.current = e.touches[0].clientY; }}
+              onTouchMove={(e) => {
+                if (peekTouchStartY.current === null) return;
+                const dy = peekTouchStartY.current - e.touches[0].clientY;
+                if (dy > 20) {
+                  peekTouchStartY.current = null;
+                  setDrawerOpen(true);
+                  setDrawerSnap(0.45);
+                }
+              }}
+              onTouchEnd={() => { peekTouchStartY.current = null; }}
             >
               {/* ドラッグハンドル（太め・目立つ） */}
               <div className="flex flex-col items-center gap-1 pt-3 pb-1">
@@ -1172,7 +1184,7 @@ export default function Home() {
                   </div>
                   <div className="text-left">
                     <p className="text-sm font-bold leading-tight">スポット一覧</p>
-                    <p className="text-xs text-muted-foreground leading-tight">{countLabel} · タップして開く</p>
+                    <p className="text-xs text-muted-foreground leading-tight">{countLabel}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
