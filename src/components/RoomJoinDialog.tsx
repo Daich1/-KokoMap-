@@ -16,6 +16,7 @@ import { supabase, type Room } from "@/lib/supabase";
 interface RoomJoinDialogProps {
   open: boolean;
   currentUserName: string;
+  initialCode?: string;
   onJoined: (room: Room, userName: string) => void;
 }
 
@@ -26,16 +27,27 @@ function generateShareCode(): string {
 export function RoomJoinDialog({
   open,
   currentUserName,
+  initialCode,
   onJoined,
 }: RoomJoinDialogProps) {
-  const [mode, setMode] = useState<"select" | "create" | "join">("select");
+  const [mode, setMode] = useState<"select" | "create" | "join">(
+    initialCode ? "join" : "select"
+  );
   const [userName, setUserName] = useState(currentUserName);
 
-  // Zustand hydration 後に保存済みの名前を反映
+  // Zustand hydration 後に保存済みの名前を反映（ユーザーが入力済みの場合は上書きしない）
   useEffect(() => {
-    if (currentUserName && !userName) setUserName(currentUserName);
+    if (currentUserName) setUserName((prev) => prev || currentUserName);
   }, [currentUserName]);
-  const [shareCode, setShareCode] = useState("");
+
+  // URL から渡されたコードを反映
+  useEffect(() => {
+    if (initialCode) {
+      setShareCode(initialCode);
+      setMode("join");
+    }
+  }, [initialCode]);
+  const [shareCode, setShareCode] = useState(initialCode ?? "");
   const [roomName, setRoomName] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");

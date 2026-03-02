@@ -23,7 +23,13 @@ function parseOpenFromText(
   while ((match = timeRegex.exec(hoursStr)) !== null) {
     const openTime = match[1].padStart(2, "0") + match[2];
     const closeTime = match[3].padStart(2, "0") + match[4];
-    if (currentTime >= openTime && currentTime < closeTime) return true;
+    // 日付をまたぐ深夜営業（例: 22:00〜02:00）の判定
+    const isOvernight = closeTime < openTime;
+    if (isOvernight) {
+      if (currentTime >= openTime || currentTime < closeTime) return true;
+    } else {
+      if (currentTime >= openTime && currentTime < closeTime) return true;
+    }
   }
   return false;
 }
@@ -43,6 +49,15 @@ export function isPlaceOpenNow(
   const currentTime = now.format("HHmm"); // "1430" 形式
 
   if (businessHours) {
+    // 前日から日付をまたいで営業中の期間をチェック（例: 土 22:00〜日 02:00）
+    const yesterdayDay = (day + 6) % 7;
+    for (const period of businessHours.periods) {
+      if (period.open.day === yesterdayDay && period.close?.day === day) {
+        const closeTime = period.close.time;
+        if (currentTime < closeTime) return true;
+      }
+    }
+
     const todayPeriods = businessHours.periods.filter(
       (p) => p.open.day === day
     );

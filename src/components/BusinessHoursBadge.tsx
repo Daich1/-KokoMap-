@@ -38,18 +38,29 @@ function parseFromText(
   while ((match = timeRegex.exec(hoursStr)) !== null) {
     const openTime = match[1].padStart(2, "0") + match[2];
     const closeTime = match[3].padStart(2, "0") + match[4];
+    // 日付をまたぐ深夜営業（例: 22:00〜02:00）の判定
+    const isOvernight = closeTime < openTime;
 
-    if (currentTime >= openTime && currentTime < closeTime) {
-      return {
-        isOpen: true,
-        nextChangeLabel: `〜${closeTime.slice(0, 2)}:${closeTime.slice(2)}`,
-      };
-    }
-    if (currentTime < openTime) {
-      return {
-        isOpen: false,
-        nextChangeLabel: `${openTime.slice(0, 2)}:${openTime.slice(2)}〜`,
-      };
+    if (isOvernight) {
+      if (currentTime >= openTime || currentTime < closeTime) {
+        return {
+          isOpen: true,
+          nextChangeLabel: `〜${closeTime.slice(0, 2)}:${closeTime.slice(2)}`,
+        };
+      }
+    } else {
+      if (currentTime >= openTime && currentTime < closeTime) {
+        return {
+          isOpen: true,
+          nextChangeLabel: `〜${closeTime.slice(0, 2)}:${closeTime.slice(2)}`,
+        };
+      }
+      if (currentTime < openTime) {
+        return {
+          isOpen: false,
+          nextChangeLabel: `${openTime.slice(0, 2)}:${openTime.slice(2)}〜`,
+        };
+      }
     }
   }
 
@@ -69,32 +80,47 @@ export function BusinessHoursBadge({
   let nextChangeLabel = "";
 
   if (businessHours) {
-    const todayPeriods = businessHours.periods.filter(
-      (p) => p.open.day === day
-    );
-
-    for (const period of todayPeriods) {
-      const openTime = period.open.time;
-      const closeTime = period.close?.time;
-
-      if (!closeTime) {
-        isOpen = true;
-        nextChangeLabel = "24h";
-        break;
-      }
-
-      if (currentTime >= openTime && currentTime < closeTime) {
-        isOpen = true;
-        nextChangeLabel = `〜${closeTime.slice(0, 2)}:${closeTime.slice(2)}`;
-        break;
+    // 前日から日付をまたいで営業中の期間をチェック（例: 土 22:00〜日 02:00）
+    const yesterdayDay = (day + 6) % 7;
+    for (const period of businessHours.periods) {
+      if (period.open.day === yesterdayDay && period.close?.day === day) {
+        const closeTime = period.close.time;
+        if (currentTime < closeTime) {
+          isOpen = true;
+          nextChangeLabel = `〜${closeTime.slice(0, 2)}:${closeTime.slice(2)}`;
+          break;
+        }
       }
     }
 
-    if (!isOpen && todayPeriods.length > 0) {
-      const nextPeriod = todayPeriods.find((p) => p.open.time > currentTime);
-      if (nextPeriod) {
-        const t = nextPeriod.open.time;
-        nextChangeLabel = `${t.slice(0, 2)}:${t.slice(2)}〜`;
+    if (!isOpen) {
+      const todayPeriods = businessHours.periods.filter(
+        (p) => p.open.day === day
+      );
+
+      for (const period of todayPeriods) {
+        const openTime = period.open.time;
+        const closeTime = period.close?.time;
+
+        if (!closeTime) {
+          isOpen = true;
+          nextChangeLabel = "24h";
+          break;
+        }
+
+        if (currentTime >= openTime && currentTime < closeTime) {
+          isOpen = true;
+          nextChangeLabel = `〜${closeTime.slice(0, 2)}:${closeTime.slice(2)}`;
+          break;
+        }
+      }
+
+      if (!isOpen && todayPeriods.length > 0) {
+        const nextPeriod = todayPeriods.find((p) => p.open.time > currentTime);
+        if (nextPeriod) {
+          const t = nextPeriod.open.time;
+          nextChangeLabel = `${t.slice(0, 2)}:${t.slice(2)}〜`;
+        }
       }
     }
   } else if (openingHoursText) {

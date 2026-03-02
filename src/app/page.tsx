@@ -5,7 +5,7 @@ import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import MapboxLanguage from "@mapbox/mapbox-gl-language";
 import Supercluster from "supercluster";
-import { LocateFixed, List, Search, Copy, Check, LogOut, SlidersHorizontal, X, Star, CheckCircle2, Utensils, Wine, Gamepad2, Landmark, Coffee, ShoppingBag, Camera, BedDouble, Waves, RefreshCcw } from "lucide-react";
+import { LocateFixed, List, Search, Copy, Check, LogOut, SlidersHorizontal, X, Star, CheckCircle2, Utensils, Wine, Gamepad2, Landmark, Coffee, ShoppingBag, Camera, BedDouble, Waves, RefreshCcw, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -106,13 +106,29 @@ export default function Home() {
   const [geocodedAddress, setGeocodedAddress] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [drawerSnap, setDrawerSnap] = useState<number | string | null>(0.45);
   const [mapLoaded, setMapLoaded] = useState(false);
   const [roomDialogOpen, setRoomDialogOpen] = useState(!room);
+  const [urlCode, setUrlCode] = useState<string | undefined>(undefined);
 
   // Zustand が localStorage から hydrate した後にダイアログ状態を同期
   useEffect(() => {
     if (room) setRoomDialogOpen(false);
   }, [room]);
+
+  // URL の ?code= パラメータを検出してダイアログに渡す
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get("code");
+    if (code) {
+      const normalized = code.trim().toUpperCase().slice(0, 6);
+      setUrlCode(normalized);
+      setRoomDialogOpen(true);
+      // URLをきれいにする（リロード時の再適用を防ぐ）
+      const clean = window.location.pathname;
+      window.history.replaceState({}, "", clean);
+    }
+  }, []);
   const [codeCopied, setCodeCopied] = useState(false);
 
   // Filter state
@@ -726,7 +742,8 @@ export default function Home() {
 
   function copyRoomCode() {
     if (!room) return;
-    navigator.clipboard.writeText(room.share_code);
+    const url = `${window.location.origin}${window.location.pathname}?code=${room.share_code}`;
+    navigator.clipboard.writeText(url);
     setCodeCopied(true);
     setTimeout(() => setCodeCopied(false), 2000);
   }
@@ -742,6 +759,7 @@ export default function Home() {
     !!filterBudgetMax,
     filterOpenNow,
     !!filterStatus,
+    !!filterAreaBounds,
   ].filter(Boolean).length;
 
   function clearAllFilters() {
@@ -938,6 +956,37 @@ export default function Home() {
 
       </div>
 
+      {/* ── モバイル: ルーム情報ヘッダーバー ── */}
+      {room && (
+        <div className="md:hidden shrink-0 flex items-center justify-between px-3 py-2 bg-background border-b gap-2">
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            {room.name && (
+              <span className="text-xs font-medium truncate max-w-[120px]">{room.name}</span>
+            )}
+            <span className="text-xs text-muted-foreground shrink-0">
+              コード: <span className="font-mono font-bold text-foreground tracking-wider">{room.share_code}</span>
+            </span>
+          </div>
+          <div className="flex items-center gap-0.5 shrink-0">
+            <button
+              onClick={copyRoomCode}
+              title="コードをコピー"
+              className="flex items-center gap-1 px-2 py-1 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+            >
+              {codeCopied ? <Check className="size-3.5 text-green-600" /> : <Copy className="size-3.5" />}
+              <span className="text-xs">{codeCopied ? "コピー済" : "コピー"}</span>
+            </button>
+            <button
+              onClick={handleLeaveRoom}
+              title="ルームを変更"
+              className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+            >
+              <LogOut className="size-3.5" />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* ── メインコンテンツ（マップ＋リスト） ── */}
       <div className="flex flex-1 overflow-hidden">
 
@@ -983,23 +1032,46 @@ export default function Home() {
             {expanded ? "リスト表示" : "リストを隠す"}
           </button>
 
+          {/* 現在地ボタン: モバイルではFABの上に配置 */}
           <button
             onClick={handleLocateMe}
-            className="absolute bottom-6 right-3 z-10 bg-white rounded-full shadow-lg p-2.5 hover:bg-gray-50 hover:shadow-xl active:scale-95 transition-all cursor-pointer"
+            className="absolute z-10 bg-white rounded-full shadow-lg p-2.5 hover:bg-gray-50 hover:shadow-xl active:scale-95 transition-all cursor-pointer right-3 md:bottom-6"
+            style={{ bottom: 'calc(4rem + env(safe-area-inset-bottom, 0px))' }}
             title="現在地へ移動"
           >
             <LocateFixed className="size-5 text-gray-700" />
           </button>
 
+          {/* モバイル: ＋ 追加 FAB */}
+          <button
+            onClick={() => { setEditPlace(undefined); setSheetOpen(true); }}
+            disabled={!room}
+            className="md:hidden absolute right-3 z-10 bg-primary text-primary-foreground rounded-full shadow-lg p-3 hover:opacity-90 active:scale-95 transition-all disabled:opacity-40 cursor-pointer"
+            style={{ bottom: 'calc(1.125rem + env(safe-area-inset-bottom, 0px))' }}
+            title="場所を追加"
+          >
+            <Plus className="size-5" />
+          </button>
+
           {/* モバイル: スポット一覧ボタン */}
-          <div className="md:hidden absolute bottom-5 left-1/2 -translate-x-1/2 z-10">
+          <div
+            className="md:hidden absolute left-1/2 -translate-x-1/2 z-10"
+            style={{ bottom: 'calc(1rem + env(safe-area-inset-bottom, 0px))' }}
+          >
             <Button
-              className="rounded-full shadow-lg px-5 gap-2"
+              className="rounded-full shadow-lg pl-4 pr-3 gap-2"
               onClick={() => setDrawerOpen(true)}
             >
               <List className="size-4" />
               スポット一覧
-              <span className="text-xs opacity-80">({countLabel})</span>
+              <span className="flex items-center gap-1 text-xs opacity-90 bg-white/20 rounded-full px-2 py-0.5">
+                {countLabel}
+                {activeFilterCount > 0 && (
+                  <span className="flex size-4 items-center justify-center rounded-full bg-white text-primary text-[10px] font-bold">
+                    {activeFilterCount}
+                  </span>
+                )}
+              </span>
             </Button>
           </div>
         </div>
@@ -1105,24 +1177,45 @@ export default function Home() {
       </div>
 
       {/* ── モバイル Drawer ── */}
-      <Drawer open={drawerOpen} onOpenChange={setDrawerOpen}>
-        <DrawerContent className="flex flex-col md:hidden">
+      <Drawer
+        open={drawerOpen}
+        onOpenChange={(v) => {
+          setDrawerOpen(v);
+          if (v) setDrawerSnap(0.45);
+        }}
+        snapPoints={[0.45, 0.92]}
+        activeSnapPoint={drawerSnap}
+        setActiveSnapPoint={setDrawerSnap}
+        modal={false}
+      >
+        <DrawerContent className="flex flex-col md:hidden fixed">
           <DrawerHeader className="pb-0 text-left">
-            <DrawerTitle className="text-sm">
-              スポット一覧
-              <span className="ml-2 text-muted-foreground font-normal">
-                {countLabel}
-              </span>
-            </DrawerTitle>
+            <div className="flex items-center justify-between">
+              <DrawerTitle className="text-sm">
+                スポット一覧
+                <span className="ml-2 text-muted-foreground font-normal">
+                  {countLabel}
+                </span>
+              </DrawerTitle>
+              {activeFilterCount > 0 && (
+                <button
+                  onClick={clearAllFilters}
+                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer bg-muted rounded-full px-2 py-0.5"
+                >
+                  <X className="size-3" />
+                  フィルター({activeFilterCount})クリア
+                </button>
+              )}
+            </div>
           </DrawerHeader>
 
-          {/* モバイル: カテゴリバー */}
-          <div className="overflow-x-auto scrollbar-hide border-b">
-            <div className="flex gap-1.5 px-3 py-2.5 min-w-max">
+          {/* モバイル: カテゴリバー（snap スクロール対応） */}
+          <div className="overflow-x-auto scrollbar-hide border-b snap-x snap-mandatory">
+            <div className="flex gap-1.5 px-3 py-2 min-w-max">
               <button
                 onClick={() => setFilterCategories([])}
                 className={cn(
-                  "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all shrink-0 cursor-pointer",
+                  "flex items-center gap-1.5 px-3 min-h-[44px] rounded-full text-xs font-medium border transition-all shrink-0 cursor-pointer snap-center",
                   filterCategories.length === 0
                     ? "bg-foreground text-background border-foreground hover:opacity-80"
                     : "text-muted-foreground border-transparent hover:border-border hover:text-foreground hover:bg-muted/50"
@@ -1138,7 +1231,7 @@ export default function Home() {
                     key={cat}
                     onClick={() => toggleFilterCategory(cat)}
                     className={cn(
-                      "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all shrink-0 cursor-pointer",
+                      "flex items-center gap-1.5 px-3 min-h-[44px] rounded-full text-xs font-medium border transition-all shrink-0 cursor-pointer snap-center",
                       isActive
                         ? "bg-foreground text-background border-foreground hover:opacity-80"
                         : "text-muted-foreground border-transparent hover:border-border hover:text-foreground hover:bg-muted/50"
@@ -1154,7 +1247,13 @@ export default function Home() {
 
           {filterUI}
 
-          <div className="flex-1 overflow-y-auto flex flex-col gap-3 p-4 min-h-[200px] max-h-[50vh]">
+          <div
+            className="overflow-y-auto flex flex-col gap-3 p-4"
+            style={{
+              flex: 1,
+              overflowY: drawerSnap === 0.45 ? "hidden" : "auto",
+            }}
+          >
             {filteredPlaces.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-32 text-muted-foreground text-sm gap-2">
                 <p>
@@ -1175,9 +1274,9 @@ export default function Home() {
             )}
           </div>
 
-          <DrawerFooter className="pt-0">
+          <DrawerFooter className="pt-0" style={{ paddingBottom: 'max(1rem, calc(env(safe-area-inset-bottom, 0px) + 0.5rem))' }}>
             <Button
-              className="w-full rounded-full font-medium"
+              className="w-full rounded-full font-medium gap-2"
               onClick={() => {
                 setEditPlace(undefined);
                 setSheetOpen(true);
@@ -1185,7 +1284,8 @@ export default function Home() {
               }}
               disabled={!room}
             >
-              ＋ 追加する
+              <Plus className="size-4" />
+              スポットを追加する
             </Button>
           </DrawerFooter>
         </DrawerContent>
@@ -1216,6 +1316,7 @@ export default function Home() {
       <RoomJoinDialog
         open={roomDialogOpen}
         currentUserName={currentUser.name}
+        initialCode={urlCode}
         onJoined={handleRoomJoined}
       />
     </div>
