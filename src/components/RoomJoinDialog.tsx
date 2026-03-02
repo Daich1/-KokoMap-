@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Loader2, Map, Plus, LogIn, Copy, Check } from "lucide-react";
+import { Loader2, Map, Plus, LogIn, Copy, Check, Shield } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -17,7 +17,7 @@ interface RoomJoinDialogProps {
   open: boolean;
   currentUserName: string;
   initialCode?: string;
-  onJoined: (room: Room, userName: string) => void;
+  onJoined: (room: Room, userName: string, isCreator: boolean) => void;
 }
 
 function generateShareCode(): string {
@@ -47,8 +47,12 @@ export function RoomJoinDialog({
       setMode("join");
     }
   }, [initialCode]);
+
   const [shareCode, setShareCode] = useState(initialCode ?? "");
   const [roomName, setRoomName] = useState("");
+  // カスタムコード入力モード
+  const [useCustomCode, setUseCustomCode] = useState(false);
+  const [customCode, setCustomCode] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [createdCode, setCreatedCode] = useState<string | null>(null);
@@ -59,20 +63,44 @@ export function RoomJoinDialog({
       setError("名前を入力してください");
       return;
     }
+
+    const code = useCustomCode
+      ? customCode.trim().toUpperCase()
+      : generateShareCode();
+
+    if (useCustomCode) {
+      if (code.length < 4 || code.length > 8) {
+        setError("コードは4〜8文字で入力してください");
+        return;
+      }
+      if (!/^[A-Z0-9]+$/.test(code)) {
+        setError("コードは英数字のみ使用できます");
+        return;
+      }
+    }
+
     setIsLoading(true);
     setError("");
     try {
-      const code = generateShareCode();
       const { data, error: dbError } = await supabase
         .from("rooms")
         .insert({ share_code: code, name: roomName.trim() || null })
         .select()
         .single();
-      if (dbError) throw dbError;
+      if (dbError) {
+        // コード重複エラー
+        if (dbError.code === "23505") {
+          setError("このコードは既に使われています。別のコードを入力してください");
+        } else {
+          throw dbError;
+        }
+        setIsLoading(false);
+        return;
+      }
       setCreatedCode(code);
       setIsLoading(false);
       // 少し見せてから遷移
-      setTimeout(() => onJoined(data as Room, userName.trim()), 1500);
+      setTimeout(() => onJoined(data as Room, userName.trim(), true), 1500);
     } catch {
       setError("ルームの作成に失敗しました");
       setIsLoading(false);
@@ -84,7 +112,7 @@ export function RoomJoinDialog({
       setError("名前を入力してください");
       return;
     }
-    if (shareCode.trim().length < 6) {
+    if (shareCode.trim().length < 4) {
       setError("共有コードを入力してください");
       return;
     }
@@ -101,7 +129,7 @@ export function RoomJoinDialog({
         setIsLoading(false);
         return;
       }
-      onJoined(data as Room, userName.trim());
+      onJoined(data as Room, userName.trim(), false);
     } catch {
       setError("接続に失敗しました");
       setIsLoading(false);
@@ -109,7 +137,8 @@ export function RoomJoinDialog({
   }
 
   function copyCode(code: string) {
-    navigator.clipboard.writeText(code);
+    const url = `${window.location.origin}${window.location.pathname}?code=${code}`;
+    navigator.clipboard.writeText(url);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   }
@@ -118,6 +147,8 @@ export function RoomJoinDialog({
     setMode("select");
     setError("");
     setCreatedCode(null);
+    setUseCustomCode(false);
+    setCustomCode("");
   }
 
   return (
@@ -169,7 +200,7 @@ export function RoomJoinDialog({
                 disabled={!userName.trim()}
               >
                 <Plus className="size-4" />
-                新しいルームを作成
+                新しいルームを作成（管理者）
               </Button>
               <Button
                 variant="outline"
@@ -202,6 +233,52 @@ export function RoomJoinDialog({
                   }}
                 />
               </div>
+
+              {/* カスタムコード切り替え */}
+              <div className="flex flex-col gap-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-medium text-muted-foreground">
+                    共有コード
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setUseCustomCode((v) => !v);
+                      setCustomCode("");
+                      setError("");
+                    }}
+                    className="text-xs text-primary underline cursor-pointer"
+                  >
+                    {useCustomCode ? "ランダムに戻す" : "カスタムコードを設定"}
+                  </button>
+                </div>
+                {useCustomCode ? (
+                  <div className="flex flex-col gap-1">
+                    <Input
+                      value={customCode}
+                      onChange={(e) =>
+                        setCustomCode(
+                          e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8)
+                        )
+                      }
+                      placeholder="例: KKMAP"
+                      maxLength={8}
+                      className="font-mono tracking-[0.3em] text-center text-lg h-12"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") handleCreate();
+                      }}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      英数字 4〜8文字（大文字に自動変換）
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground px-1">
+                    作成時にランダムなコードが自動生成されます
+                  </p>
+                )}
+              </div>
+
               <div className="flex gap-2">
                 <Button
                   variant="outline"
@@ -212,14 +289,17 @@ export function RoomJoinDialog({
                   戻る
                 </Button>
                 <Button
-                  className="flex-1"
+                  className="flex-1 gap-1.5"
                   onClick={handleCreate}
                   disabled={isLoading}
                 >
                   {isLoading ? (
                     <Loader2 className="size-4 animate-spin" />
                   ) : (
-                    "作成する"
+                    <>
+                      <Shield className="size-3.5" />
+                      作成する
+                    </>
                   )}
                 </Button>
               </div>
@@ -229,8 +309,12 @@ export function RoomJoinDialog({
           {/* 作成完了 → コード表示 */}
           {createdCode && (
             <div className="flex flex-col gap-3 items-center py-2">
+              <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 rounded-lg px-3 py-2 w-full">
+                <Shield className="size-4 shrink-0" />
+                <span>管理者としてルームを作成しました</span>
+              </div>
               <p className="text-sm text-muted-foreground">
-                ルームを作成しました！このコードを共有してください
+                このコード（またはURL）を共有してください
               </p>
               <div className="flex items-center gap-2 bg-muted rounded-lg px-4 py-3 w-full justify-center">
                 <span className="font-mono text-2xl font-bold tracking-widest">
@@ -239,6 +323,7 @@ export function RoomJoinDialog({
                 <button
                   onClick={() => copyCode(createdCode)}
                   className="ml-2 text-muted-foreground hover:text-foreground transition-colors"
+                  title="URLをコピー"
                 >
                   {copied ? (
                     <Check className="size-4 text-green-600" />
@@ -261,10 +346,10 @@ export function RoomJoinDialog({
                 <Input
                   value={shareCode}
                   onChange={(e) =>
-                    setShareCode(e.target.value.toUpperCase().slice(0, 6))
+                    setShareCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8))
                   }
-                  placeholder="例: AB1C2D"
-                  maxLength={6}
+                  placeholder="例: KKMAP"
+                  maxLength={8}
                   className="font-mono tracking-[0.3em] text-center text-lg h-12"
                   onKeyDown={(e) => {
                     if (e.key === "Enter") handleJoin();

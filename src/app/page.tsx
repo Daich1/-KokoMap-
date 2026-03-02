@@ -5,7 +5,7 @@ import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import MapboxLanguage from "@mapbox/mapbox-gl-language";
 import Supercluster from "supercluster";
-import { LocateFixed, List, Search, Copy, Check, LogOut, SlidersHorizontal, X, Star, CheckCircle2, Utensils, Wine, Gamepad2, Landmark, Coffee, ShoppingBag, Camera, BedDouble, Waves, RefreshCcw, Plus } from "lucide-react";
+import { LocateFixed, List, Search, Copy, Check, LogOut, SlidersHorizontal, X, Star, CheckCircle2, Utensils, Wine, Gamepad2, Landmark, Coffee, ShoppingBag, Camera, BedDouble, Waves, RefreshCcw, Plus, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -76,11 +76,13 @@ export default function Home() {
     places,
     room,
     currentUser,
+    isRoomAdmin,
     spotStatuses,
     userLocation,
     mapBounds,
     setRoom,
     clearRoom,
+    setIsRoomAdmin,
     setPlaces,
     addPlace,
     upsertPlace,
@@ -725,9 +727,10 @@ export default function Home() {
     }
   }
 
-  function handleRoomJoined(joinedRoom: Room, userName: string) {
+  function handleRoomJoined(joinedRoom: Room, userName: string, isCreator: boolean) {
     setRoom(joinedRoom);
     setCurrentUser({ ...currentUser, name: userName });
+    setIsRoomAdmin(isCreator);
     setRoomDialogOpen(false);
   }
 
@@ -960,8 +963,14 @@ export default function Home() {
       {room && (
         <div className="md:hidden shrink-0 flex items-center justify-between px-3 py-2 bg-background border-b gap-2">
           <div className="flex items-center gap-2 min-w-0 flex-1">
+            {isRoomAdmin && (
+              <span className="flex items-center gap-0.5 text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-1.5 py-0.5 shrink-0">
+                <Shield className="size-2.5" />
+                管理者
+              </span>
+            )}
             {room.name && (
-              <span className="text-xs font-medium truncate max-w-[120px]">{room.name}</span>
+              <span className="text-xs font-medium truncate max-w-[100px]">{room.name}</span>
             )}
             <span className="text-xs text-muted-foreground shrink-0">
               コード: <span className="font-mono font-bold text-foreground tracking-wider">{room.share_code}</span>
@@ -1103,10 +1112,18 @@ export default function Home() {
             {/* ルーム情報バー */}
             {room && (
               <div className="flex items-center justify-between px-5 py-2 bg-muted/40 border-b">
-                <div className="flex flex-col min-w-0">
-                  {room.name && (
-                    <span className="text-xs font-medium truncate">{room.name}</span>
-                  )}
+                <div className="flex flex-col min-w-0 gap-0.5">
+                  <div className="flex items-center gap-1.5">
+                    {isRoomAdmin && (
+                      <span className="flex items-center gap-0.5 text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-1.5 py-0.5 shrink-0">
+                        <Shield className="size-2.5" />
+                        管理者
+                      </span>
+                    )}
+                    {room.name && (
+                      <span className="text-xs font-medium truncate">{room.name}</span>
+                    )}
+                  </div>
                   <span className="text-xs text-muted-foreground">
                     コード:{" "}
                     <span className="font-mono font-bold text-foreground">{room.share_code}</span>

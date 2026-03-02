@@ -18,12 +18,14 @@ interface MapStore {
   places: Place[];
   room: Room | null;
   currentUser: CurrentUser;
+  isRoomAdmin: boolean;
   spotStatuses: Record<string, SpotStatus>; // place_id → status
   userLocation: { lat: number; lng: number } | null;
   mapBounds: MapBounds | null;
 
   setRoom: (room: Room) => void;
   clearRoom: () => void;
+  setIsRoomAdmin: (v: boolean) => void;
   setPlaces: (places: Place[]) => void;
   addPlace: (place: Place) => void;
   upsertPlace: (place: Place) => void;
@@ -47,12 +49,14 @@ export const useMapStore = create<MapStore>()(
       places: [],
       room: null,
       currentUser: { id: generateId(), name: "" },
+      isRoomAdmin: false,
       spotStatuses: {},
       userLocation: null,
       mapBounds: null,
 
       setRoom: (room) => set({ room }),
-      clearRoom: () => set({ room: null, places: [] }),
+      clearRoom: () => set({ room: null, places: [], isRoomAdmin: false }),
+      setIsRoomAdmin: (v) => set({ isRoomAdmin: v }),
       setPlaces: (places) => set({ places }),
 
       // 重複チェック付き追加（Realtime と local save の二重適用を防ぐ）
@@ -139,10 +143,11 @@ export const useMapStore = create<MapStore>()(
     }),
     {
       name: "minimal-map-store",
-      // room, currentUser, spotStatuses を永続化（places と userLocation は毎回取得）
+      // room, currentUser, isRoomAdmin, spotStatuses を永続化（places と userLocation は毎回取得）
       partialize: (state) => ({
         room: state.room,
         currentUser: state.currentUser,
+        isRoomAdmin: state.isRoomAdmin,
         spotStatuses: state.spotStatuses,
       }),
     }

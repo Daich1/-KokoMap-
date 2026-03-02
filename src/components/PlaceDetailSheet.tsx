@@ -65,7 +65,8 @@ export function PlaceDetailSheet({
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
-  const { spotStatuses, setSpotStatus, removeSpotStatus } = useMapStore();
+  const { spotStatuses, setSpotStatus, removeSpotStatus, currentUser, isRoomAdmin } = useMapStore();
+  const canDelete = isRoomAdmin || (place?.created_by_id === currentUser.id);
   const currentStatus: SpotStatus | null = place
     ? (spotStatuses[place.id] ?? null)
     : null;
@@ -186,15 +187,17 @@ export function PlaceDetailSheet({
                 >
                   <Pencil className="size-4" />
                 </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="size-8 text-muted-foreground hover:text-destructive"
-                  onClick={() => setDeleteDialogOpen(true)}
-                  title="削除"
-                >
-                  <Trash2 className="size-4" />
-                </Button>
+                {canDelete && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-8 text-muted-foreground hover:text-destructive"
+                    onClick={() => setDeleteDialogOpen(true)}
+                    title="削除"
+                  >
+                    <Trash2 className="size-4" />
+                  </Button>
+                )}
               </div>
             </div>
 
