@@ -1125,7 +1125,7 @@ export default function Home() {
           setDrawerOpen(v);
           if (v) setDrawerSnap(0.45);
         }}
-        snapPoints={[0.45, 0.92]}
+        snapPoints={[0.45, 1]}
         activeSnapPoint={drawerSnap}
         setActiveSnapPoint={setDrawerSnap}
         modal={false}
@@ -1193,7 +1193,7 @@ export default function Home() {
             className="overflow-y-auto flex flex-col gap-3 p-4"
             style={{
               flex: 1,
-              overflowY: drawerSnap === 0.45 ? "hidden" : "auto",
+              overflowY: drawerSnap !== 0.45 ? "auto" : "hidden",
             }}
           >
             {filteredPlaces.length === 0 ? (
