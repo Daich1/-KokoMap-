@@ -180,18 +180,13 @@ export function RoomJoinDialog({
         </DialogHeader>
 
         <div className="flex flex-col gap-4 pt-1">
-          {/* 名前入力 */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium">あなたの名前</label>
-            <Input
-              value={userName}
-              onChange={(e) => setUserName(e.target.value)}
-              placeholder="例: Taro"
-              autoFocus
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && mode === "join") handleJoin();
-              }}
-            />
+          {/* 現在のユーザー名を表示 */}
+          <div className="flex items-center gap-2 bg-muted rounded-lg px-3 py-2">
+            <div className="size-7 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-bold shrink-0">
+              {userName.charAt(0).toUpperCase()}
+            </div>
+            <span className="text-sm font-medium">{userName}</span>
+            <span className="text-xs text-muted-foreground ml-auto">として参加</span>
           </div>
 
           {/* モード選択 */}

@@ -21,6 +21,7 @@ import { AddPlaceSheet } from "@/components/AddPlaceSheet";
 import { PlaceDetailSheet } from "@/components/PlaceDetailSheet";
 import { PlaceCard } from "@/components/PlaceCard";
 import { RoomJoinDialog } from "@/components/RoomJoinDialog";
+import { WelcomeScreen } from "@/components/WelcomeScreen";
 import { MemberManageSheet } from "@/components/MemberManageSheet";
 import { supabase, type Place, type Room, type SpotStatus, type RoomMember } from "@/lib/supabase";
 import { useMapStore } from "@/store/useMapStore";
@@ -685,11 +686,15 @@ export default function Home() {
     setRoomDialogOpen(false);
     setUrlCode(undefined);
 
-    // room_members に登録（upsert で重複OK）
     await supabase.from("room_members").upsert(
       { room_id: joinedRoom.id, user_id: updatedUser.id, user_name: userName, role },
       { onConflict: "room_id,user_id" }
     );
+  }
+
+  // WelcomeScreen 用: 名前設定 + ルーム参加を一括処理
+  async function handleWelcomeComplete(name: string, joinedRoom: Room, isCreator: boolean) {
+    await handleRoomJoined(joinedRoom, name, isCreator);
   }
 
   async function handleLeaveRoom() {
@@ -702,7 +707,6 @@ export default function Home() {
     clearRoom();
     markers.current.forEach((m) => m.remove());
     markers.current.clear();
-    popupStatusEls.current.clear();
     setRoomDialogOpen(true);
   }
 
@@ -1394,13 +1398,23 @@ export default function Home() {
         onDeleted={handleDeleted}
       />
 
-      {/* ルーム参加ダイアログ */}
-      <RoomJoinDialog
-        open={roomDialogOpen}
-        currentUserName={currentUser.name}
-        initialCode={urlCode}
-        onJoined={handleRoomJoined}
-      />
+      {/* 初回起動: 名前設定 + グループ作成/参加 */}
+      {!currentUser.name && (
+        <WelcomeScreen
+          initialCode={urlCode}
+          onComplete={handleWelcomeComplete}
+        />
+      )}
+
+      {/* ルーム変更ダイアログ（名前設定済みの場合） */}
+      {currentUser.name && (
+        <RoomJoinDialog
+          open={roomDialogOpen}
+          currentUserName={currentUser.name}
+          initialCode={urlCode}
+          onJoined={handleRoomJoined}
+        />
+      )}
 
       {/* メンバー管理シート */}
       {room && (
