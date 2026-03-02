@@ -629,9 +629,8 @@ export default function Home() {
   }
 
   function copyRoomCode() {
-    const url = getRoomUrl();
-    if (!url) return;
-    navigator.clipboard.writeText(url);
+    if (!room) return;
+    navigator.clipboard.writeText(room.share_code);
     setCodeCopied(true);
     setTimeout(() => setCodeCopied(false), 2000);
   }
