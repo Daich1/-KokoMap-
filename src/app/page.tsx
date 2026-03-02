@@ -260,29 +260,13 @@ export default function Home() {
     markers.current.get(place.id)?.remove();
     markers.current.delete(place.id);
 
-    // ピルマーカー要素
-    const el = document.createElement("div");
-    const label = place.name.length > 12 ? place.name.slice(0, 12) + "…" : place.name;
-    el.textContent = label;
-    el.style.cssText = [
-      "background:white", "border-radius:24px", "padding:5px 10px",
-      "font-size:12px", "font-weight:700", "color:#111827",
-      "cursor:pointer", "white-space:nowrap",
-      "box-shadow:0 2px 8px rgba(0,0,0,0.18)",
-      "border:1.5px solid rgba(0,0,0,0.06)",
-      "transition:all 0.15s", "user-select:none",
-    ].join(";");
-    el.addEventListener("mouseenter", () => {
-      el.style.background = "#111827";
-      el.style.color = "white";
-      el.style.transform = "scale(1.08)";
-    });
-    el.addEventListener("mouseleave", () => {
-      el.style.background = "white";
-      el.style.color = "#111827";
-      el.style.transform = "scale(1)";
-    });
-    el.addEventListener("click", (e) => {
+    // デフォルトの Mapbox ピンにクリックハンドラを付与
+    const marker = new mapboxgl.Marker()
+      .setLngLat([place.lng, place.lat])
+      .addTo(map.current);
+
+    marker.getElement().style.cursor = "pointer";
+    marker.getElement().addEventListener("click", (e) => {
       e.stopPropagation();
       if (window.innerWidth >= 768) {
         // Desktop: 詳細を直接開く
@@ -294,9 +278,6 @@ export default function Home() {
       }
     });
 
-    const marker = new mapboxgl.Marker({ element: el })
-      .setLngLat([place.lng, place.lat])
-      .addTo(map.current);
     markers.current.set(place.id, marker);
   }, []);
 
