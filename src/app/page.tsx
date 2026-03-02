@@ -995,9 +995,23 @@ export default function Home() {
 
         {/* 右: サイドバーと同幅スペーサー（マップ右端をヘッダーと揃える） */}
         <div className={cn(
-          "shrink-0 border-l transition-[width] duration-300 ease-in-out",
-          expanded ? "w-0" : "w-[420px]"
-        )} />
+          "shrink-0 border-l transition-[width] duration-300 ease-in-out flex items-center justify-end px-3",
+          expanded ? "w-0 overflow-hidden" : "w-[420px]"
+        )}>
+          {authUser && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">{currentUser.name}</span>
+              <button
+                onClick={handleLogout}
+                title="ログアウト"
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs text-muted-foreground hover:text-red-500 hover:bg-red-50 transition-colors cursor-pointer"
+              >
+                <LogOut className="size-3.5" />
+                ログアウト
+              </button>
+            </div>
+          )}
+        </div>
 
       </div>
 
@@ -1265,17 +1279,6 @@ export default function Home() {
                     className="p-1.5 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground cursor-pointer"
                   >
                     <LogOut className="size-3.5" />
-                  </button>
-                </div>
-                {/* ユーザー名 + ログアウト */}
-                <div className="flex items-center gap-1 border-l pl-2 ml-1">
-                  <span className="text-xs text-muted-foreground max-w-[72px] truncate">{currentUser.name}</span>
-                  <button
-                    onClick={handleLogout}
-                    title="ログアウト"
-                    className="p-1.5 rounded hover:bg-red-50 transition-colors text-muted-foreground hover:text-red-500 cursor-pointer"
-                  >
-                    <LogOut className="size-3" />
                   </button>
                 </div>
               </div>
