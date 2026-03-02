@@ -816,29 +816,6 @@ export default function Home() {
   }
 
   // ── 認証前はローディングor認証画面を返す ──────────────────────
-  if (authLoading) {
-    return (
-      <div className="fixed inset-0 flex items-center justify-center bg-white">
-        <div className="flex flex-col items-center gap-3 text-muted-foreground">
-          <div className="size-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-          <p className="text-sm">読み込み中...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!authUser) {
-    return (
-      <AuthScreen
-        onAuth={(user) => {
-          setAuthUser(user);
-          const userName = user.user_metadata?.username ?? user.email?.split("@")[0] ?? "";
-          setCurrentUser({ id: user.id, name: userName });
-        }}
-      />
-    );
-  }
-
   // フィルター Popover の中身（PC ヘッダー・モバイルドロワー共通）
   const filterPopoverContent = (
     <div className="flex flex-col gap-4">
@@ -1515,6 +1492,26 @@ export default function Home() {
           myUserId={currentUser.id}
           members={roomMembers}
           onRoleChanged={upsertRoomMember}
+        />
+      )}
+
+      {/* ── 認証オーバーレイ（マップは背後で初期化し続ける） ── */}
+      {authLoading && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-white">
+          <div className="flex flex-col items-center gap-3 text-muted-foreground">
+            <div className="size-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+            <p className="text-sm">読み込み中...</p>
+          </div>
+        </div>
+      )}
+
+      {!authLoading && !authUser && (
+        <AuthScreen
+          onAuth={(user) => {
+            setAuthUser(user);
+            const userName = user.user_metadata?.username ?? user.email?.split("@")[0] ?? "";
+            setCurrentUser({ id: user.id, name: userName });
+          }}
         />
       )}
     </div>
