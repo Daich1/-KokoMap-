@@ -921,7 +921,7 @@ export default function Home() {
   );
 
   return (
-    <div className="flex flex-col h-screen w-screen overflow-hidden">
+    <div className="flex flex-col h-[100dvh] w-screen overflow-hidden">
 
       {/* ── PC: トップカテゴリ＋フィルターバー ── */}
       <div className="hidden md:flex shrink-0 bg-background border-b h-[52px]">
