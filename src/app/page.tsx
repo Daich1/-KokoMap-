@@ -1017,7 +1017,7 @@ export default function Home() {
 
       {/* ── モバイル: ルーム情報ヘッダーバー ── */}
       {room && (
-        <div className="md:hidden shrink-0 flex items-center justify-between px-3 py-2 bg-background border-b gap-2">
+        <div className="md:hidden shrink-0 flex items-center justify-between px-3 bg-background border-b gap-2" style={{ minHeight: '52px' }}>
           <div className="flex items-center gap-2 min-w-0 flex-1">
             {myRole && (
               <span className={`flex items-center gap-0.5 text-[10px] font-bold rounded-full px-1.5 py-0.5 shrink-0 border
@@ -1039,14 +1039,14 @@ export default function Home() {
               コード: <span className="font-mono font-bold text-foreground tracking-wider">{room.share_code}</span>
             </span>
           </div>
-          <div className="flex items-center gap-0.5 shrink-0">
+          <div className="flex items-center gap-1 shrink-0">
             {canManageRoom && (
               <button
                 onClick={toggleRoomOpen}
                 title={room.is_open ? "参加を締め切る" : "参加を再開する"}
-                className={`flex items-center gap-1 px-2 py-1 rounded-md text-xs transition-colors cursor-pointer ${room.is_open ? "text-green-700 hover:bg-green-50" : "text-red-600 hover:bg-red-50"}`}
+                className={`flex items-center gap-1 px-3 py-2.5 rounded-md text-xs transition-colors cursor-pointer ${room.is_open ? "text-green-700 hover:bg-green-50" : "text-red-600 hover:bg-red-50"}`}
               >
-                {room.is_open ? <Unlock className="size-3.5" /> : <Lock className="size-3.5" />}
+                {room.is_open ? <Unlock className="size-4" /> : <Lock className="size-4" />}
                 <span>{room.is_open ? "参加中" : "締切中"}</span>
               </button>
             )}
@@ -1054,33 +1054,33 @@ export default function Home() {
               <button
                 onClick={() => setMemberManageOpen(true)}
                 title="メンバー管理"
-                className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+                className="p-2.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
               >
-                <Users className="size-3.5" />
+                <Users className="size-4" />
               </button>
             )}
             <button
               onClick={copyRoomCode}
               title="コードをコピー"
-              className="flex items-center gap-1 px-2 py-1 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+              className="flex items-center gap-1 px-3 py-2.5 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
             >
-              {codeCopied ? <Check className="size-3.5 text-green-600" /> : <Copy className="size-3.5" />}
+              {codeCopied ? <Check className="size-4 text-green-600" /> : <Copy className="size-4" />}
               <span className="text-xs">{codeCopied ? "コピー済" : "コピー"}</span>
             </button>
             <button
               onClick={shareRoomUrl}
               title="シェア"
-              className="flex items-center gap-1 px-2 py-1 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+              className="flex items-center gap-1 px-3 py-2.5 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
             >
-              <Share2 className="size-3.5" />
+              <Share2 className="size-4" />
               <span className="text-xs">シェア</span>
             </button>
             <button
               onClick={handleLeaveRoom}
               title="ルームを変更"
-              className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+              className="p-2.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
             >
-              <LogOut className="size-3.5" />
+              <LogOut className="size-4" />
             </button>
           </div>
         </div>
@@ -1131,7 +1131,7 @@ export default function Home() {
           <button
             onClick={handleLocateMe}
             className="absolute z-10 bg-white rounded-full shadow-lg p-2.5 hover:bg-gray-50 hover:shadow-xl active:scale-95 transition-all cursor-pointer right-3 md:bottom-6"
-            style={{ bottom: 'calc(7.5rem + env(safe-area-inset-bottom, 0px))' }}
+            style={{ bottom: 'calc(10rem + env(safe-area-inset-bottom, 0px))' }}
             title="現在地へ移動"
           >
             <LocateFixed className="size-5 text-gray-700" />
@@ -1143,7 +1143,7 @@ export default function Home() {
               onClick={() => { setEditPlace(undefined); setSheetOpen(true); }}
               disabled={!room}
               className="md:hidden absolute right-3 z-10 bg-primary text-primary-foreground rounded-full shadow-lg p-3 hover:opacity-90 active:scale-95 transition-all disabled:opacity-40 cursor-pointer"
-              style={{ bottom: 'calc(4rem + env(safe-area-inset-bottom, 0px))' }}
+              style={{ bottom: 'calc(6.5rem + env(safe-area-inset-bottom, 0px))' }}
               title="場所を追加"
             >
               <Plus className="size-5" />
