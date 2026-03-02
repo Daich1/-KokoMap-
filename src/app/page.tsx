@@ -22,8 +22,10 @@ import { PlaceDetailSheet } from "@/components/PlaceDetailSheet";
 import { PlaceCard } from "@/components/PlaceCard";
 import { RoomJoinDialog } from "@/components/RoomJoinDialog";
 import { WelcomeScreen } from "@/components/WelcomeScreen";
+import { AuthScreen } from "@/components/AuthScreen";
 import { MemberManageSheet } from "@/components/MemberManageSheet";
 import { supabase, type Place, type Room, type SpotStatus, type RoomMember } from "@/lib/supabase";
+import type { User } from "@supabase/supabase-js";
 import { useMapStore } from "@/store/useMapStore";
 import { toast } from "sonner";
 import { reverseGeocode } from "@/lib/geocoding";
@@ -123,6 +125,32 @@ export default function Home() {
   const [roomDialogOpen, setRoomDialogOpen] = useState(!room);
   const [memberManageOpen, setMemberManageOpen] = useState(false);
   const [urlCode, setUrlCode] = useState<string | undefined>(undefined);
+
+  // ── Supabase Auth セッション管理 ──────────────────────────────
+  const [authUser, setAuthUser] = useState<User | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      const user = session?.user ?? null;
+      setAuthUser(user);
+      if (user) {
+        const userName = user.user_metadata?.username ?? user.email?.split("@")[0] ?? "";
+        setCurrentUser({ id: user.id, name: userName });
+      }
+      setAuthLoading(false);
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      const user = session?.user ?? null;
+      setAuthUser(user);
+      if (user) {
+        const userName = user.user_metadata?.username ?? user.email?.split("@")[0] ?? "";
+        setCurrentUser({ id: user.id, name: userName });
+      }
+    });
+    return () => subscription.unsubscribe();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // URL の ?code= パラメータを検出してダイアログに渡す（room hydration より先に実行）
   useEffect(() => {
@@ -710,6 +738,21 @@ export default function Home() {
     setRoomDialogOpen(true);
   }
 
+  async function handleLogout() {
+    if (room) {
+      await supabase.from("room_members")
+        .delete()
+        .eq("room_id", room.id)
+        .eq("user_id", currentUser.id);
+    }
+    clearRoom();
+    markers.current.forEach((m) => m.remove());
+    markers.current.clear();
+    await supabase.auth.signOut();
+    setCurrentUser({ id: "", name: "" });
+    setAuthUser(null);
+  }
+
   function getRoomUrl() {
     if (!room) return "";
     return `${window.location.origin}${window.location.pathname}?code=${room.share_code}`;
@@ -770,6 +813,30 @@ export default function Home() {
     setFilterBudgetMax("");
     setFilterOpenNow(false);
     setFilterStatus(null);
+  }
+
+  // ── 認証前はローディングor認証画面を返す ──────────────────────
+  if (authLoading) {
+    return (
+      <div className="fixed inset-0 flex items-center justify-center bg-white">
+        <div className="flex flex-col items-center gap-3 text-muted-foreground">
+          <div className="size-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+          <p className="text-sm">読み込み中...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!authUser) {
+    return (
+      <AuthScreen
+        onAuth={(user) => {
+          setAuthUser(user);
+          const userName = user.user_metadata?.username ?? user.email?.split("@")[0] ?? "";
+          setCurrentUser({ id: user.id, name: userName });
+        }}
+      />
+    );
   }
 
   // フィルター Popover の中身（PC ヘッダー・モバイルドロワー共通）
@@ -1025,6 +1092,17 @@ export default function Home() {
               <LogOut className="size-3.5" />
             </button>
           </div>
+          {/* ユーザー名 + ログアウト */}
+          <div className="shrink-0 flex items-center gap-1 pl-1 border-l ml-0.5">
+            <span className="text-[11px] text-muted-foreground max-w-[60px] truncate">{currentUser.name}</span>
+            <button
+              onClick={handleLogout}
+              title="ログアウト"
+              className="p-1.5 rounded-md text-muted-foreground hover:text-red-500 hover:bg-red-50 transition-colors cursor-pointer"
+            >
+              <LogOut className="size-3" />
+            </button>
+          </div>
         </div>
       )}
 
@@ -1210,6 +1288,17 @@ export default function Home() {
                     className="p-1.5 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground cursor-pointer"
                   >
                     <LogOut className="size-3.5" />
+                  </button>
+                </div>
+                {/* ユーザー名 + ログアウト */}
+                <div className="flex items-center gap-1 border-l pl-2 ml-1">
+                  <span className="text-xs text-muted-foreground max-w-[72px] truncate">{currentUser.name}</span>
+                  <button
+                    onClick={handleLogout}
+                    title="ログアウト"
+                    className="p-1.5 rounded hover:bg-red-50 transition-colors text-muted-foreground hover:text-red-500 cursor-pointer"
+                  >
+                    <LogOut className="size-3" />
                   </button>
                 </div>
               </div>
@@ -1398,16 +1487,17 @@ export default function Home() {
         onDeleted={handleDeleted}
       />
 
-      {/* 初回起動: 名前設定 + グループ作成/参加 */}
-      {!currentUser.name && (
+      {/* ルーム未参加時: グループ作成/参加 */}
+      {!room && roomDialogOpen && (
         <WelcomeScreen
           initialCode={urlCode}
           onComplete={handleWelcomeComplete}
+          userName={currentUser.name}
         />
       )}
 
-      {/* ルーム変更ダイアログ（名前設定済みの場合） */}
-      {currentUser.name && (
+      {/* ルーム変更ダイアログ（ルームを持っているときに退出後など） */}
+      {room && (
         <RoomJoinDialog
           open={roomDialogOpen}
           currentUserName={currentUser.name}

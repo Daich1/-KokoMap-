@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 
 interface WelcomeScreenProps {
   initialCode?: string;
+  userName?: string;  // 認証済みの場合は名前が渡される
   onComplete: (name: string, room: Room, isCreator: boolean) => void;
 }
 
@@ -16,9 +17,12 @@ function generateShareCode(): string {
   return Math.random().toString(36).slice(2, 8).toUpperCase();
 }
 
-export function WelcomeScreen({ initialCode, onComplete }: WelcomeScreenProps) {
-  const [step, setStep] = useState<Step>(initialCode ? "join" : "welcome");
-  const [name, setName] = useState("");
+export function WelcomeScreen({ initialCode, userName: propUserName = "", onComplete }: WelcomeScreenProps) {
+  // 認証済みの場合は名前が渡されるのでウェルカムステップをスキップ
+  const [step, setStep] = useState<Step>(
+    propUserName ? (initialCode ? "join" : "create") : (initialCode ? "join" : "welcome")
+  );
+  const [name, setName] = useState(propUserName);
   const [roomName, setRoomName] = useState("");
   const [shareCode, setShareCode] = useState(initialCode ?? "");
   const [useCustomCode, setUseCustomCode] = useState(false);
