@@ -4,7 +4,6 @@ import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import MapboxLanguage from "@mapbox/mapbox-gl-language";
-import Supercluster from "supercluster";
 import { LocateFixed, List, Search, Copy, Check, LogOut, SlidersHorizontal, X, Star, CheckCircle2, Utensils, Wine, Gamepad2, Landmark, Coffee, ShoppingBag, Camera, BedDouble, Waves, Plus, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -93,11 +92,6 @@ export default function Home() {
     setMapBounds,
   } = useMapStore();
 
-  // ── クラスタリング用 refs ──────────────────────────────
-  const superclusterRef = useRef<Supercluster | null>(null);
-  // key = `${zoom}:${clusterId}` で差分更新
-  const clusterMarkersMap = useRef<Map<string, mapboxgl.Marker>>(new Map());
-  const clusteredPlaceIds = useRef<Set<string>>(new Set());
   const filteredPlacesRef = useRef<Place[]>([]);
 
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -236,130 +230,14 @@ export default function Home() {
     );
   }, [filteredPlaces, userLocation]);
 
-  // ── updateClusters: 差分更新でクラスターバッジを管理 ──────────
-  const updateClusters = useCallback(() => {
-    if (!map.current || !superclusterRef.current) {
-      const filteredIds = new Set(filteredPlacesRef.current.map((p) => p.id));
-      markers.current.forEach((marker, id) => {
-        marker.getElement().style.display = filteredIds.has(id) ? "" : "none";
-      });
-      return;
-    }
-
-    const mapInstance = map.current;
-    const bounds = mapInstance.getBounds();
-    if (!bounds) return;
-    const zoom = Math.floor(mapInstance.getZoom());
-    const bbox: [number, number, number, number] = [
-      bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth(),
-    ];
-
-    const clusterFeatures = superclusterRef.current.getClusters(bbox, zoom);
-
-    // 新しいクラスターセットを構築（key = `zoom:clusterId` で一意）
-    const newClusterMap = new Map<string, {
-      lng: number; lat: number; count: number; clusterId: number;
-    }>();
-    const unclusteredInViewport = new Set<string>();
-
-    clusterFeatures.forEach((f) => {
-      if (f.properties.cluster) {
-        const key = `${zoom}:${f.properties.cluster_id}`;
-        const [lng, lat] = f.geometry.coordinates;
-        newClusterMap.set(key, {
-          lng, lat,
-          count: f.properties.point_count as number,
-          clusterId: f.properties.cluster_id as number,
-        });
-      } else {
-        unclusteredInViewport.add(f.properties.placeId as string);
-      }
-    });
-
-    // 不要になったクラスターバッジだけ削除（差分）
-    clusterMarkersMap.current.forEach((marker, key) => {
-      if (!newClusterMap.has(key)) {
-        marker.remove();
-        clusterMarkersMap.current.delete(key);
-      }
-    });
-
-    // 新しいクラスターバッジだけ追加（既存はスキップ）
-    newClusterMap.forEach(({ lng, lat, count, clusterId }, key) => {
-      if (clusterMarkersMap.current.has(key)) return;
-
-      const size = count >= 100 ? 52 : count >= 10 ? 44 : 36;
-      const el = document.createElement("div");
-      el.style.cssText = [
-        `width:${size}px`, `height:${size}px`, "border-radius:50%",
-        "background:white", "border:2.5px solid #6366f1",
-        "display:flex", "align-items:center", "justify-content:center",
-        "font-weight:700", "font-size:13px", "color:#6366f1",
-        "cursor:pointer", "box-shadow:0 2px 8px rgba(0,0,0,0.2)",
-        "transition:transform 0.15s", "user-select:none",
-      ].join(";");
-      el.textContent = count >= 100 ? "99+" : `+${count}`;
-      el.addEventListener("mouseenter", () => { el.style.transform = "scale(1.15)"; });
-      el.addEventListener("mouseleave", () => { el.style.transform = "scale(1)"; });
-      el.addEventListener("click", () => {
-        const expansionZoom = superclusterRef.current!.getClusterExpansionZoom(clusterId);
-        mapInstance.flyTo({ center: [lng, lat], zoom: expansionZoom + 0.5, duration: 400 });
-      });
-
-      const marker = new mapboxgl.Marker({ element: el })
-        .setLngLat([lng, lat])
-        .addTo(mapInstance);
-      clusterMarkersMap.current.set(key, marker);
-    });
-
-    // 個別マーカーの表示/非表示を更新
-    const newClusteredIds = new Set<string>();
-    places.forEach((p) => {
-      const inViewport =
-        p.lat >= bounds.getSouth() && p.lat <= bounds.getNorth() &&
-        p.lng >= bounds.getWest()  && p.lng <= bounds.getEast();
-      if (inViewport && !unclusteredInViewport.has(p.id)) {
-        newClusteredIds.add(p.id);
-      }
-    });
-    clusteredPlaceIds.current = newClusteredIds;
-
-    const filteredIds = new Set(filteredPlacesRef.current.map((p) => p.id));
-    markers.current.forEach((marker, id) => {
-      const show = filteredIds.has(id) && !newClusteredIds.has(id);
-      marker.getElement().style.display = show ? "" : "none";
-    });
-  }, [places]);
-
-  const updateClustersRef = useRef(updateClusters);
-  useEffect(() => { updateClustersRef.current = updateClusters; }, [updateClusters]);
-
-  // filteredPlaces が変わったら ref を更新してクラスター再描画
+  // filteredPlaces が変わったらマーカー表示/非表示を更新
   useEffect(() => {
     filteredPlacesRef.current = filteredPlaces;
-    updateClustersRef.current();
+    const filteredIds = new Set(filteredPlaces.map((p) => p.id));
+    markers.current.forEach((marker, id) => {
+      marker.getElement().style.display = filteredIds.has(id) ? "" : "none";
+    });
   }, [filteredPlaces]);
-
-  // places が変わったら supercluster を再構築
-  useEffect(() => {
-    if (places.length === 0) {
-      superclusterRef.current = null;
-      clusterMarkersMap.current.forEach((m) => m.remove());
-      clusterMarkersMap.current.clear();
-      clusteredPlaceIds.current = new Set();
-      return;
-    }
-    const sc = new Supercluster({ radius: 60, maxZoom: 16 });
-    sc.load(
-      places.map((p) => ({
-        type: "Feature" as const,
-        geometry: { type: "Point" as const, coordinates: [p.lng, p.lat] },
-        properties: { placeId: p.id },
-      }))
-    );
-    superclusterRef.current = sc;
-    if (map.current) updateClustersRef.current();
-  }, [places]);
 
   function toggleFilterCategory(cat: string) {
     setFilterCategories((prev) =>
@@ -519,22 +397,10 @@ export default function Home() {
       if (b) setMapBounds({ north: b.getNorth(), south: b.getSouth(), east: b.getEast(), west: b.getWest() });
     });
 
-    // ズームアニメーション中はバッジを薄くして、古いズームのバッジが残って見えるのを防ぐ
-    map.current.on("zoomstart", () => {
-      clusterMarkersMap.current.forEach((m) => {
-        m.getElement().style.opacity = "0";
-      });
-    });
-
     map.current.on("moveend", () => {
       if (!map.current) return;
       const b = map.current.getBounds();
       if (b) setMapBounds({ north: b.getNorth(), south: b.getSouth(), east: b.getEast(), west: b.getWest() });
-      updateClustersRef.current();
-      // 新しいバッジは不透明に戻す
-      clusterMarkersMap.current.forEach((m) => {
-        m.getElement().style.opacity = "1";
-      });
     });
 
     map.current.on("click", async (e) => {
