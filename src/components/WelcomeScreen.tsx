@@ -3,26 +3,21 @@
 import { useState } from "react";
 import { Loader2, MapPin, Plus, LogIn, Copy, Check, Shield, ArrowLeft } from "lucide-react";
 import { supabase, type Room } from "@/lib/supabase";
-import { cn } from "@/lib/utils";
 
 interface WelcomeScreenProps {
   initialCode?: string;
-  userName?: string;  // 認証済みの場合は名前が渡される
+  userName: string;
   onComplete: (name: string, room: Room, isCreator: boolean) => void;
 }
 
-type Step = "welcome" | "create" | "join";
+type Step = "select" | "create" | "join";
 
 function generateShareCode(): string {
   return Math.random().toString(36).slice(2, 8).toUpperCase();
 }
 
-export function WelcomeScreen({ initialCode, userName: propUserName = "", onComplete }: WelcomeScreenProps) {
-  // 認証済みの場合は名前が渡されるのでウェルカムステップをスキップ
-  const [step, setStep] = useState<Step>(
-    propUserName ? (initialCode ? "join" : "create") : (initialCode ? "join" : "welcome")
-  );
-  const [name, setName] = useState(propUserName);
+export function WelcomeScreen({ initialCode, userName, onComplete }: WelcomeScreenProps) {
+  const [step, setStep] = useState<Step>(initialCode ? "join" : "select");
   const [roomName, setRoomName] = useState("");
   const [shareCode, setShareCode] = useState(initialCode ?? "");
   const [useCustomCode, setUseCustomCode] = useState(false);
@@ -32,11 +27,7 @@ export function WelcomeScreen({ initialCode, userName: propUserName = "", onComp
   const [createdCode, setCreatedCode] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
-  const nameOk = name.trim().length >= 1;
-
   async function handleCreate() {
-    if (!nameOk) { setError("名前を入力してください"); return; }
-
     const code = useCustomCode
       ? customCode.trim().toUpperCase()
       : generateShareCode();
@@ -62,7 +53,7 @@ export function WelcomeScreen({ initialCode, userName: propUserName = "", onComp
       }
       setCreatedCode(code);
       setIsLoading(false);
-      setTimeout(() => onComplete(name.trim(), data as Room, true), 1500);
+      setTimeout(() => onComplete(userName, data as Room, true), 1500);
     } catch {
       setError("ルームの作成に失敗しました");
       setIsLoading(false);
@@ -70,7 +61,6 @@ export function WelcomeScreen({ initialCode, userName: propUserName = "", onComp
   }
 
   async function handleJoin() {
-    if (!nameOk) { setError("名前を入力してください"); return; }
     if (shareCode.trim().length < 4) { setError("招待コードを入力してください"); return; }
     setIsLoading(true);
     setError("");
@@ -82,7 +72,7 @@ export function WelcomeScreen({ initialCode, userName: propUserName = "", onComp
         .single();
       if (dbError || !data) { setError("ルームが見つかりません"); setIsLoading(false); return; }
       if (!data.is_open) { setError("このルームは参加を受け付けていません"); setIsLoading(false); return; }
-      onComplete(name.trim(), data as Room, false);
+      onComplete(userName, data as Room, false);
     } catch {
       setError("接続に失敗しました");
       setIsLoading(false);
@@ -97,72 +87,36 @@ export function WelcomeScreen({ initialCode, userName: propUserName = "", onComp
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col items-center justify-between bg-white px-6 pb-10 pt-safe overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex flex-col items-center justify-between bg-white px-6 pb-10 overflow-y-auto">
 
-      {/* ── ステップ: ウェルカム ── */}
-      {step === "welcome" && (
+      {/* ── グループ選択 ── */}
+      {step === "select" && (
         <>
-          {/* ロゴ＋タイトル */}
           <div className="flex flex-col items-center justify-center flex-1 gap-5 pb-8">
-            <div className="relative">
-              <div className="w-24 h-24 rounded-3xl bg-primary/10 flex items-center justify-center shadow-inner">
-                <MapPin className="size-12 text-primary" strokeWidth={1.5} />
-              </div>
+            <div className="w-20 h-20 rounded-3xl bg-primary/10 flex items-center justify-center shadow-inner">
+              <MapPin className="size-10 text-primary" strokeWidth={1.5} />
             </div>
             <div className="text-center">
-              <h1 className="text-3xl font-bold tracking-tight">KokoMap</h1>
-              <p className="text-sm text-muted-foreground mt-1.5">グループでスポットをリアルタイム共有</p>
+              <h1 className="text-2xl font-bold tracking-tight">KokoMap</h1>
+              <p className="text-sm text-muted-foreground mt-1">グループでスポットをリアルタイム共有</p>
             </div>
-
-            {/* 名前入力 */}
-            <div className="w-full max-w-xs flex flex-col gap-2 mt-4">
-              <label className="text-sm font-medium text-center text-gray-700">
-                あなたの名前（ニックネーム）
-              </label>
-              <input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="例: Taro"
-                maxLength={20}
-                autoFocus
-                onKeyDown={(e) => e.key === "Enter" && nameOk && setStep("create")}
-                className="w-full border rounded-xl px-4 py-3 text-base text-center font-medium outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition"
-              />
-              <p className="text-xs text-muted-foreground text-center">
-                同じブラウザでは同じユーザーとして記録されます
-              </p>
-            </div>
+            <p className="text-sm text-gray-500">
+              こんにちは、<span className="font-semibold text-foreground">{userName}</span> さん
+            </p>
           </div>
 
-          {/* ボタン */}
           <div className="w-full max-w-xs flex flex-col gap-3">
             {error && <p className="text-xs text-destructive text-center">{error}</p>}
             <button
-              onClick={() => {
-                if (!nameOk) { setError("名前を入力してください"); return; }
-                setError("");
-                setStep("create");
-              }}
-              className={cn(
-                "w-full rounded-2xl py-4 text-base font-bold text-white transition-all",
-                nameOk ? "bg-primary hover:opacity-90 active:scale-95" : "bg-gray-200 text-gray-400 cursor-not-allowed"
-              )}
+              onClick={() => { setError(""); setStep("create"); }}
+              className="w-full rounded-2xl py-4 text-base font-bold text-white bg-primary hover:opacity-90 active:scale-95 transition-all"
             >
               <Plus className="inline size-5 mr-1.5 -mt-0.5" />
               グループを作る
             </button>
             <button
-              onClick={() => {
-                if (!nameOk) { setError("名前を入力してください"); return; }
-                setError("");
-                setStep("join");
-              }}
-              className={cn(
-                "w-full rounded-2xl py-4 text-base font-bold border-2 transition-all",
-                nameOk
-                  ? "border-primary text-primary hover:bg-primary/5 active:scale-95"
-                  : "border-gray-200 text-gray-400 cursor-not-allowed"
-              )}
+              onClick={() => { setError(""); setStep("join"); }}
+              className="w-full rounded-2xl py-4 text-base font-bold border-2 border-primary text-primary hover:bg-primary/5 active:scale-95 transition-all"
             >
               <LogIn className="inline size-5 mr-1.5 -mt-0.5" />
               招待コードで参加
@@ -171,12 +125,12 @@ export function WelcomeScreen({ initialCode, userName: propUserName = "", onComp
         </>
       )}
 
-      {/* ── ステップ: グループ作成 ── */}
+      {/* ── グループ作成 ── */}
       {step === "create" && (
         <>
           <div className="w-full max-w-xs">
             <button
-              onClick={() => { setStep("welcome"); setError(""); setCreatedCode(null); }}
+              onClick={() => { setStep("select"); setError(""); setCreatedCode(null); }}
               className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors mt-4 mb-6"
             >
               <ArrowLeft className="size-4" />
@@ -187,7 +141,6 @@ export function WelcomeScreen({ initialCode, userName: propUserName = "", onComp
               <div className="flex flex-col gap-5">
                 <div className="text-center">
                   <h2 className="text-xl font-bold">グループを作成</h2>
-                  <p className="text-sm text-muted-foreground mt-1">{name} さんがリーダーになります</p>
                 </div>
 
                 <div className="flex flex-col gap-1.5">
@@ -240,7 +193,6 @@ export function WelcomeScreen({ initialCode, userName: propUserName = "", onComp
                 </button>
               </div>
             ) : (
-              /* 作成完了 */
               <div className="flex flex-col items-center gap-6 pt-8">
                 <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center">
                   <Check className="size-8 text-green-600" />
@@ -252,15 +204,13 @@ export function WelcomeScreen({ initialCode, userName: propUserName = "", onComp
                 <div className="w-full bg-gray-50 rounded-2xl p-5 flex flex-col items-center gap-3">
                   <p className="text-xs text-muted-foreground">招待コード</p>
                   <p className="text-3xl font-black font-mono tracking-widest text-primary">{createdCode}</p>
-                  <div className="flex gap-2 w-full">
-                    <button
-                      onClick={() => copyInviteUrl(createdCode)}
-                      className="flex-1 flex items-center justify-center gap-1.5 border border-primary text-primary rounded-xl py-2.5 text-sm font-medium hover:bg-primary/5 transition"
-                    >
-                      {copied ? <Check className="size-4 text-green-600" /> : <Copy className="size-4" />}
-                      {copied ? "コピー済" : "コピー"}
-                    </button>
-                  </div>
+                  <button
+                    onClick={() => copyInviteUrl(createdCode)}
+                    className="flex items-center justify-center gap-1.5 w-full border border-primary text-primary rounded-xl py-2.5 text-sm font-medium hover:bg-primary/5 transition"
+                  >
+                    {copied ? <Check className="size-4 text-green-600" /> : <Copy className="size-4" />}
+                    {copied ? "コピー済" : "URLをコピー"}
+                  </button>
                 </div>
                 <p className="text-xs text-muted-foreground animate-pulse">マップを読み込んでいます...</p>
               </div>
@@ -270,12 +220,12 @@ export function WelcomeScreen({ initialCode, userName: propUserName = "", onComp
         </>
       )}
 
-      {/* ── ステップ: 招待コードで参加 ── */}
+      {/* ── 招待コードで参加 ── */}
       {step === "join" && (
         <>
           <div className="w-full max-w-xs">
             <button
-              onClick={() => { setStep("welcome"); setError(""); setShareCode(initialCode ?? ""); }}
+              onClick={() => { setStep("select"); setError(""); setShareCode(initialCode ?? ""); }}
               className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors mt-4 mb-6"
             >
               <ArrowLeft className="size-4" />
@@ -285,7 +235,6 @@ export function WelcomeScreen({ initialCode, userName: propUserName = "", onComp
             <div className="flex flex-col gap-5">
               <div className="text-center">
                 <h2 className="text-xl font-bold">招待コードで参加</h2>
-                <p className="text-sm text-muted-foreground mt-1">{name} さんとして参加します</p>
               </div>
 
               <div className="flex flex-col gap-1.5">
