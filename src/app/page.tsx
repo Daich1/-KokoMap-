@@ -120,8 +120,8 @@ export default function Home() {
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [geocodedAddress, setGeocodedAddress] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [drawerSnap, setDrawerSnap] = useState<number | string | null>(0.45);
+  const [drawerOpen, setDrawerOpen] = useState(true);
+  const [drawerSnap, setDrawerSnap] = useState<number | string | null>(0.3);
   const [mapLoaded, setMapLoaded] = useState(false);
   const [roomDialogOpen, setRoomDialogOpen] = useState(!room);
   const [memberManageOpen, setMemberManageOpen] = useState(false);
@@ -1129,7 +1129,7 @@ export default function Home() {
           <button
             onClick={handleLocateMe}
             className="absolute z-10 bg-white rounded-full shadow-lg p-2.5 hover:bg-gray-50 hover:shadow-xl active:scale-95 transition-all cursor-pointer right-3 md:bottom-6"
-            style={{ bottom: 'calc(10rem + env(safe-area-inset-bottom, 0px))' }}
+            style={{ bottom: 'calc(34dvh + env(safe-area-inset-bottom, 0px) + 3.5rem)' }}
             title="現在地へ移動"
           >
             <LocateFixed className="size-5 text-gray-700" />
@@ -1141,61 +1141,12 @@ export default function Home() {
               onClick={() => { setEditPlace(undefined); setSheetOpen(true); }}
               disabled={!room}
               className="md:hidden absolute right-3 z-10 bg-primary text-primary-foreground rounded-full shadow-lg p-3 hover:opacity-90 active:scale-95 transition-all disabled:opacity-40 cursor-pointer"
-              style={{ bottom: 'calc(6.5rem + env(safe-area-inset-bottom, 0px))' }}
+              style={{ bottom: 'calc(34dvh + env(safe-area-inset-bottom, 0px) + 0.75rem)' }}
               title="場所を追加"
             >
               <Plus className="size-5" />
             </button>
           )}
-
-          {/* モバイル: 常時表示のペークバー（スライドアップトリガー） */}
-          <div
-            className="md:hidden absolute left-0 right-0 z-10"
-            style={{ bottom: 0 }}
-          >
-            <button
-              className="w-full bg-white rounded-t-3xl shadow-[0_-6px_24px_rgba(0,0,0,0.13)] active:bg-gray-50 transition-colors"
-              style={{ paddingBottom: 'max(1.25rem, env(safe-area-inset-bottom, 0px))' }}
-              onClick={() => { setDrawerOpen(true); setDrawerSnap(0.45); }}
-              onTouchStart={(e) => { peekTouchStartY.current = e.touches[0].clientY; }}
-              onTouchMove={(e) => {
-                if (peekTouchStartY.current === null) return;
-                const dy = peekTouchStartY.current - e.touches[0].clientY;
-                if (dy > 20) {
-                  peekTouchStartY.current = null;
-                  setDrawerOpen(true);
-                  setDrawerSnap(0.45);
-                }
-              }}
-              onTouchEnd={() => { peekTouchStartY.current = null; }}
-            >
-              {/* ドラッグハンドル */}
-              <div className="flex flex-col items-center pt-3 pb-2">
-                <div className="w-10 h-1 rounded-full bg-gray-300" />
-              </div>
-              {/* タイトル行 */}
-              <div className="flex items-center justify-between px-5 pb-4 pt-1">
-                <div className="flex items-center gap-2.5">
-                  <div className="bg-primary/10 rounded-full p-1.5">
-                    <List className="size-4 text-primary" />
-                  </div>
-                  <div className="text-left">
-                    <p className="text-sm font-bold leading-tight">スポット一覧</p>
-                    <p className="text-xs text-muted-foreground leading-tight">{countLabel}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  {activeFilterCount > 0 && (
-                    <span className="flex items-center gap-1 text-xs text-primary font-medium bg-primary/10 rounded-full px-2.5 py-1">
-                      <SlidersHorizontal className="size-3" />
-                      {activeFilterCount}
-                    </span>
-                  )}
-                  <ChevronUp className="size-5 text-gray-400" />
-                </div>
-              </div>
-            </button>
-          </div>
         </div>
 
         {/* ── PC: 右リストパネル ── */}
@@ -1342,13 +1293,17 @@ export default function Home() {
       <Drawer
         open={drawerOpen}
         onOpenChange={(v) => {
-          setDrawerOpen(v);
-          if (v) setDrawerSnap(0.45);
+          if (!v) {
+            // 閉じようとしたら最小スナップに戻す
+            setDrawerSnap(0.3);
+            setDrawerOpen(true);
+          }
         }}
-        snapPoints={[0.45, 1]}
+        snapPoints={[0.3, 1]}
         activeSnapPoint={drawerSnap}
         setActiveSnapPoint={setDrawerSnap}
         modal={false}
+        dismissible={false}
       >
         <DrawerContent className="flex flex-col md:hidden fixed">
           <DrawerHeader className="pb-0 text-left">
@@ -1414,6 +1369,8 @@ export default function Home() {
             style={{
               flex: 1,
               overflowY: drawerSnap === 1 ? "auto" : "hidden",
+              maskImage: drawerSnap !== 1 ? "linear-gradient(to bottom, black 60%, transparent 100%)" : undefined,
+              WebkitMaskImage: drawerSnap !== 1 ? "linear-gradient(to bottom, black 60%, transparent 100%)" : undefined,
             }}
           >
             {filteredPlaces.length === 0 ? (
