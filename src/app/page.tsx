@@ -1019,6 +1019,7 @@ export default function Home() {
       {/* ── モバイル: ルーム情報ヘッダーバー ── */}
       {room && (
         <div className="md:hidden shrink-0 flex items-center justify-between px-3 bg-background border-b gap-2" style={{ minHeight: '52px' }}>
+          {/* 左: ロール + コード */}
           <div className="flex items-center gap-2 min-w-0 flex-1">
             {myRole && (
               <span className={`flex items-center gap-0.5 text-[10px] font-bold rounded-full px-1.5 py-0.5 shrink-0 border
@@ -1034,21 +1035,19 @@ export default function Home() {
               </span>
             )}
             {room.name && (
-              <span className="text-xs font-medium truncate max-w-[100px]">{room.name}</span>
+              <span className="text-xs font-medium truncate max-w-[80px]">{room.name}</span>
             )}
-            <span className="text-xs text-muted-foreground shrink-0">
-              コード: <span className="font-mono font-bold text-foreground tracking-wider">{room.share_code}</span>
-            </span>
+            <span className="text-xs text-muted-foreground shrink-0 font-mono font-bold tracking-wider">{room.share_code}</span>
           </div>
-          <div className="flex items-center gap-1 shrink-0">
+          {/* 右: アイコンのみボタン群 */}
+          <div className="flex items-center shrink-0">
             {canManageRoom && (
               <button
                 onClick={toggleRoomOpen}
                 title={room.is_open ? "参加を締め切る" : "参加を再開する"}
-                className={`flex items-center gap-1 px-3 py-2.5 rounded-md text-xs transition-colors cursor-pointer ${room.is_open ? "text-green-700 hover:bg-green-50" : "text-red-600 hover:bg-red-50"}`}
+                className={`p-2.5 rounded-md transition-colors cursor-pointer ${room.is_open ? "text-green-600 hover:bg-green-50" : "text-red-500 hover:bg-red-50"}`}
               >
                 {room.is_open ? <Unlock className="size-4" /> : <Lock className="size-4" />}
-                <span>{room.is_open ? "参加中" : "締切中"}</span>
               </button>
             )}
             {canManageMembers && (
@@ -1063,18 +1062,16 @@ export default function Home() {
             <button
               onClick={copyRoomCode}
               title="コードをコピー"
-              className="flex items-center gap-1 px-3 py-2.5 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+              className="p-2.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
             >
               {codeCopied ? <Check className="size-4 text-green-600" /> : <Copy className="size-4" />}
-              <span className="text-xs">{codeCopied ? "コピー済" : "コピー"}</span>
             </button>
             <button
               onClick={shareRoomUrl}
               title="シェア"
-              className="flex items-center gap-1 px-3 py-2.5 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+              className="p-2.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
             >
               <Share2 className="size-4" />
-              <span className="text-xs">シェア</span>
             </button>
             <button
               onClick={handleLeaveRoom}
@@ -1172,12 +1169,12 @@ export default function Home() {
               }}
               onTouchEnd={() => { peekTouchStartY.current = null; }}
             >
-              {/* ドラッグハンドル（太め・目立つ） */}
-              <div className="flex flex-col items-center gap-1 pt-3 pb-1">
-                <div className="w-12 h-1.5 rounded-full bg-gray-300" />
+              {/* ドラッグハンドル */}
+              <div className="flex flex-col items-center pt-3 pb-2">
+                <div className="w-10 h-1 rounded-full bg-gray-300" />
               </div>
               {/* タイトル行 */}
-              <div className="flex items-center justify-between px-5 py-3">
+              <div className="flex items-center justify-between px-5 pb-4 pt-1">
                 <div className="flex items-center gap-2.5">
                   <div className="bg-primary/10 rounded-full p-1.5">
                     <List className="size-4 text-primary" />
