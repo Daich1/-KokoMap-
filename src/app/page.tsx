@@ -108,24 +108,24 @@ export default function Home() {
   const [roomDialogOpen, setRoomDialogOpen] = useState(!room);
   const [urlCode, setUrlCode] = useState<string | undefined>(undefined);
 
-  // Zustand が localStorage から hydrate した後にダイアログ状態を同期
-  useEffect(() => {
-    if (room) setRoomDialogOpen(false);
-  }, [room]);
-
-  // URL の ?code= パラメータを検出してダイアログに渡す
+  // URL の ?code= パラメータを検出してダイアログに渡す（room hydration より先に実行）
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const code = params.get("code");
     if (code) {
-      const normalized = code.trim().toUpperCase().slice(0, 6);
+      const normalized = code.trim().toUpperCase().slice(0, 8);
       setUrlCode(normalized);
       setRoomDialogOpen(true);
-      // URLをきれいにする（リロード時の再適用を防ぐ）
       const clean = window.location.pathname;
       window.history.replaceState({}, "", clean);
     }
   }, []);
+
+  // Zustand が localStorage から hydrate した後にダイアログ状態を同期
+  // urlCode がある場合はダイアログを閉じない
+  useEffect(() => {
+    if (room && !urlCode) setRoomDialogOpen(false);
+  }, [room, urlCode]);
   const [codeCopied, setCodeCopied] = useState(false);
 
   // Filter state

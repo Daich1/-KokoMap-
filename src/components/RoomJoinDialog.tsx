@@ -34,21 +34,20 @@ export function RoomJoinDialog({
     initialCode ? "join" : "select"
   );
   const [userName, setUserName] = useState(currentUserName);
+  const [shareCode, setShareCode] = useState(initialCode ?? "");
 
   // Zustand hydration 後に保存済みの名前を反映（ユーザーが入力済みの場合は上書きしない）
   useEffect(() => {
     if (currentUserName) setUserName((prev) => prev || currentUserName);
   }, [currentUserName]);
 
-  // URL から渡されたコードを反映
+  // URL から渡されたコードを反映（非同期で initialCode が届いたとき）
   useEffect(() => {
     if (initialCode) {
       setShareCode(initialCode);
       setMode("join");
     }
   }, [initialCode]);
-
-  const [shareCode, setShareCode] = useState(initialCode ?? "");
   const [roomName, setRoomName] = useState("");
   // カスタムコード入力モード
   const [useCustomCode, setUseCustomCode] = useState(false);
