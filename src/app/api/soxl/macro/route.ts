@@ -115,26 +115,63 @@ function classifyVix(vix: number): {
   return { level: "extreme", label: "恐慌水準", color: "#DC2626", soxlImpact: "エントリー禁止水準" };
 }
 
+async function fetchRelativeStrength(symbol: string, baseSymbol: string): Promise<number | null> {
+  try {
+    const [symData, baseData] = await Promise.all([
+      fetchLatestClose(symbol),
+      fetchLatestClose(baseSymbol),
+    ]);
+    if (!symData.changePct || !baseData.changePct) return null;
+    return symData.changePct - baseData.changePct;
+  } catch { return null; }
+}
+
 export async function GET() {
-  const [vixData, soxData, ndxData, fearGreed, news] = await Promise.all([
+  const [vixData, soxData, ndxData, tnxData, fearGreed, news, nvdaRS] = await Promise.all([
     fetchLatestClose("^VIX"),
-    fetchLatestClose("^SOX"),       // Philadelphia Semiconductor Index
-    fetchLatestClose("^NDX"),       // NASDAQ 100
+    fetchLatestClose("^SOX"),
+    fetchLatestClose("^NDX"),
+    fetchLatestClose("^TNX"),       // 10-year US Treasury yield
     fetchFearGreed(),
     fetchNews(),
+    fetchRelativeStrength("NVDA", "SPY"),
   ]);
 
   const vixClassification = vixData.price
     ? classifyVix(vixData.price)
     : null;
 
+  // TNX interpretation
+  const tnxLevel = tnxData.price;
+  const tnxRising = tnxData.changePct !== null && tnxData.changePct > 0.5;
+  const tnxFalling = tnxData.changePct !== null && tnxData.changePct < -0.5;
+  const tnxDanger = tnxLevel !== null && tnxLevel > 4.8 && tnxRising;
+
+  // NVDA RS interpretation
+  const nvdaRSLabel = nvdaRS === null ? null
+    : nvdaRS > 3 ? "強い（SOXLに追い風）"
+    : nvdaRS > 0 ? "やや強い"
+    : nvdaRS > -3 ? "やや弱い"
+    : "弱い（SOXLに逆風）";
+
   return NextResponse.json({
-    vix: {
-      ...vixData,
-      classification: vixClassification,
-    },
+    vix: { ...vixData, classification: vixClassification },
     sox: soxData,
     ndx: ndxData,
+    tnx: {
+      ...tnxData,
+      level: tnxLevel,
+      rising: tnxRising,
+      falling: tnxFalling,
+      danger: tnxDanger,
+      label: tnxLevel
+        ? tnxLevel > 5.0 ? "危険水準（半導体株に強い逆風）"
+        : tnxLevel > 4.5 ? "高水準（注意）"
+        : tnxLevel > 4.0 ? "やや高め"
+        : "許容範囲"
+        : null,
+    },
+    nvdaRS: { value: nvdaRS, label: nvdaRSLabel },
     fearGreed,
     news,
     updatedAt: new Date().toISOString(),

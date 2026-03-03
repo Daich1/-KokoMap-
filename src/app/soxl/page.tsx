@@ -151,6 +151,8 @@ interface MacroData {
   vix: { symbol: string; price: number | null; change: number | null; changePct: number | null; classification: { level: string; label: string; color: string; soxlImpact: string } | null };
   sox: { price: number | null; change: number | null; changePct: number | null };
   ndx: { price: number | null; change: number | null; changePct: number | null };
+  tnx: { price: number | null; changePct: number | null; danger: boolean; label: string | null; rising: boolean; falling: boolean };
+  nvdaRS: { value: number | null; label: string | null };
   fearGreed: { value: number; label: string } | null;
   news: { title: string; publisher: string; link: string; publishedAt: number }[];
   updatedAt: string;
@@ -622,7 +624,7 @@ export default function SOXLDashboard() {
                 </span>
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-4">
                 {/* VIX */}
                 <div className={`rounded-lg p-3 border ${
                   !macro.vix.classification ? "bg-gray-800/50 border-gray-700" :
@@ -700,6 +702,36 @@ export default function SOXLDashboard() {
                     </p>
                   )}
                 </div>
+
+                {/* 10-year yield TNX */}
+                {macro.tnx && (
+                  <div className={`rounded-lg p-3 border ${macro.tnx.danger ? "bg-red-900/30 border-red-700/60" : macro.tnx.rising ? "bg-orange-900/20 border-orange-800/40" : "bg-gray-800/50 border-gray-700"}`}>
+                    <p className="text-xs text-gray-500 mb-1">米10年金利（TNX）</p>
+                    <p className={`text-lg font-bold font-mono ${macro.tnx.danger ? "text-red-400" : macro.tnx.rising ? "text-orange-400" : "text-emerald-400"}`}>
+                      {macro.tnx.price ? `${macro.tnx.price.toFixed(2)}%` : "N/A"}
+                    </p>
+                    <p className={`text-xs mt-0.5 ${macro.tnx.danger ? "text-red-500" : "text-gray-500"}`}>
+                      {macro.tnx.label ?? ""}
+                    </p>
+                    {macro.tnx.changePct !== null && (
+                      <p className={`text-xs font-mono mt-0.5 ${macro.tnx.rising ? "text-orange-400" : "text-emerald-400"}`}>
+                        {macro.tnx.rising ? "↑ 上昇中" : "↓ 低下中"}
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {/* NVDA Relative Strength vs SPY */}
+                {macro.nvdaRS && (
+                  <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-700">
+                    <p className="text-xs text-gray-500 mb-1">NVDA相対強度（vs SPY）</p>
+                    <p className={`text-lg font-bold font-mono ${(macro.nvdaRS.value ?? 0) >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                      {macro.nvdaRS.value != null ? `${macro.nvdaRS.value >= 0 ? "+" : ""}${macro.nvdaRS.value.toFixed(1)}%` : "N/A"}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-0.5">{macro.nvdaRS.label ?? ""}</p>
+                    <p className="text-xs text-gray-600 mt-0.5">前日比差</p>
+                  </div>
+                )}
               </div>
 
               {/* News */}

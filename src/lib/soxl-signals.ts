@@ -174,6 +174,58 @@ function analyzeStochastic(current: IndicatorData): SignalDetail {
   return { name: "Stoch", nameJa: "ストキャスティクス", signal: "NEUTRAL", strength: 0, description: `K=${k.toFixed(1)} D=${d.toFixed(1)} — 中立`, value: k };
 }
 
+function analyzeADX(current: IndicatorData): SignalDetail {
+  const adx = current.adx;
+  const plusDI = current.plusDI;
+  const minusDI = current.minusDI;
+
+  if (adx === null) {
+    return { name: "ADX", nameJa: "ADX（トレンド強度）", signal: "NEUTRAL", strength: 0, description: "データ不足", value: null };
+  }
+
+  const diCross = plusDI !== null && minusDI !== null
+    ? plusDI > minusDI ? " ▲+DI優勢（上昇方向）" : " ▼-DI優勢（下降方向）"
+    : "";
+
+  if (adx >= 40) {
+    const sig = (plusDI ?? 0) > (minusDI ?? 0) ? "BUY" : "SELL";
+    const str = sig === "BUY" ? 3 : -3;
+    return { name: "ADX", nameJa: "ADX（トレンド強度）", signal: sig, strength: str, description: `${adx.toFixed(1)} — 超強トレンド${diCross}。シグナルの信頼度最高`, value: adx };
+  }
+  if (adx >= 25) {
+    const sig = (plusDI ?? 0) > (minusDI ?? 0) ? "BUY" : "SELL";
+    const str = sig === "BUY" ? 2 : -2;
+    return { name: "ADX", nameJa: "ADX（トレンド強度）", signal: sig, strength: str, description: `${adx.toFixed(1)} — 強いトレンド${diCross}。シグナル有効`, value: adx };
+  }
+  if (adx >= 20) {
+    return { name: "ADX", nameJa: "ADX（トレンド強度）", signal: "NEUTRAL", strength: 0, description: `${adx.toFixed(1)} — 方向感弱め${diCross}。シグナルの精度低下`, value: adx };
+  }
+  return { name: "ADX", nameJa: "ADX（トレンド強度）", signal: "NEUTRAL", strength: -1, description: `${adx.toFixed(1)} — レンジ相場。テクニカルシグナルはノイズが多い`, value: adx };
+}
+
+function analyzeVolumeRatio(current: IndicatorData): SignalDetail {
+  const vr = current.volRatio;
+  if (vr === null) {
+    return { name: "VOL", nameJa: "出来高比率", signal: "NEUTRAL", strength: 0, description: "データ不足", value: null };
+  }
+  if (vr >= 2.0) return { name: "VOL", nameJa: "出来高比率", signal: "BUY", strength: 2, description: `${vr.toFixed(1)}x — 機関投資家の大口参加。方向性を確認して追従`, value: vr };
+  if (vr >= 1.5) return { name: "VOL", nameJa: "出来高比率", signal: "BUY", strength: 1, description: `${vr.toFixed(1)}x — 平均以上の出来高。シグナルの信頼性向上`, value: vr };
+  if (vr >= 0.8) return { name: "VOL", nameJa: "出来高比率", signal: "NEUTRAL", strength: 0, description: `${vr.toFixed(1)}x — 平均的な出来高`, value: vr };
+  return { name: "VOL", nameJa: "出来高比率", signal: "NEUTRAL", strength: -1, description: `${vr.toFixed(1)}x — 薄商い。ブレイクアウトは信頼性低い`, value: vr };
+}
+
+function analyzeMa200Slope(current: IndicatorData): SignalDetail {
+  const slope = current.ma200Slope;
+  if (slope === null) {
+    return { name: "MA200S", nameJa: "MA200傾き", signal: "NEUTRAL", strength: 0, description: "データ不足", value: null };
+  }
+  if (slope >= 0.5) return { name: "MA200S", nameJa: "MA200傾き", signal: "BUY", strength: 2, description: `+${slope.toFixed(2)}%/5日 — 長期トレンドが加速上昇中`, value: slope };
+  if (slope >= 0.1) return { name: "MA200S", nameJa: "MA200傾き", signal: "BUY", strength: 1, description: `+${slope.toFixed(2)}%/5日 — 長期トレンドが上向き`, value: slope };
+  if (slope >= -0.1) return { name: "MA200S", nameJa: "MA200傾き", signal: "NEUTRAL", strength: 0, description: `${slope.toFixed(2)}%/5日 — 長期トレンドが横ばい`, value: slope };
+  if (slope >= -0.5) return { name: "MA200S", nameJa: "MA200傾き", signal: "SELL", strength: -1, description: `${slope.toFixed(2)}%/5日 — 長期トレンドが下向き`, value: slope };
+  return { name: "MA200S", nameJa: "MA200傾き", signal: "SELL", strength: -2, description: `${slope.toFixed(2)}%/5日 — 長期トレンドが急落方向`, value: slope };
+}
+
 export function generateSignals(
   data: IndicatorData[]
 ): { signals: SignalResult; riskManagement: RiskManagement; action: ActionRecommendation } {
@@ -190,6 +242,9 @@ export function generateSignals(
     analyzeMA(current),
     analyzeBollinger(current),
     analyzeStochastic(current),
+    analyzeADX(current),
+    analyzeVolumeRatio(current),
+    analyzeMa200Slope(current),
   ];
 
   const score = details.reduce((sum, d) => sum + d.strength, 0);
@@ -259,6 +314,10 @@ export function generateActionRecommendation(
   const bbSig = details.find(d => d.name === "BB");
   const stochSig = details.find(d => d.name === "Stoch");
 
+  const adxSig = details.find(d => d.name === "ADX");
+  const volSig = details.find(d => d.name === "VOL");
+  const ma200SSig = details.find(d => d.name === "MA200S");
+
   const goldenCross = ma50 !== null && ma200 !== null && ma50 > ma200;
   const aboveMa50 = ma50 !== null && price > ma50;
   const aboveMa200 = ma200 !== null && price > ma200;
@@ -266,28 +325,42 @@ export function generateActionRecommendation(
   const rsiOversold = rsi !== null && rsi < 35;
   const rsiOverbought = rsi !== null && rsi > 72;
   const macdPositive = (macdSig?.strength ?? 0) > 0;
-  const macdCrossing = (macdSig?.strength ?? 0) === 3;  // golden cross発生
+  const macdCrossing = (macdSig?.strength ?? 0) === 3;
   const macdBearish = (macdSig?.strength ?? 0) <= -2;
   const bbLow = (bbSig?.strength ?? 0) > 0;
   const stochOversold = (stochSig?.strength ?? 0) >= 2;
+
+  // ADX context
+  const adxValue = current.adx;
+  const adxTrending = adxValue !== null && adxValue >= 25;
+  const adxRanging = adxValue !== null && adxValue < 20;
+  const adxBullish = adxTrending && (adxSig?.strength ?? 0) > 0;
+
+  // Volume confirmation
+  const volConfirmed = (volSig?.strength ?? 0) >= 1;
+  const volWeak = (volSig?.strength ?? 0) < 0;
+
+  // MA200 slope
+  const ma200Rising = (ma200SSig?.strength ?? 0) > 0;
 
   const reasons: string[] = [];
   const waitFor: string[] = [];
 
   // ─── ENTER ────────────────────────────────────────────────────
-  // 条件: スコア高く、MA構造良好、MACD陽転、RSI過熱なし
+  // ADXがトレンド確認 or 強い複数条件が揃ったとき
   const isEnter =
     score >= 5 &&
     aboveMa50 &&
     !rsiOverbought &&
-    (macdPositive || macdCrossing);
+    (macdPositive || macdCrossing) &&
+    !adxRanging; // レンジ相場ではENTERしない
 
   // ─── AVOID ────────────────────────────────────────────────────
-  // 条件: MA50割れ + MACDベアリッシュ、またはスコア大幅マイナス
   const isAvoid =
     score <= -4 ||
     (!aboveMa50 && macdBearish) ||
-    (rsiOverbought && macdBearish);
+    (rsiOverbought && macdBearish) ||
+    (adxRanging && !rsiOversold && score < 2); // レンジ+弱いシグナルは回避
 
   let action: ActionType;
   let label: string;
@@ -312,6 +385,9 @@ export function generateActionRecommendation(
     if (rsiOversold) reasons.push(`RSI ${rsi?.toFixed(1)} — 売られすぎから反転中`);
     if (bbLow) reasons.push("ボリンジャー下限付近で反発の可能性");
     if (stochOversold) reasons.push("ストキャスティクスが底値圏から上昇クロス");
+    if (adxBullish && adxValue) reasons.push(`ADX ${adxValue.toFixed(1)} — 強いトレンド確認（シグナルの信頼性高）`);
+    if (volConfirmed) reasons.push(`出来高 ${current.volRatio?.toFixed(1)}x — 平均超え（機関の参加あり）`);
+    if (ma200Rising) reasons.push("MA200が上向き — 長期トレンドの健全な上昇");
 
   } else if (isAvoid) {
     action = "AVOID";
@@ -335,7 +411,9 @@ export function generateActionRecommendation(
     actionColor = "#F59E0B";
     borderColor = "#78350F";
     confidence = 70;
-    summary = "構造は悪くないが、まだ揃っていない。チャンスではない今は現金でいい。";
+    summary = adxRanging
+      ? `ADX ${adxValue?.toFixed(1)} — レンジ相場です。今は方向感がなく誤シグナルが多い。動き出すまで待機が最善。`
+      : "構造は悪くないが、まだ揃っていない。チャンスではない今は現金でいい。";
 
     // 良い点を reasons に
     if (goldenCross) reasons.push(`ゴールデンクロス維持（MA50 $${ma50?.toFixed(2)} > MA200 $${ma200?.toFixed(2)}）`);
@@ -343,8 +421,12 @@ export function generateActionRecommendation(
     if (aboveMa200) reasons.push(`MA200（$${ma200?.toFixed(2)}）も上回っており長期トレンドは上向き`);
     if (rsiOversold) reasons.push(`RSI ${rsi?.toFixed(1)} — 売られすぎ圏 → 反発候補`);
     if (bbLow || stochOversold) reasons.push("ボリンジャー/ストキャスが底値圏を示唆");
+    if (ma200Rising) reasons.push("MA200が上向き — 長期構造は上昇継続中");
 
     // 待つべき条件
+    if (adxRanging) {
+      waitFor.push(`ADX ${adxValue?.toFixed(1)} → 25以上に上昇してトレンド発生を確認してからエントリー`);
+    }
     if (macdBearish) {
       waitFor.push("MACDヒストグラムがプラス転換（下落モメンタムの終息サイン）");
     } else if (!macdPositive) {
@@ -358,6 +440,9 @@ export function generateActionRecommendation(
     }
     if (rsiOversold && !macdPositive) {
       waitFor.push("RSI反転 + MACDヒストグラムがプラス方向に向き始めたらエントリー検討");
+    }
+    if (volWeak) {
+      waitFor.push("出来高が平均の1.2倍以上になるブレイクを確認してから");
     }
   }
 
