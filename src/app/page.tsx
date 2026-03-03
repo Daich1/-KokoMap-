@@ -1125,10 +1125,17 @@ export default function Home() {
             </button>
           )}
 
-          {/* 現在地ボタン */}
+          {/* 現在地ボタン: PC は右下固定、モバイルはドロワーの上 */}
           <button
             onClick={handleLocateMe}
-            className="absolute z-10 bg-white rounded-full shadow-lg p-2.5 hover:bg-gray-50 hover:shadow-xl active:scale-95 transition-all cursor-pointer right-3 md:bottom-6"
+            className="absolute z-10 bg-white rounded-full shadow-lg p-2.5 hover:bg-gray-50 hover:shadow-xl active:scale-95 transition-all cursor-pointer right-3 md:bottom-6 hidden md:flex items-center justify-center"
+            title="現在地へ移動"
+          >
+            <LocateFixed className="size-5 text-gray-700" />
+          </button>
+          <button
+            onClick={handleLocateMe}
+            className="md:hidden absolute z-10 bg-white rounded-full shadow-lg p-2.5 hover:bg-gray-50 hover:shadow-xl active:scale-95 transition-all cursor-pointer right-3"
             style={{ bottom: 'calc(34dvh + env(safe-area-inset-bottom, 0px) + 3.5rem)' }}
             title="現在地へ移動"
           >

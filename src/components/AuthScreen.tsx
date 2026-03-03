@@ -93,19 +93,8 @@ export function AuthScreen({ onAuth }: AuthScreenProps) {
     setConfirmPassword("");
   }
 
-  return (
-    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-white px-6">
-      {/* ロゴ */}
-      <div className="flex flex-col items-center gap-3 mb-8">
-        <div className="w-20 h-20 rounded-3xl bg-primary/10 flex items-center justify-center shadow-inner">
-          <MapPin className="size-10 text-primary" strokeWidth={1.5} />
-        </div>
-        <div className="text-center">
-          <h1 className="text-2xl font-bold tracking-tight">KokoMap</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">グループでスポットをリアルタイム共有</p>
-        </div>
-      </div>
-
+  const formContent = (
+    <>
       {/* タブ */}
       <div className="flex w-full max-w-xs bg-gray-100 rounded-xl p-1 mb-5">
         {(["login", "signup"] as const).map((m) => (
@@ -124,7 +113,6 @@ export function AuthScreen({ onAuth }: AuthScreenProps) {
 
       {/* フォーム */}
       <div className="w-full max-w-xs flex flex-col gap-3">
-        {/* ユーザー名 */}
         <div className="flex flex-col gap-1">
           <label className="text-xs font-medium text-gray-600">ユーザー名</label>
           <input
@@ -143,7 +131,6 @@ export function AuthScreen({ onAuth }: AuthScreenProps) {
           )}
         </div>
 
-        {/* パスワード */}
         <div className="flex flex-col gap-1">
           <label className="text-xs font-medium text-gray-600">パスワード</label>
           <div className="relative">
@@ -165,7 +152,6 @@ export function AuthScreen({ onAuth }: AuthScreenProps) {
           </div>
         </div>
 
-        {/* パスワード確認（新規登録のみ） */}
         {mode === "signup" && (
           <div className="flex flex-col gap-1">
             <label className="text-xs font-medium text-gray-600">パスワード（確認）</label>
@@ -199,6 +185,72 @@ export function AuthScreen({ onAuth }: AuthScreenProps) {
             アカウントをお持ちでない方は「新規登録」タブから
           </p>
         )}
+      </div>
+    </>
+  );
+
+  return (
+    <div className="fixed inset-0 z-50 bg-white overflow-y-auto">
+
+      {/* ── モバイルレイアウト（md未満） ── */}
+      <div className="flex flex-col items-center justify-center min-h-full px-6 md:hidden">
+        <div className="flex flex-col items-center gap-3 mb-8">
+          <div className="w-20 h-20 rounded-3xl bg-primary/10 flex items-center justify-center shadow-inner">
+            <MapPin className="size-10 text-primary" strokeWidth={1.5} />
+          </div>
+          <div className="text-center">
+            <h1 className="text-2xl font-bold tracking-tight">KokoMap</h1>
+            <p className="text-sm text-muted-foreground mt-0.5">グループでスポットをリアルタイム共有</p>
+          </div>
+        </div>
+        {formContent}
+      </div>
+
+      {/* ── PCレイアウト（md以上）: 2カラム ── */}
+      <div className="hidden md:flex min-h-full">
+
+        {/* 左カラム: ブランディング */}
+        <div className="flex-1 bg-primary flex flex-col items-center justify-center px-12 py-16 text-primary-foreground">
+          <div className="max-w-sm w-full flex flex-col gap-8">
+            <div className="flex flex-col gap-4">
+              <div className="w-16 h-16 rounded-2xl bg-white/15 flex items-center justify-center backdrop-blur-sm">
+                <MapPin className="size-8 text-white" strokeWidth={1.5} />
+              </div>
+              <div>
+                <h1 className="text-3xl font-black tracking-tight text-white">KokoMap</h1>
+                <p className="text-primary-foreground/80 mt-1.5 text-base">グループでスポットをリアルタイム共有</p>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-4">
+              {[
+                { icon: "📍", title: "リアルタイム共有", desc: "URLを共有するだけで仲間と同じマップを見られる" },
+                { icon: "🗺️", title: "マップで直感的に", desc: "行きたい場所・行った場所をマップ上に可視化" },
+                { icon: "✨", title: "AI自動入力", desc: "URLを貼るだけでスポット情報を自動取得" },
+                { icon: "👥", title: "グループ管理", desc: "リーダー・メンバーのロールで権限を細かく設定" },
+              ].map((feat) => (
+                <div key={feat.title} className="flex items-start gap-3">
+                  <span className="text-xl mt-0.5 shrink-0">{feat.icon}</span>
+                  <div>
+                    <p className="font-semibold text-white text-sm">{feat.title}</p>
+                    <p className="text-primary-foreground/70 text-xs mt-0.5">{feat.desc}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* 右カラム: フォーム */}
+        <div className="w-[480px] shrink-0 flex flex-col items-center justify-center px-12 py-16 bg-white">
+          <div className="w-full max-w-sm flex flex-col items-center">
+            <div className="flex flex-col items-center gap-2 mb-8">
+              <h2 className="text-xl font-bold tracking-tight">アカウント</h2>
+              <p className="text-sm text-muted-foreground">ログインまたは新規登録</p>
+            </div>
+            {formContent}
+          </div>
+        </div>
       </div>
     </div>
   );
