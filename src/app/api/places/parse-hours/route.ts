@@ -1,12 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
-import OpenAI from "openai";
-
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 export async function POST(req: NextRequest) {
+  // 遅延初期化: ビルド時に OPENAI_API_KEY が未設定でも落ちないようにする
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    return NextResponse.json(
+      { error: "OpenAI API キーが設定されていません" },
+      { status: 503 }
+    );
+  }
+
+  const OpenAI = (await import("openai")).default;
+  const openai = new OpenAI({ apiKey });
+
   const { text } = await req.json();
   if (!text?.trim()) {
-    return NextResponse.json({ error: "テキストが指定されていません" }, { status: 400 });
+    return NextResponse.json(
+      { error: "テキストが指定されていません" },
+      { status: 400 }
+    );
   }
 
   const systemPrompt = `あなたは営業時間テキストをGoogle Places API形式のJSONに変換する専門家です。
@@ -58,7 +70,6 @@ ${text}`;
     const raw = completion.choices[0]?.message?.content ?? "{}";
     const parsed = JSON.parse(raw);
 
-    // periods と weekday_text が揃っていなければエラー
     if (!Array.isArray(parsed.periods) || !Array.isArray(parsed.weekday_text)) {
       return NextResponse.json({ error: "解析に失敗しました" }, { status: 422 });
     }
@@ -66,7 +77,9 @@ ${text}`;
     return NextResponse.json(parsed);
   } catch (e) {
     return NextResponse.json(
-      { error: `変換に失敗しました: ${e instanceof Error ? e.message : "不明なエラー"}` },
+      {
+        error: `変換に失敗しました: ${e instanceof Error ? e.message : "不明なエラー"}`,
+      },
       { status: 500 }
     );
   }

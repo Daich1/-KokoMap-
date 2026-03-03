@@ -24,6 +24,7 @@ import { RoomJoinDialog } from "@/components/RoomJoinDialog";
 import { WelcomeScreen } from "@/components/WelcomeScreen";
 import { AuthScreen } from "@/components/AuthScreen";
 import { MemberManageSheet } from "@/components/MemberManageSheet";
+import { ShareRoomSheet } from "@/components/ShareRoomSheet";
 import { supabase, type Place, type Room, type SpotStatus, type RoomMember } from "@/lib/supabase";
 import type { User } from "@supabase/supabase-js";
 import { useMapStore } from "@/store/useMapStore";
@@ -134,6 +135,9 @@ export default function Home() {
   const [roomDialogOpen, setRoomDialogOpen] = useState(!room);
   const [memberManageOpen, setMemberManageOpen] = useState(false);
   const [urlCode, setUrlCode] = useState<string | undefined>(undefined);
+  const [urlPlace, setUrlPlace] = useState<string | null>(null);
+  const [shareSheetOpen, setShareSheetOpen] = useState(false);
+  const [shareSheetPlace, setShareSheetPlace] = useState<Place | null>(null);
 
   // ── Supabase Auth セッション管理 ──────────────────────────────
   const [authUser, setAuthUser] = useState<User | null>(null);
@@ -161,10 +165,11 @@ export default function Home() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // URL の ?code= パラメータを検出してダイアログに渡す（room hydration より先に実行）
+  // URL の ?code= / ?place= パラメータを検出
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const code = params.get("code");
+    const placeId = params.get("place");
     if (code) {
       const normalized = code.trim().toUpperCase().slice(0, 8);
       setUrlCode(normalized);
@@ -172,7 +177,21 @@ export default function Home() {
       const clean = window.location.pathname;
       window.history.replaceState({}, "", clean);
     }
+    if (placeId) {
+      setUrlPlace(placeId);
+    }
   }, []);
+
+  // ルーム参加後、?place= で指定されたスポット詳細を自動で開く
+  useEffect(() => {
+    if (!urlPlace || !room || places.length === 0) return;
+    const target = places.find((p) => p.id === urlPlace);
+    if (target) {
+      setDetailPlace(target);
+      setDetailOpen(true);
+      setUrlPlace(null);
+    }
+  }, [urlPlace, room, places]);
 
   // Zustand が localStorage から hydrate した後にダイアログ状態を同期
   // urlCode がある場合はダイアログを閉じない
@@ -762,9 +781,10 @@ export default function Home() {
     setAuthUser(null);
   }
 
-  function getRoomUrl() {
+  function getRoomUrl(placeId?: string) {
     if (!room) return "";
-    return `${window.location.origin}${window.location.pathname}?code=${room.share_code}`;
+    const base = `${window.location.origin}${window.location.pathname}?code=${room.share_code}`;
+    return placeId ? `${base}&place=${placeId}` : base;
   }
 
   function copyRoomCode() {
@@ -774,21 +794,9 @@ export default function Home() {
     setTimeout(() => setCodeCopied(false), 2000);
   }
 
-  async function shareRoomUrl() {
-    const url = getRoomUrl();
-    if (!url || !room) return;
-    const shareData = {
-      title: room.name ?? "KokoMap ルーム",
-      text: `「${room.name ?? room.share_code}」に参加しませんか？`,
-      url,
-    };
-    if (navigator.share) {
-      try { await navigator.share(shareData); } catch { /* キャンセル等は無視 */ }
-    } else {
-      navigator.clipboard.writeText(url);
-      setCodeCopied(true);
-      setTimeout(() => setCodeCopied(false), 2000);
-    }
+  function openShareSheet(place?: Place | null) {
+    setShareSheetPlace(place ?? null);
+    setShareSheetOpen(true);
   }
 
   async function toggleRoomOpen() {
@@ -1081,7 +1089,7 @@ export default function Home() {
               {codeCopied ? <Check className="size-4 text-green-600" /> : <Copy className="size-4" />}
             </button>
             <button
-              onClick={shareRoomUrl}
+              onClick={() => openShareSheet()}
               title="シェア"
               className="p-2.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
             >
@@ -1256,7 +1264,7 @@ export default function Home() {
                     {codeCopied ? <Check className="size-3.5 text-green-600" /> : <Copy className="size-3.5" />}
                   </button>
                   <button
-                    onClick={shareRoomUrl}
+                    onClick={() => openShareSheet()}
                     title="シェア"
                     className="p-1.5 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground cursor-pointer"
                   >
@@ -1460,7 +1468,20 @@ export default function Home() {
         onOpenChange={setDetailOpen}
         onEdit={handleEdit}
         onDeleted={handleDeleted}
+        onShare={(place) => openShareSheet(place)}
       />
+
+      {/* 共有シート */}
+      {room && (
+        <ShareRoomSheet
+          open={shareSheetOpen}
+          onOpenChange={setShareSheetOpen}
+          roomName={room.name}
+          shareCode={room.share_code}
+          shareUrl={getRoomUrl(shareSheetPlace?.id)}
+          placeName={shareSheetPlace?.name}
+        />
+      )}
 
       {/* ルーム未参加時: グループ作成/参加 */}
       {!room && roomDialogOpen && (
