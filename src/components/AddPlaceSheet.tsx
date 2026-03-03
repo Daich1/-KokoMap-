@@ -411,6 +411,9 @@ export function AddPlaceSheet({
       } catch {
         // 変換失敗はサイレントに無視して保存を続行
       }
+    } else if (textChanged && !newText) {
+      // 編集で営業時間をクリアした場合は business_hours も破棄
+      businessHoursRef.current = null;
     }
 
     const imageUrls = values.image_urls
@@ -428,7 +431,10 @@ export function AddPlaceSheet({
       budget_min: budgetMin,
       budget_max: budgetMax,
       duration: values.duration || null,
-      opening_hours_text: values.opening_hours_text || null,
+      opening_hours_text:
+        businessHoursRef.current?.weekday_text?.length
+          ? businessHoursRef.current.weekday_text.join("\n")
+          : values.opening_hours_text || null,
       image_urls: imageUrls.length > 0 ? imageUrls : null,
       lat: coords.lat,
       lng: coords.lng,

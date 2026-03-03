@@ -252,15 +252,21 @@ export function PlaceDetailSheet({
               />
             )}
 
-            {/* 営業時間テキスト */}
-            {place.opening_hours_text && (
-              <div className="flex items-start gap-2.5 text-sm">
-                <Clock className="size-4 shrink-0 mt-0.5 text-muted-foreground" />
-                <p className="whitespace-pre-wrap leading-relaxed">
-                  {place.opening_hours_text}
-                </p>
-              </div>
-            )}
+            {/* 営業時間テキスト（business_hours.weekday_text があれば統一フォーマットで表示） */}
+            {(() => {
+              const displayText =
+                place.business_hours?.weekday_text?.length
+                  ? place.business_hours.weekday_text.join("\n")
+                  : place.opening_hours_text;
+              return displayText ? (
+                <div className="flex items-start gap-2.5 text-sm">
+                  <Clock className="size-4 shrink-0 mt-0.5 text-muted-foreground" />
+                  <p className="whitespace-pre-wrap leading-relaxed">
+                    {displayText}
+                  </p>
+                </div>
+              ) : null;
+            })()}
 
             {/* カテゴリ */}
             {place.categories && place.categories.length > 0 && (
