@@ -164,7 +164,6 @@ export default function SOXLDashboard() {
     showBB: true,
   });
   const [capitalJPY, setCapitalJPY] = useState(300000);
-  const [riskPct, setRiskPct] = useState(2);
   const [usdJpy, setUsdJpy] = useState(150);
   const [usdJpyLoading, setUsdJpyLoading] = useState(true);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -744,43 +743,54 @@ export default function SOXLDashboard() {
 
           {/* Position Sizing Panel */}
           {(() => {
+            const entry = data.riskManagement.entryPrice;
+            const stopLoss = data.riskManagement.stopLoss;
+            const riskPerShare = entry - stopLoss;
             const capitalUSD = capitalJPY / usdJpy;
-            const riskAmountUSD = capitalUSD * (riskPct / 100);
-            const riskAmountJPY = capitalJPY * (riskPct / 100);
-            const riskPerShare = data.riskManagement.entryPrice - data.riskManagement.stopLoss;
-            const shares = riskPerShare > 0 ? Math.floor(riskAmountUSD / riskPerShare) : 0;
-            const costUSD = shares * data.riskManagement.entryPrice;
-            const costJPY = costUSD * usdJpy;
-            const capitalUsedPct = capitalUSD > 0 ? (costUSD / capitalUSD) * 100 : 0;
-            const pnlTP1JPY = shares * (data.riskManagement.takeProfit1 - data.riskManagement.entryPrice) * usdJpy;
-            const pnlTP2JPY = shares * (data.riskManagement.takeProfit2 - data.riskManagement.entryPrice) * usdJpy;
-            const maxLossJPY = shares * riskPerShare * usdJpy;
 
-            const scenarios = [1, 2, 3, 5].map(pct => {
-              const rAmt = capitalUSD * (pct / 100);
-              const sh = riskPerShare > 0 ? Math.floor(rAmt / riskPerShare) : 0;
-              return { pct, shares: sh, costJPY: sh * data.riskManagement.entryPrice * usdJpy };
-            });
+            // Full position
+            const fullShares = Math.floor(capitalUSD / entry);
+            const fullCostUSD = fullShares * entry;
+            const fullCostJPY = fullCostUSD * usdJpy;
+            const fullStopLossJPY = fullShares * riskPerShare * usdJpy;
+            const fullStopLossPct = capitalJPY > 0 ? (fullStopLossJPY / capitalJPY) * 100 : 0;
+
+            // Price target rows: from just above entry to 52w high, plus user custom
+            const w52High = data.quote.fiftyTwoWeekHigh;
+            const step = entry < 50 ? 3 : entry < 80 ? 5 : 10;
+            const baseTargets: number[] = [];
+            let t = Math.ceil(entry / step) * step;
+            while (t <= Math.max(w52High * 1.05, entry * 1.8)) {
+              baseTargets.push(t);
+              t += step;
+            }
+            // Insert 52w high and stopLoss as special rows if not already in list
+            const allTargetPrices = Array.from(
+              new Set([stopLoss, ...baseTargets, w52High])
+            ).sort((a, b) => a - b);
 
             return (
               <div className="bg-gray-900 rounded-xl border border-gray-800 p-5">
-                <div className="flex items-center justify-between mb-4">
+                {/* Header */}
+                <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
                   <h2 className="font-semibold text-white flex items-center gap-2">
                     <Calculator className="text-blue-400" size={18} />
-                    ポジションサイジング計算機
+                    発注シミュレーター
                   </h2>
-                  <span className="text-xs text-gray-500 flex items-center gap-1">
-                    USD/JPY:{" "}
-                    {usdJpyLoading ? (
-                      <span className="text-gray-600">取得中...</span>
-                    ) : (
-                      <span className="text-yellow-400 font-mono font-bold">{usdJpy.toFixed(2)}</span>
-                    )}
-                  </span>
+                  <div className="flex items-center gap-4 text-xs text-gray-500">
+                    <span>
+                      USD/JPY:{" "}
+                      {usdJpyLoading ? (
+                        <span className="text-gray-600">取得中…</span>
+                      ) : (
+                        <span className="text-yellow-400 font-mono font-bold">{usdJpy.toFixed(2)}</span>
+                      )}
+                    </span>
+                  </div>
                 </div>
 
-                {/* Inputs */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5">
+                {/* Capital input */}
+                <div className="flex flex-wrap items-end gap-4 mb-5">
                   <div className="space-y-1">
                     <label className="text-xs text-gray-500 flex items-center gap-1">
                       <Wallet size={11} /> 元金（円）
@@ -792,110 +802,130 @@ export default function SOXLDashboard() {
                         onChange={e => setCapitalJPY(Number(e.target.value))}
                         step={10000}
                         min={0}
-                        className="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white font-mono text-sm focus:outline-none focus:border-blue-500"
+                        className="w-40 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white font-mono text-sm focus:outline-none focus:border-blue-500"
                       />
                       <span className="text-gray-500 text-sm">円</span>
                     </div>
-                    <p className="text-xs text-gray-600">≈ ${(capitalJPY / usdJpy).toFixed(0)} USD</p>
+                    <p className="text-xs text-gray-600">≈ ${capitalUSD.toFixed(0)} USD</p>
                   </div>
-
-                  <div className="space-y-1">
-                    <label className="text-xs text-gray-500">1トレードのリスク許容額</label>
-                    <div className="flex gap-1 flex-wrap">
-                      {[1, 2, 3, 5].map(p => (
-                        <button
-                          key={p}
-                          onClick={() => setRiskPct(p)}
-                          className={`px-3 py-2 rounded-lg text-sm font-bold transition-colors ${
-                            riskPct === p
-                              ? "bg-blue-600 text-white"
-                              : "bg-gray-800 text-gray-400 hover:text-white"
-                          }`}
-                        >
-                          {p}%
-                        </button>
-                      ))}
-                    </div>
-                    <p className="text-xs text-gray-600">
-                      = ¥{riskAmountJPY.toLocaleString()} (${riskAmountUSD.toFixed(0)})
-                    </p>
+                  <div className="flex gap-1">
+                    {[100000, 300000, 500000, 1000000].map(v => (
+                      <button
+                        key={v}
+                        onClick={() => setCapitalJPY(v)}
+                        className={`px-2 py-1.5 rounded text-xs font-medium transition-colors ${
+                          capitalJPY === v ? "bg-blue-600 text-white" : "bg-gray-800 text-gray-400 hover:text-white"
+                        }`}
+                      >
+                        {(v / 10000).toFixed(0)}万
+                      </button>
+                    ))}
                   </div>
                 </div>
 
-                {/* Main result */}
-                <div className="bg-gradient-to-r from-blue-900/30 to-indigo-900/20 border border-blue-800/40 rounded-xl p-4 mb-4">
+                {/* Full position hero */}
+                <div className="bg-gradient-to-r from-blue-950/60 to-indigo-950/40 border border-blue-700/40 rounded-xl p-5 mb-5">
+                  <p className="text-xs text-blue-300 font-bold uppercase tracking-widest mb-3">
+                    全額投入シミュレーション
+                  </p>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                     <div>
-                      <p className="text-xs text-blue-300 mb-1">推奨株数</p>
-                      <p className="text-4xl font-black text-white font-mono">{shares}</p>
-                      <p className="text-xs text-blue-400">株</p>
+                      <p className="text-xs text-gray-400 mb-1">購入株数</p>
+                      <p className="text-5xl font-black text-white font-mono leading-none">{fullShares}</p>
+                      <p className="text-xs text-blue-400 mt-1">株</p>
                     </div>
                     <div>
-                      <p className="text-xs text-gray-400 mb-1">必要資金</p>
-                      <p className="text-2xl font-bold text-white font-mono">¥{Math.round(costJPY).toLocaleString()}</p>
-                      <p className="text-xs text-gray-500">${costUSD.toFixed(0)} · 資金の{capitalUsedPct.toFixed(1)}%</p>
+                      <p className="text-xs text-gray-400 mb-1">投資額（概算）</p>
+                      <p className="text-2xl font-bold text-white font-mono">¥{Math.round(fullCostJPY).toLocaleString()}</p>
+                      <p className="text-xs text-gray-500">${fullCostUSD.toFixed(0)}</p>
                     </div>
                     <div>
-                      <p className="text-xs text-red-400 mb-1">最大損失（損切り時）</p>
-                      <p className="text-2xl font-bold text-red-400 font-mono">-¥{Math.round(maxLossJPY).toLocaleString()}</p>
-                      <p className="text-xs text-red-600">元金の{riskPct}%</p>
+                      <p className="text-xs text-red-400 mb-1">損切り到達時の損失</p>
+                      <p className="text-2xl font-bold text-red-400 font-mono">-¥{Math.round(fullStopLossJPY).toLocaleString()}</p>
+                      <p className="text-xs text-red-600">
+                        元金の {fullStopLossPct.toFixed(1)}% ・ 損切り ${stopLoss.toFixed(2)}
+                      </p>
                     </div>
-                    <div className="space-y-1">
-                      <p className="text-xs text-emerald-400 mb-1">期待利益</p>
-                      <p className="text-lg font-bold text-emerald-400 font-mono">TP①: +¥{Math.round(pnlTP1JPY).toLocaleString()}</p>
-                      <p className="text-lg font-bold text-emerald-300 font-mono">TP②: +¥{Math.round(pnlTP2JPY).toLocaleString()}</p>
+                    <div>
+                      <p className="text-xs text-gray-400 mb-1">エントリー価格</p>
+                      <p className="text-2xl font-bold font-mono text-white">${entry.toFixed(2)}</p>
+                      <p className="text-xs text-gray-500">現在値</p>
                     </div>
                   </div>
                 </div>
 
-                {/* Risk % comparison table */}
+                {/* Price target P&L table */}
                 <div>
-                  <p className="text-xs text-gray-500 mb-2 font-medium">リスク別シミュレーション（¥{capitalJPY.toLocaleString()} 元金）</p>
+                  <p className="text-xs text-gray-500 mb-2 font-medium">
+                    価格別 損益シミュレーション（{fullShares}株 全力保有時）
+                  </p>
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="border-b border-gray-800">
-                          <th className="text-left py-2 px-3 text-xs text-gray-500 font-medium">リスク</th>
-                          <th className="text-right py-2 px-3 text-xs text-gray-500 font-medium">株数</th>
-                          <th className="text-right py-2 px-3 text-xs text-gray-500 font-medium">必要資金</th>
-                          <th className="text-right py-2 px-3 text-xs text-gray-500 font-medium">最大損失</th>
-                          <th className="text-right py-2 px-3 text-xs text-gray-500 font-medium">TP①利益</th>
-                          <th className="text-right py-2 px-3 text-xs text-gray-500 font-medium">TP②利益</th>
+                          <th className="text-left py-2 px-3 text-xs text-gray-500 font-medium">価格</th>
+                          <th className="text-right py-2 px-3 text-xs text-gray-500 font-medium">損益（円）</th>
+                          <th className="text-right py-2 px-3 text-xs text-gray-500 font-medium">元金比</th>
+                          <th className="text-right py-2 px-3 text-xs text-gray-500 font-medium hidden sm:table-cell">損益（USD）</th>
+                          <th className="text-left py-2 px-3 text-xs text-gray-500 font-medium hidden sm:table-cell">備考</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {scenarios.map(s => {
-                          const lossJPY = s.shares * riskPerShare * usdJpy;
-                          const tp1JPY = s.shares * (data.riskManagement.takeProfit1 - data.riskManagement.entryPrice) * usdJpy;
-                          const tp2JPY = s.shares * (data.riskManagement.takeProfit2 - data.riskManagement.entryPrice) * usdJpy;
-                          const isSelected = s.pct === riskPct;
+                        {allTargetPrices.map(price => {
+                          const pnlUSD = fullShares * (price - entry);
+                          const pnlJPY = pnlUSD * usdJpy;
+                          const pnlPct = capitalJPY > 0 ? (pnlJPY / capitalJPY) * 100 : 0;
+                          const isEntry = Math.abs(price - entry) < 0.01;
+                          const isStop = Math.abs(price - stopLoss) < 0.01;
+                          const is52wHigh = Math.abs(price - w52High) < 0.01;
+                          const isPrevSell = Math.abs(price - 71) < 0.5;
+                          const isProfit = pnlJPY > 0;
+                          const isLoss = pnlJPY < 0;
+
+                          const note = isStop
+                            ? "⚡ 損切りライン"
+                            : isEntry
+                            ? "← 現在値"
+                            : is52wHigh
+                            ? "★ 52週高値"
+                            : isPrevSell
+                            ? "★ 前回売却値"
+                            : "";
+
                           return (
                             <tr
-                              key={s.pct}
-                              onClick={() => setRiskPct(s.pct)}
-                              className={`border-b border-gray-800/50 cursor-pointer transition-colors ${
-                                isSelected ? "bg-blue-900/20" : "hover:bg-gray-800/30"
+                              key={price}
+                              className={`border-b border-gray-800/40 transition-colors ${
+                                isStop
+                                  ? "bg-red-900/20"
+                                  : isEntry
+                                  ? "bg-gray-800/60"
+                                  : is52wHigh || isPrevSell
+                                  ? "bg-emerald-900/10"
+                                  : "hover:bg-gray-800/20"
                               }`}
                             >
-                              <td className="py-2 px-3">
-                                <span className={`font-bold ${isSelected ? "text-blue-400" : "text-gray-400"}`}>
-                                  {s.pct}%
+                              <td className="py-2 px-3 font-mono font-bold">
+                                <span className={isStop ? "text-red-400" : is52wHigh || isPrevSell ? "text-emerald-400" : "text-white"}>
+                                  ${price.toFixed(2)}
                                 </span>
-                                {isSelected && <span className="ml-1 text-xs text-blue-600">←選択中</span>}
                               </td>
-                              <td className="py-2 px-3 text-right font-bold font-mono text-white">{s.shares}株</td>
-                              <td className="py-2 px-3 text-right font-mono text-gray-300">
-                                ¥{Math.round(s.costJPY).toLocaleString()}
+                              <td className={`py-2 px-3 text-right font-mono font-bold ${
+                                isProfit ? "text-emerald-400" : isLoss ? "text-red-400" : "text-gray-400"
+                              }`}>
+                                {isProfit ? "+" : ""}{Math.round(pnlJPY).toLocaleString()}円
                               </td>
-                              <td className="py-2 px-3 text-right font-mono text-red-400">
-                                -¥{Math.round(lossJPY).toLocaleString()}
+                              <td className={`py-2 px-3 text-right font-mono text-sm ${
+                                isProfit ? "text-emerald-600" : isLoss ? "text-red-600" : "text-gray-600"
+                              }`}>
+                                {isProfit ? "+" : ""}{pnlPct.toFixed(1)}%
                               </td>
-                              <td className="py-2 px-3 text-right font-mono text-emerald-400">
-                                +¥{Math.round(tp1JPY).toLocaleString()}
+                              <td className={`py-2 px-3 text-right font-mono text-xs hidden sm:table-cell ${
+                                isProfit ? "text-emerald-700" : isLoss ? "text-red-700" : "text-gray-700"
+                              }`}>
+                                {isProfit ? "+" : ""}{pnlUSD.toFixed(0)}
                               </td>
-                              <td className="py-2 px-3 text-right font-mono text-emerald-300">
-                                +¥{Math.round(tp2JPY).toLocaleString()}
-                              </td>
+                              <td className="py-2 px-3 text-xs text-gray-500 hidden sm:table-cell">{note}</td>
                             </tr>
                           );
                         })}
@@ -904,22 +934,13 @@ export default function SOXLDashboard() {
                   </div>
                 </div>
 
-                {/* Drawdown scenarios */}
-                <div className="mt-4">
-                  <p className="text-xs text-gray-500 mb-2 font-medium">ドローダウンシナリオ（{shares}株保有時）</p>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                    {[10, 20, 30, 50].map(dd => {
-                      const lossJPY = shares * data.riskManagement.entryPrice * (dd / 100) * usdJpy;
-                      const pctOfCapital = capitalJPY > 0 ? (lossJPY / capitalJPY) * 100 : 0;
-                      return (
-                        <div key={dd} className="bg-gray-800/50 rounded-lg p-3 text-center">
-                          <p className="text-xs text-gray-500">SOXL -{dd}%</p>
-                          <p className="font-bold font-mono text-red-400">-¥{Math.round(lossJPY).toLocaleString()}</p>
-                          <p className="text-xs text-red-600">元金の{pctOfCapital.toFixed(1)}%</p>
-                        </div>
-                      );
-                    })}
-                  </div>
+                {/* Note */}
+                <div className="mt-4 flex items-start gap-2 bg-blue-900/10 border border-blue-800/30 rounded-lg p-3">
+                  <AlertTriangle className="text-blue-400 flex-shrink-0 mt-0.5" size={13} />
+                  <p className="text-xs text-blue-700">
+                    全額投入の場合、損切りライン（${stopLoss.toFixed(2)}）到達時の損失は元金の{fullStopLossPct.toFixed(1)}%です。
+                    楽天証券での発注前に必ず損切り注文も同時に設定してください。
+                  </p>
                 </div>
               </div>
             );
