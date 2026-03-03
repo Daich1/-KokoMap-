@@ -38,14 +38,15 @@ export type ActionType = "ENTER" | "WAIT" | "AVOID";
 
 export interface ActionRecommendation {
   action: ActionType;
-  label: string;       // 短いラベル
-  summary: string;     // 1行サマリー
+  label: string;
+  summary: string;
   color: string;
   borderColor: string;
-  reasons: string[];   // 今の状態を支持する根拠
-  waitFor: string[];   // エントリーを待つ条件
-  avoidBelow: number | null; // この価格を割ったら完全撤退
-  confidence: number;  // 0-100
+  reasons: string[];
+  waitFor: string[];
+  avoidBelow: number | null;
+  confidence: number;
+  vixOverride: boolean; // VIXによる強制上書きかどうか
 }
 
 function analyzeRSI(current: IndicatorData): SignalDetail {
@@ -234,7 +235,8 @@ export function generateSignals(
 export function generateActionRecommendation(
   signals: SignalResult,
   current: IndicatorData,
-  risk: RiskManagement
+  risk: RiskManagement,
+  vix?: number | null
 ): ActionRecommendation {
   const { details, score } = signals;
   const price = current.close;
@@ -347,6 +349,57 @@ export function generateActionRecommendation(
     }
   }
 
+  // ─── VIX Override ────────────────────────────────────────────
+  // 高VIX時は3倍レバレッジETFは特に危険 → 強制AVOID/ダウングレード
+  let vixOverride = false;
+  if (vix != null) {
+    if (vix >= 35) {
+      // 恐慌水準 → 強制AVOID
+      action = "AVOID";
+      label = "現金待機（VIX警戒）";
+      actionColor = "#EF4444";
+      borderColor = "#7F1D1D";
+      confidence = 90;
+      summary = `VIX ${vix.toFixed(1)} — 恐慌水準です。3倍レバETFは壊滅的損失リスク。現金100%が合理的。`;
+      reasons.unshift(`⚠ VIX ${vix.toFixed(1)}: 市場が極度に不安定（恐慌水準）`);
+      waitFor.unshift(`VIX が25以下に低下するまでエントリー不可`);
+      vixOverride = true;
+    } else if (vix >= 28) {
+      // 高ボラ → ENTERをWAITに格下げ、WAITはAVOIDに
+      if (action === "ENTER") {
+        action = "WAIT";
+        label = "様子見（VIX高水準）";
+        actionColor = "#F97316";
+        borderColor = "#78350F";
+        confidence = Math.max(confidence - 20, 50);
+        summary = `VIX ${vix.toFixed(1)} — テクニカルは買いだが市場ボラが高すぎる。落ち着くまで待機。`;
+        reasons.unshift(`VIX ${vix.toFixed(1)}: 市場の恐怖指数が高水準`);
+        waitFor.unshift(`VIX が25以下に低下（現在 ${vix.toFixed(1)}）`);
+        vixOverride = true;
+      } else if (action === "WAIT") {
+        action = "AVOID";
+        label = "現金待機（VIX警戒）";
+        actionColor = "#EF4444";
+        borderColor = "#7F1D1D";
+        confidence = Math.max(confidence - 10, 60);
+        summary = `VIX ${vix.toFixed(1)} — テクニカルも弱く市場ボラも高い。完全待機が合理的。`;
+        reasons.unshift(`VIX ${vix.toFixed(1)}: 市場が不安定（3倍レバは危険域）`);
+        waitFor.unshift(`VIX が25以下に低下（現在 ${vix.toFixed(1)}）`);
+        vixOverride = true;
+      }
+    } else if (vix >= 22) {
+      // やや高め → 確信度を下げる
+      confidence = Math.max(confidence - 10, 50);
+      reasons.push(`VIX ${vix.toFixed(1)}: やや上昇気味 — ポジションサイズに注意`);
+    } else if (vix < 14) {
+      // 過度に低い → 市場の過熱・油断を警告
+      if (action === "ENTER") {
+        reasons.push(`VIX ${vix.toFixed(1)}: 市場の過熱・油断に注意（反転リスク）`);
+        confidence = Math.max(confidence - 5, 55);
+      }
+    }
+  }
+
   // Avoid below: MA50の3%下、またはMA200
   const avoidBelow = ma50 !== null
     ? parseFloat((ma50 * 0.97).toFixed(2))
@@ -362,5 +415,6 @@ export function generateActionRecommendation(
     waitFor,
     avoidBelow,
     confidence,
+    vixOverride,
   };
 }

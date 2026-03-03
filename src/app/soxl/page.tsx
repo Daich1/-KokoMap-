@@ -112,8 +112,19 @@ interface SOXLData {
     waitFor: string[];
     avoidBelow: number | null;
     confidence: number;
+    vixOverride: boolean;
   };
+  vix: number | null;
   lastUpdated: string;
+}
+
+interface MacroData {
+  vix: { symbol: string; price: number | null; change: number | null; changePct: number | null; classification: { level: string; label: string; color: string; soxlImpact: string } | null };
+  sox: { price: number | null; change: number | null; changePct: number | null };
+  ndx: { price: number | null; change: number | null; changePct: number | null };
+  fearGreed: { value: number; label: string } | null;
+  news: { title: string; publisher: string; link: string; publishedAt: number }[];
+  updatedAt: string;
 }
 
 function SignalBadge({ signal, strength }: { signal: "BUY" | "SELL" | "NEUTRAL"; strength: number }) {
@@ -177,6 +188,7 @@ export default function SOXLDashboard() {
   const [capitalJPY, setCapitalJPY] = useState(300000);
   const [usdJpy, setUsdJpy] = useState(150);
   const [usdJpyLoading, setUsdJpyLoading] = useState(true);
+  const [macro, setMacro] = useState<MacroData | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -186,6 +198,13 @@ export default function SOXLDashboard() {
       .then(d => { if (d.rate) setUsdJpy(d.rate); })
       .catch(() => {})
       .finally(() => setUsdJpyLoading(false));
+  }, []);
+
+  useEffect(() => {
+    fetch("/api/soxl/macro")
+      .then(r => r.json())
+      .then(d => setMacro(d))
+      .catch(() => {});
   }, []);
 
   const fetchData = useCallback(async () => {
@@ -456,8 +475,13 @@ export default function SOXLDashboard() {
                   <div className="flex items-center gap-3">
                     <span className="text-3xl">{icon}</span>
                     <div>
-                      <p className="text-xs text-gray-400 uppercase tracking-widest font-medium">
+                      <p className="text-xs text-gray-400 uppercase tracking-widest font-medium flex items-center gap-2">
                         現在の推奨アクション
+                        {a.vixOverride && (
+                          <span className="text-orange-400 bg-orange-900/40 border border-orange-700/50 rounded px-1.5 py-0.5 text-xs font-bold normal-case tracking-normal">
+                            VIX調整済み
+                          </span>
+                        )}
                       </p>
                       <p
                         className="text-2xl font-black leading-tight"
@@ -545,6 +569,129 @@ export default function SOXLDashboard() {
               </div>
             );
           })()}
+
+          {/* ── Macro Context Panel ── */}
+          {macro && (
+            <div className="bg-gray-900 rounded-xl border border-gray-800 p-4">
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="font-semibold text-white text-sm flex items-center gap-2">
+                  <Activity size={15} className="text-purple-400" />
+                  マクロ環境 / 市場センチメント
+                </h2>
+                <span className="text-xs text-gray-600">
+                  {new Date(macro.updatedAt).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })} 更新
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+                {/* VIX */}
+                <div className={`rounded-lg p-3 border ${
+                  !macro.vix.classification ? "bg-gray-800/50 border-gray-700" :
+                  macro.vix.classification.level === "normal" ? "bg-emerald-900/20 border-emerald-800/40" :
+                  macro.vix.classification.level === "low" ? "bg-yellow-900/20 border-yellow-800/40" :
+                  macro.vix.classification.level === "extreme" ? "bg-red-900/40 border-red-700/60" :
+                  "bg-orange-900/20 border-orange-800/40"
+                }`}>
+                  <p className="text-xs text-gray-500 mb-1">VIX（恐怖指数）</p>
+                  <p className="text-2xl font-black font-mono" style={{ color: macro.vix.classification?.color ?? "#9CA3AF" }}>
+                    {macro.vix.price?.toFixed(1) ?? "N/A"}
+                  </p>
+                  <p className="text-xs mt-0.5" style={{ color: macro.vix.classification?.color ?? "#9CA3AF" }}>
+                    {macro.vix.classification?.label ?? ""}
+                  </p>
+                  {macro.vix.classification && (
+                    <p className="text-xs text-gray-600 mt-0.5">{macro.vix.classification.soxlImpact}</p>
+                  )}
+                  {macro.vix.changePct !== null && (
+                    <p className={`text-xs mt-1 font-mono ${macro.vix.changePct >= 0 ? "text-red-400" : "text-emerald-400"}`}>
+                      {macro.vix.changePct >= 0 ? "+" : ""}{macro.vix.changePct.toFixed(1)}%
+                    </p>
+                  )}
+                </div>
+
+                {/* Fear & Greed */}
+                <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-700">
+                  <p className="text-xs text-gray-500 mb-1">Fear &amp; Greed</p>
+                  {macro.fearGreed ? (
+                    <>
+                      <p className={`text-2xl font-black font-mono ${
+                        macro.fearGreed.value <= 25 ? "text-red-400" :
+                        macro.fearGreed.value <= 45 ? "text-orange-400" :
+                        macro.fearGreed.value <= 55 ? "text-yellow-400" :
+                        macro.fearGreed.value <= 75 ? "text-emerald-400" : "text-green-300"
+                      }`}>
+                        {macro.fearGreed.value}
+                      </p>
+                      <p className="text-xs text-gray-400 mt-0.5">{macro.fearGreed.label}</p>
+                      <div className="mt-1.5 h-1.5 bg-gray-700 rounded-full overflow-hidden">
+                        <div
+                          className="h-full rounded-full bg-gradient-to-r from-red-500 via-yellow-400 to-emerald-500"
+                          style={{ width: `${macro.fearGreed.value}%` }}
+                        />
+                      </div>
+                    </>
+                  ) : (
+                    <p className="text-gray-600 text-sm">取得中…</p>
+                  )}
+                </div>
+
+                {/* SOX */}
+                <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-700">
+                  <p className="text-xs text-gray-500 mb-1">SOX（半導体指数）</p>
+                  <p className="text-lg font-bold font-mono text-white">
+                    {macro.sox.price ? macro.sox.price.toLocaleString("en-US", { maximumFractionDigits: 0 }) : "N/A"}
+                  </p>
+                  {macro.sox.changePct !== null && (
+                    <p className={`text-sm font-mono font-bold mt-0.5 ${macro.sox.changePct >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                      {macro.sox.changePct >= 0 ? "+" : ""}{macro.sox.changePct.toFixed(2)}%
+                    </p>
+                  )}
+                  <p className="text-xs text-gray-600">SOXLの基礎指数</p>
+                </div>
+
+                {/* NASDAQ 100 */}
+                <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-700">
+                  <p className="text-xs text-gray-500 mb-1">NASDAQ 100</p>
+                  <p className="text-lg font-bold font-mono text-white">
+                    {macro.ndx.price ? macro.ndx.price.toLocaleString("en-US", { maximumFractionDigits: 0 }) : "N/A"}
+                  </p>
+                  {macro.ndx.changePct !== null && (
+                    <p className={`text-sm font-mono font-bold mt-0.5 ${macro.ndx.changePct >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                      {macro.ndx.changePct >= 0 ? "+" : ""}{macro.ndx.changePct.toFixed(2)}%
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* News */}
+              {macro.news.length > 0 && (
+                <div>
+                  <p className="text-xs text-gray-500 font-medium mb-2">最新ニュース（半導体・SOXL関連）</p>
+                  <div className="space-y-1.5">
+                    {macro.news.map((n, i) => (
+                      <a
+                        key={i}
+                        href={n.link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-start gap-2 hover:bg-gray-800/50 rounded p-1.5 transition-colors group"
+                      >
+                        <span className="text-gray-600 text-xs mt-0.5 flex-shrink-0">
+                          {new Date(n.publishedAt).toLocaleDateString("ja-JP", { month: "2-digit", day: "2-digit" })}
+                        </span>
+                        <div className="min-w-0">
+                          <p className="text-xs text-gray-300 group-hover:text-white transition-colors leading-snug line-clamp-2">
+                            {n.title}
+                          </p>
+                          <p className="text-xs text-gray-600 mt-0.5">{n.publisher}</p>
+                        </div>
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Price & Signal Overview */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { calculateAllIndicators, type OHLCVData } from "@/lib/technical-analysis";
-import { generateSignals } from "@/lib/soxl-signals";
+import { generateSignals, generateActionRecommendation } from "@/lib/soxl-signals";
 
 const TICKER = "SOXL";
 
@@ -71,20 +71,44 @@ async function fetchHistory(period: string): Promise<OHLCVData[]> {
   throw lastError ?? new Error("All Yahoo Finance endpoints failed");
 }
 
+async function fetchVix(): Promise<number | null> {
+  for (const host of CHART_HOSTS) {
+    try {
+      const url = `${host}/v8/finance/chart/%5EVIX?interval=1d&range=5d`;
+      const res = await fetch(url, { headers: FETCH_HEADERS, next: { revalidate: 300 } });
+      if (!res.ok) continue;
+      const json = await res.json();
+      const closes: number[] = (json?.chart?.result?.[0]?.indicators?.quote?.[0]?.close ?? [])
+        .filter((v: number | null) => v != null);
+      if (closes.length === 0) continue;
+      return closes[closes.length - 1];
+    } catch {
+      continue;
+    }
+  }
+  return null;
+}
+
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const period = searchParams.get("period") ?? "1y";
 
-    const rawHistory = await fetchHistory(period);
+    const [rawHistory, vix] = await Promise.all([
+      fetchHistory(period),
+      fetchVix(),
+    ]);
+
     if (rawHistory.length === 0) {
       return NextResponse.json({ error: "データ取得失敗" }, { status: 500 });
     }
 
     const history = calculateAllIndicators(rawHistory);
-    const { signals, riskManagement, action } = generateSignals(history);
-
+    const { signals, riskManagement } = generateSignals(history);
     const current = history[history.length - 1];
+    // Rebuild action with VIX
+    const action = generateActionRecommendation(signals, current, riskManagement, vix);
+
     const prev = history.length >= 2 ? history[history.length - 2] : null;
     const priceChange = prev ? current.close - prev.close : 0;
     const priceChangePct = prev ? (priceChange / prev.close) * 100 : 0;
@@ -133,6 +157,7 @@ export async function GET(request: Request) {
       signals,
       riskManagement,
       action,
+      vix,
       lastUpdated: new Date().toISOString(),
       ticker: TICKER,
     });
