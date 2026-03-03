@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Loader2, MapPin, Plus, LogIn, Copy, Check, Shield, ArrowLeft } from "lucide-react";
 import { supabase, type Room } from "@/lib/supabase";
+import { usePWA } from "@/hooks/usePWA";
 
 interface WelcomeScreenProps {
   initialCode?: string;
@@ -17,6 +18,7 @@ function generateShareCode(): string {
 }
 
 export function WelcomeScreen({ initialCode, userName, onComplete }: WelcomeScreenProps) {
+  const isPWA = usePWA();
   const [step, setStep] = useState<Step>(initialCode ? "join" : "select");
   const [roomName, setRoomName] = useState("");
   const [shareCode, setShareCode] = useState(initialCode ?? "");
@@ -272,7 +274,10 @@ export function WelcomeScreen({ initialCode, userName, onComplete }: WelcomeScre
     <div className="fixed inset-0 z-50 bg-white overflow-y-auto">
 
       {/* ── モバイルレイアウト（md未満） ── */}
-      <div className="flex flex-col items-center justify-between min-h-full px-6 pb-10 md:hidden">
+      <div
+        className="flex flex-col items-center justify-between min-h-full px-6 pb-10 md:hidden"
+        style={{ paddingTop: isPWA ? 'max(1.5rem, env(safe-area-inset-top, 0px))' : undefined }}
+      >
         {formContent}
       </div>
 

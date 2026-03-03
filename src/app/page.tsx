@@ -33,6 +33,7 @@ import { PRESET_CATEGORIES } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { calcDistance, formatDistance } from "@/lib/geo";
 import { isPlaceOpenNow } from "@/lib/openNow";
+import { usePWA } from "@/hooks/usePWA";
 
 const ROLE_LABELS: Record<string, string> = {
   leader: "リーダー",
@@ -70,6 +71,8 @@ function applyPopupStatusStyles(
 }
 
 export default function Home() {
+  const isPWA = usePWA();
+
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
   const pickingModeRef = useRef(false);
@@ -122,6 +125,11 @@ export default function Home() {
   const [expanded, setExpanded] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(true);
   const [drawerSnap, setDrawerSnap] = useState<number | string | null>(0.3);
+
+  // PWA検知後にスナップ初期値を同期
+  useEffect(() => {
+    setDrawerSnap(isPWA ? 0.32 : 0.3);
+  }, [isPWA]);
   const [mapLoaded, setMapLoaded] = useState(false);
   const [roomDialogOpen, setRoomDialogOpen] = useState(!room);
   const [memberManageOpen, setMemberManageOpen] = useState(false);
@@ -924,7 +932,7 @@ export default function Home() {
     <div className="flex flex-col h-[100dvh] w-screen overflow-hidden">
 
       {/* ── PC: トップカテゴリ＋フィルターバー ── */}
-      <div className="hidden md:flex shrink-0 bg-background border-b h-[52px]">
+      <div className="hidden md:flex shrink-0 bg-background border-b h-[52px]" style={{ marginTop: isPWA ? 'env(safe-area-inset-top, 0px)' : undefined }}>
 
         {/* 左: マップ幅エリア（カテゴリ横スクロール + フィルターボタン） */}
         <div className="relative flex-1 overflow-hidden h-full flex items-center">
@@ -1018,7 +1026,13 @@ export default function Home() {
 
       {/* ── モバイル: ルーム情報ヘッダーバー ── */}
       {room && (
-        <div className="md:hidden shrink-0 flex items-center justify-between px-3 bg-background border-b gap-2" style={{ minHeight: '52px' }}>
+        <div
+          className="md:hidden shrink-0 flex items-center justify-between px-3 bg-background border-b gap-2"
+          style={{
+            paddingTop: isPWA ? 'env(safe-area-inset-top, 0px)' : undefined,
+            minHeight: isPWA ? 'calc(52px + env(safe-area-inset-top, 0px))' : '52px',
+          }}
+        >
           {/* 左: ロール + コード */}
           <div className="flex items-center gap-2 min-w-0 flex-1">
             {myRole && (
@@ -1136,7 +1150,11 @@ export default function Home() {
           <button
             onClick={handleLocateMe}
             className="md:hidden absolute z-10 bg-white rounded-full shadow-lg p-2.5 hover:bg-gray-50 hover:shadow-xl active:scale-95 transition-all cursor-pointer right-3"
-            style={{ bottom: 'calc(34dvh + env(safe-area-inset-bottom, 0px) + 3.5rem)' }}
+            style={{
+              bottom: isPWA
+                ? 'calc(32dvh + env(safe-area-inset-bottom, 0px) + 3.5rem)'
+                : 'calc(30dvh + env(safe-area-inset-bottom, 0px) + 3.5rem)',
+            }}
             title="現在地へ移動"
           >
             <LocateFixed className="size-5 text-gray-700" />
@@ -1148,7 +1166,11 @@ export default function Home() {
               onClick={() => { setEditPlace(undefined); setSheetOpen(true); }}
               disabled={!room}
               className="md:hidden absolute right-3 z-10 bg-primary text-primary-foreground rounded-full shadow-lg p-3 hover:opacity-90 active:scale-95 transition-all disabled:opacity-40 cursor-pointer"
-              style={{ bottom: 'calc(34dvh + env(safe-area-inset-bottom, 0px) + 0.75rem)' }}
+              style={{
+                bottom: isPWA
+                  ? 'calc(32dvh + env(safe-area-inset-bottom, 0px) + 0.75rem)'
+                  : 'calc(30dvh + env(safe-area-inset-bottom, 0px) + 0.75rem)',
+              }}
               title="場所を追加"
             >
               <Plus className="size-5" />
@@ -1297,16 +1319,16 @@ export default function Home() {
       </div>
 
       {/* ── モバイル Drawer（常時ペーク表示） ── */}
+      {/* PWA: ステータスバー分だけ高さが増えるためスナップ比率を微調整 */}
       <Drawer
         open={drawerOpen}
         onOpenChange={(v) => {
           if (!v) {
-            // 閉じようとしたら最小スナップに戻す
-            setDrawerSnap(0.3);
+            setDrawerSnap(isPWA ? 0.32 : 0.3);
             setDrawerOpen(true);
           }
         }}
-        snapPoints={[0.3, 1]}
+        snapPoints={isPWA ? [0.32, 1] : [0.3, 1]}
         activeSnapPoint={drawerSnap}
         setActiveSnapPoint={setDrawerSnap}
         modal={false}

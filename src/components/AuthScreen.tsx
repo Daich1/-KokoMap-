@@ -5,6 +5,7 @@ import { Loader2, MapPin, Eye, EyeOff } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
 import type { User } from "@supabase/supabase-js";
+import { usePWA } from "@/hooks/usePWA";
 
 interface AuthScreenProps {
   onAuth: (user: User) => void;
@@ -18,6 +19,7 @@ function toEmail(username: string) {
 }
 
 export function AuthScreen({ onAuth }: AuthScreenProps) {
+  const isPWA = usePWA();
   const [mode, setMode] = useState<Mode>("login");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -193,7 +195,10 @@ export function AuthScreen({ onAuth }: AuthScreenProps) {
     <div className="fixed inset-0 z-50 bg-white overflow-y-auto">
 
       {/* ── モバイルレイアウト（md未満） ── */}
-      <div className="flex flex-col items-center justify-center min-h-full px-6 md:hidden">
+      <div
+        className="flex flex-col items-center justify-center min-h-full px-6 md:hidden"
+        style={{ paddingTop: isPWA ? 'max(1.5rem, env(safe-area-inset-top, 0px))' : undefined }}
+      >
         <div className="flex flex-col items-center gap-3 mb-8">
           <div className="w-20 h-20 rounded-3xl bg-primary/10 flex items-center justify-center shadow-inner">
             <MapPin className="size-10 text-primary" strokeWidth={1.5} />
