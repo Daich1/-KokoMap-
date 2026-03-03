@@ -82,7 +82,7 @@ export async function GET(request: Request) {
     }
 
     const history = calculateAllIndicators(rawHistory);
-    const { signals, riskManagement } = generateSignals(history);
+    const { signals, riskManagement, action } = generateSignals(history);
 
     const current = history[history.length - 1];
     const prev = history.length >= 2 ? history[history.length - 2] : null;
@@ -132,6 +132,7 @@ export async function GET(request: Request) {
       chartData,
       signals,
       riskManagement,
+      action,
       lastUpdated: new Date().toISOString(),
       ticker: TICKER,
     });

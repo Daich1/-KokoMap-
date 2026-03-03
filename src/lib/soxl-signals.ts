@@ -34,6 +34,20 @@ export interface RiskManagement {
   suggestedPositionNote: string;
 }
 
+export type ActionType = "ENTER" | "WAIT" | "AVOID";
+
+export interface ActionRecommendation {
+  action: ActionType;
+  label: string;       // 短いラベル
+  summary: string;     // 1行サマリー
+  color: string;
+  borderColor: string;
+  reasons: string[];   // 今の状態を支持する根拠
+  waitFor: string[];   // エントリーを待つ条件
+  avoidBelow: number | null; // この価格を割ったら完全撤退
+  confidence: number;  // 0-100
+}
+
 function analyzeRSI(current: IndicatorData): SignalDetail {
   const rsi = current.rsi;
   if (rsi === null) {
@@ -150,7 +164,7 @@ function analyzeStochastic(current: IndicatorData): SignalDetail {
 
 export function generateSignals(
   data: IndicatorData[]
-): { signals: SignalResult; riskManagement: RiskManagement } {
+): { signals: SignalResult; riskManagement: RiskManagement; action: ActionRecommendation } {
   if (data.length === 0) {
     throw new Error("No data available");
   }
@@ -207,8 +221,146 @@ export function generateSignals(
       "楽天証券での発注前に必ず自己判断でご確認ください。SOXLは3倍レバレッジETFです。",
   };
 
+  const signalResult = { overall, overallLabel, score, maxScore, scorePct, color, bgColor, details };
+  const action = generateActionRecommendation(signalResult, current, riskManagement);
+
   return {
-    signals: { overall, overallLabel, score, maxScore, scorePct, color, bgColor, details },
+    signals: signalResult,
     riskManagement,
+    action,
+  };
+}
+
+export function generateActionRecommendation(
+  signals: SignalResult,
+  current: IndicatorData,
+  risk: RiskManagement
+): ActionRecommendation {
+  const { details, score } = signals;
+  const price = current.close;
+  const rsi = current.rsi;
+  const ma50 = current.ma50;
+  const ma200 = current.ma200;
+  const macdSig = details.find(d => d.name === "MACD");
+  const bbSig = details.find(d => d.name === "BB");
+  const stochSig = details.find(d => d.name === "Stoch");
+
+  const goldenCross = ma50 !== null && ma200 !== null && ma50 > ma200;
+  const aboveMa50 = ma50 !== null && price > ma50;
+  const aboveMa200 = ma200 !== null && price > ma200;
+  const rsiHealthy = rsi !== null && rsi >= 30 && rsi <= 65;
+  const rsiOversold = rsi !== null && rsi < 35;
+  const rsiOverbought = rsi !== null && rsi > 72;
+  const macdPositive = (macdSig?.strength ?? 0) > 0;
+  const macdCrossing = (macdSig?.strength ?? 0) === 3;  // golden cross発生
+  const macdBearish = (macdSig?.strength ?? 0) <= -2;
+  const bbLow = (bbSig?.strength ?? 0) > 0;
+  const stochOversold = (stochSig?.strength ?? 0) >= 2;
+
+  const reasons: string[] = [];
+  const waitFor: string[] = [];
+
+  // ─── ENTER ────────────────────────────────────────────────────
+  // 条件: スコア高く、MA構造良好、MACD陽転、RSI過熱なし
+  const isEnter =
+    score >= 5 &&
+    aboveMa50 &&
+    !rsiOverbought &&
+    (macdPositive || macdCrossing);
+
+  // ─── AVOID ────────────────────────────────────────────────────
+  // 条件: MA50割れ + MACDベアリッシュ、またはスコア大幅マイナス
+  const isAvoid =
+    score <= -4 ||
+    (!aboveMa50 && macdBearish) ||
+    (rsiOverbought && macdBearish);
+
+  let action: ActionType;
+  let label: string;
+  let summary: string;
+  let borderColor: string;
+  let actionColor: string;
+  let confidence: number;
+
+  if (isEnter) {
+    action = "ENTER";
+    label = "エントリー推奨";
+    actionColor = "#10B981";
+    borderColor = "#065F46";
+    confidence = Math.min(95, 60 + score * 5);
+    summary = "複数の指標が揃っています。全額エントリーを検討できます。";
+    if (goldenCross) reasons.push("ゴールデンクロス発生中（MA50 > MA200）");
+    if (macdCrossing) reasons.push("MACDゴールデンクロス発生");
+    if (macdPositive) reasons.push("MACDがシグナル上でモメンタム上昇中");
+    if (aboveMa50) reasons.push(`価格がMA50（$${ma50?.toFixed(2)}）を上回って推移`);
+    if (aboveMa200) reasons.push(`価格がMA200（$${ma200?.toFixed(2)}）も上回り強気構造`);
+    if (rsiHealthy) reasons.push(`RSI ${rsi?.toFixed(1)} — 健全な中立ゾーン`);
+    if (rsiOversold) reasons.push(`RSI ${rsi?.toFixed(1)} — 売られすぎから反転中`);
+    if (bbLow) reasons.push("ボリンジャー下限付近で反発の可能性");
+    if (stochOversold) reasons.push("ストキャスティクスが底値圏から上昇クロス");
+
+  } else if (isAvoid) {
+    action = "AVOID";
+    label = "現金待機";
+    actionColor = "#EF4444";
+    borderColor = "#7F1D1D";
+    confidence = Math.min(95, 60 + Math.abs(score) * 5);
+    summary = "トレンドが崩れています。無理に入る局面ではありません。";
+    if (!aboveMa50 && ma50) reasons.push(`MA50（$${ma50.toFixed(2)}）を下回り下降トレンド入り`);
+    if (macdBearish) reasons.push("MACDが強い下降モメンタムを示している");
+    if (rsiOverbought) reasons.push(`RSI ${rsi?.toFixed(1)} — 買われすぎ圏で下落リスク`);
+    if (score <= -4) reasons.push(`総合スコア ${score} — 複数指標が弱気サイン`);
+    if (ma50) waitFor.push(`MA50（$${ma50.toFixed(2)}）を明確に上抜けて維持`);
+    waitFor.push("MACDヒストグラムがゼロ以上に転換");
+    waitFor.push("RSIが40以上で安定推移");
+
+  } else {
+    // WAIT
+    action = "WAIT";
+    label = "様子見 — 現金待機";
+    actionColor = "#F59E0B";
+    borderColor = "#78350F";
+    confidence = 70;
+    summary = "構造は悪くないが、まだ揃っていない。チャンスではない今は現金でいい。";
+
+    // 良い点を reasons に
+    if (goldenCross) reasons.push(`ゴールデンクロス維持（MA50 $${ma50?.toFixed(2)} > MA200 $${ma200?.toFixed(2)}）`);
+    if (aboveMa50) reasons.push(`価格はMA50（$${ma50?.toFixed(2)}）上で維持 — 強気構造は健在`);
+    if (aboveMa200) reasons.push(`MA200（$${ma200?.toFixed(2)}）も上回っており長期トレンドは上向き`);
+    if (rsiOversold) reasons.push(`RSI ${rsi?.toFixed(1)} — 売られすぎ圏 → 反発候補`);
+    if (bbLow || stochOversold) reasons.push("ボリンジャー/ストキャスが底値圏を示唆");
+
+    // 待つべき条件
+    if (macdBearish) {
+      waitFor.push("MACDヒストグラムがプラス転換（下落モメンタムの終息サイン）");
+    } else if (!macdPositive) {
+      waitFor.push("MACDがシグナルラインを上抜けてプラス圏へ");
+    }
+    if (!rsiOversold && !rsiHealthy && rsi !== null && rsi > 60) {
+      waitFor.push(`RSIが60以下に落ち着くのを待つ（現在 ${rsi.toFixed(1)}）`);
+    }
+    if (!macdPositive && !rsiOversold) {
+      waitFor.push(`MA50（$${ma50?.toFixed(2)}）まで引いてきたところでのバウンス確認`);
+    }
+    if (rsiOversold && !macdPositive) {
+      waitFor.push("RSI反転 + MACDヒストグラムがプラス方向に向き始めたらエントリー検討");
+    }
+  }
+
+  // Avoid below: MA50の3%下、またはMA200
+  const avoidBelow = ma50 !== null
+    ? parseFloat((ma50 * 0.97).toFixed(2))
+    : risk.stopLoss;
+
+  return {
+    action,
+    label,
+    summary,
+    color: actionColor,
+    borderColor,
+    reasons,
+    waitFor,
+    avoidBelow,
+    confidence,
   };
 }

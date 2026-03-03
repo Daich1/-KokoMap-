@@ -102,6 +102,17 @@ interface SOXLData {
     atr: number;
     suggestedPositionNote: string;
   };
+  action: {
+    action: "ENTER" | "WAIT" | "AVOID";
+    label: string;
+    summary: string;
+    color: string;
+    borderColor: string;
+    reasons: string[];
+    waitFor: string[];
+    avoidBelow: number | null;
+    confidence: number;
+  };
   lastUpdated: string;
 }
 
@@ -424,6 +435,116 @@ export default function SOXLDashboard() {
         </div>
       ) : data ? (
         <div className="max-w-7xl mx-auto px-4 py-4 space-y-4">
+
+          {/* ── Action Recommendation Banner ── */}
+          {(() => {
+            const a = data.action;
+            const icon =
+              a.action === "ENTER" ? "🚀" :
+              a.action === "AVOID" ? "🚫" : "⏳";
+            const bgClass =
+              a.action === "ENTER"
+                ? "bg-emerald-950/70 border-emerald-700/60"
+                : a.action === "AVOID"
+                ? "bg-red-950/70 border-red-700/60"
+                : "bg-yellow-950/60 border-yellow-700/50";
+
+            return (
+              <div className={`rounded-xl border-2 p-5 ${bgClass}`}>
+                {/* Top row */}
+                <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+                  <div className="flex items-center gap-3">
+                    <span className="text-3xl">{icon}</span>
+                    <div>
+                      <p className="text-xs text-gray-400 uppercase tracking-widest font-medium">
+                        現在の推奨アクション
+                      </p>
+                      <p
+                        className="text-2xl font-black leading-tight"
+                        style={{ color: a.color }}
+                      >
+                        {a.label}
+                      </p>
+                    </div>
+                  </div>
+                  {/* Confidence bar */}
+                  <div className="text-right min-w-[100px]">
+                    <p className="text-xs text-gray-500 mb-1">確信度</p>
+                    <div className="flex items-center gap-2">
+                      <div className="w-24 h-2 bg-gray-800 rounded-full overflow-hidden">
+                        <div
+                          className="h-full rounded-full transition-all"
+                          style={{
+                            width: `${a.confidence}%`,
+                            backgroundColor: a.color,
+                          }}
+                        />
+                      </div>
+                      <span className="text-sm font-bold" style={{ color: a.color }}>
+                        {a.confidence}%
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Summary */}
+                <p className="text-white text-sm font-medium mb-4 leading-relaxed">
+                  {a.summary}
+                </p>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Reasons */}
+                  {a.reasons.length > 0 && (
+                    <div>
+                      <p className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-2">
+                        {a.action === "AVOID" ? "⚠ 懸念点" : "✓ 根拠"}
+                      </p>
+                      <ul className="space-y-1">
+                        {a.reasons.map((r, i) => (
+                          <li key={i} className="flex items-start gap-2 text-sm">
+                            <span
+                              className="mt-0.5 flex-shrink-0 font-bold"
+                              style={{ color: a.color }}
+                            >
+                              {a.action === "AVOID" ? "✗" : "✓"}
+                            </span>
+                            <span className="text-gray-300">{r}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* Wait for / Danger */}
+                  <div className="space-y-3">
+                    {a.waitFor.length > 0 && (
+                      <div>
+                        <p className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-2">
+                          {a.action === "AVOID" ? "回復の条件" : "エントリー待ちの条件"}
+                        </p>
+                        <ul className="space-y-1">
+                          {a.waitFor.map((w, i) => (
+                            <li key={i} className="flex items-start gap-2 text-sm">
+                              <span className="text-yellow-500 mt-0.5 flex-shrink-0">→</span>
+                              <span className="text-gray-300">{w}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    {a.avoidBelow !== null && (
+                      <div className="flex items-center gap-2 bg-red-900/30 border border-red-800/50 rounded-lg px-3 py-2">
+                        <AlertTriangle className="text-red-400 flex-shrink-0" size={14} />
+                        <span className="text-sm text-red-300">
+                          <span className="font-bold">${a.avoidBelow.toFixed(2)}</span> を割ったら完全撤退 / 参加見送り
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Price & Signal Overview */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
