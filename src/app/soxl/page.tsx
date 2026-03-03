@@ -15,6 +15,8 @@ import {
   AlertTriangle,
   BarChart2,
   Activity,
+  Wallet,
+  Calculator,
 } from "lucide-react";
 
 const PriceChart = dynamic(
@@ -161,8 +163,20 @@ export default function SOXLDashboard() {
     showMA200: true,
     showBB: true,
   });
+  const [capitalJPY, setCapitalJPY] = useState(300000);
+  const [riskPct, setRiskPct] = useState(2);
+  const [usdJpy, setUsdJpy] = useState(150);
+  const [usdJpyLoading, setUsdJpyLoading] = useState(true);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    fetch("/api/fx")
+      .then(r => r.json())
+      .then(d => { if (d.rate) setUsdJpy(d.rate); })
+      .catch(() => {})
+      .finally(() => setUsdJpyLoading(false));
+  }, []);
 
   const fetchData = useCallback(async () => {
     try {
@@ -727,6 +741,189 @@ export default function SOXLDashboard() {
               </p>
             </div>
           </div>
+
+          {/* Position Sizing Panel */}
+          {(() => {
+            const capitalUSD = capitalJPY / usdJpy;
+            const riskAmountUSD = capitalUSD * (riskPct / 100);
+            const riskAmountJPY = capitalJPY * (riskPct / 100);
+            const riskPerShare = data.riskManagement.entryPrice - data.riskManagement.stopLoss;
+            const shares = riskPerShare > 0 ? Math.floor(riskAmountUSD / riskPerShare) : 0;
+            const costUSD = shares * data.riskManagement.entryPrice;
+            const costJPY = costUSD * usdJpy;
+            const capitalUsedPct = capitalUSD > 0 ? (costUSD / capitalUSD) * 100 : 0;
+            const pnlTP1JPY = shares * (data.riskManagement.takeProfit1 - data.riskManagement.entryPrice) * usdJpy;
+            const pnlTP2JPY = shares * (data.riskManagement.takeProfit2 - data.riskManagement.entryPrice) * usdJpy;
+            const maxLossJPY = shares * riskPerShare * usdJpy;
+
+            const scenarios = [1, 2, 3, 5].map(pct => {
+              const rAmt = capitalUSD * (pct / 100);
+              const sh = riskPerShare > 0 ? Math.floor(rAmt / riskPerShare) : 0;
+              return { pct, shares: sh, costJPY: sh * data.riskManagement.entryPrice * usdJpy };
+            });
+
+            return (
+              <div className="bg-gray-900 rounded-xl border border-gray-800 p-5">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="font-semibold text-white flex items-center gap-2">
+                    <Calculator className="text-blue-400" size={18} />
+                    ポジションサイジング計算機
+                  </h2>
+                  <span className="text-xs text-gray-500 flex items-center gap-1">
+                    USD/JPY:{" "}
+                    {usdJpyLoading ? (
+                      <span className="text-gray-600">取得中...</span>
+                    ) : (
+                      <span className="text-yellow-400 font-mono font-bold">{usdJpy.toFixed(2)}</span>
+                    )}
+                  </span>
+                </div>
+
+                {/* Inputs */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5">
+                  <div className="space-y-1">
+                    <label className="text-xs text-gray-500 flex items-center gap-1">
+                      <Wallet size={11} /> 元金（円）
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        value={capitalJPY}
+                        onChange={e => setCapitalJPY(Number(e.target.value))}
+                        step={10000}
+                        min={0}
+                        className="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white font-mono text-sm focus:outline-none focus:border-blue-500"
+                      />
+                      <span className="text-gray-500 text-sm">円</span>
+                    </div>
+                    <p className="text-xs text-gray-600">≈ ${(capitalJPY / usdJpy).toFixed(0)} USD</p>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs text-gray-500">1トレードのリスク許容額</label>
+                    <div className="flex gap-1 flex-wrap">
+                      {[1, 2, 3, 5].map(p => (
+                        <button
+                          key={p}
+                          onClick={() => setRiskPct(p)}
+                          className={`px-3 py-2 rounded-lg text-sm font-bold transition-colors ${
+                            riskPct === p
+                              ? "bg-blue-600 text-white"
+                              : "bg-gray-800 text-gray-400 hover:text-white"
+                          }`}
+                        >
+                          {p}%
+                        </button>
+                      ))}
+                    </div>
+                    <p className="text-xs text-gray-600">
+                      = ¥{riskAmountJPY.toLocaleString()} (${riskAmountUSD.toFixed(0)})
+                    </p>
+                  </div>
+                </div>
+
+                {/* Main result */}
+                <div className="bg-gradient-to-r from-blue-900/30 to-indigo-900/20 border border-blue-800/40 rounded-xl p-4 mb-4">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                    <div>
+                      <p className="text-xs text-blue-300 mb-1">推奨株数</p>
+                      <p className="text-4xl font-black text-white font-mono">{shares}</p>
+                      <p className="text-xs text-blue-400">株</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-400 mb-1">必要資金</p>
+                      <p className="text-2xl font-bold text-white font-mono">¥{Math.round(costJPY).toLocaleString()}</p>
+                      <p className="text-xs text-gray-500">${costUSD.toFixed(0)} · 資金の{capitalUsedPct.toFixed(1)}%</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-red-400 mb-1">最大損失（損切り時）</p>
+                      <p className="text-2xl font-bold text-red-400 font-mono">-¥{Math.round(maxLossJPY).toLocaleString()}</p>
+                      <p className="text-xs text-red-600">元金の{riskPct}%</p>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-xs text-emerald-400 mb-1">期待利益</p>
+                      <p className="text-lg font-bold text-emerald-400 font-mono">TP①: +¥{Math.round(pnlTP1JPY).toLocaleString()}</p>
+                      <p className="text-lg font-bold text-emerald-300 font-mono">TP②: +¥{Math.round(pnlTP2JPY).toLocaleString()}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Risk % comparison table */}
+                <div>
+                  <p className="text-xs text-gray-500 mb-2 font-medium">リスク別シミュレーション（¥{capitalJPY.toLocaleString()} 元金）</p>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-gray-800">
+                          <th className="text-left py-2 px-3 text-xs text-gray-500 font-medium">リスク</th>
+                          <th className="text-right py-2 px-3 text-xs text-gray-500 font-medium">株数</th>
+                          <th className="text-right py-2 px-3 text-xs text-gray-500 font-medium">必要資金</th>
+                          <th className="text-right py-2 px-3 text-xs text-gray-500 font-medium">最大損失</th>
+                          <th className="text-right py-2 px-3 text-xs text-gray-500 font-medium">TP①利益</th>
+                          <th className="text-right py-2 px-3 text-xs text-gray-500 font-medium">TP②利益</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {scenarios.map(s => {
+                          const lossJPY = s.shares * riskPerShare * usdJpy;
+                          const tp1JPY = s.shares * (data.riskManagement.takeProfit1 - data.riskManagement.entryPrice) * usdJpy;
+                          const tp2JPY = s.shares * (data.riskManagement.takeProfit2 - data.riskManagement.entryPrice) * usdJpy;
+                          const isSelected = s.pct === riskPct;
+                          return (
+                            <tr
+                              key={s.pct}
+                              onClick={() => setRiskPct(s.pct)}
+                              className={`border-b border-gray-800/50 cursor-pointer transition-colors ${
+                                isSelected ? "bg-blue-900/20" : "hover:bg-gray-800/30"
+                              }`}
+                            >
+                              <td className="py-2 px-3">
+                                <span className={`font-bold ${isSelected ? "text-blue-400" : "text-gray-400"}`}>
+                                  {s.pct}%
+                                </span>
+                                {isSelected && <span className="ml-1 text-xs text-blue-600">←選択中</span>}
+                              </td>
+                              <td className="py-2 px-3 text-right font-bold font-mono text-white">{s.shares}株</td>
+                              <td className="py-2 px-3 text-right font-mono text-gray-300">
+                                ¥{Math.round(s.costJPY).toLocaleString()}
+                              </td>
+                              <td className="py-2 px-3 text-right font-mono text-red-400">
+                                -¥{Math.round(lossJPY).toLocaleString()}
+                              </td>
+                              <td className="py-2 px-3 text-right font-mono text-emerald-400">
+                                +¥{Math.round(tp1JPY).toLocaleString()}
+                              </td>
+                              <td className="py-2 px-3 text-right font-mono text-emerald-300">
+                                +¥{Math.round(tp2JPY).toLocaleString()}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* Drawdown scenarios */}
+                <div className="mt-4">
+                  <p className="text-xs text-gray-500 mb-2 font-medium">ドローダウンシナリオ（{shares}株保有時）</p>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {[10, 20, 30, 50].map(dd => {
+                      const lossJPY = shares * data.riskManagement.entryPrice * (dd / 100) * usdJpy;
+                      const pctOfCapital = capitalJPY > 0 ? (lossJPY / capitalJPY) * 100 : 0;
+                      return (
+                        <div key={dd} className="bg-gray-800/50 rounded-lg p-3 text-center">
+                          <p className="text-xs text-gray-500">SOXL -{dd}%</p>
+                          <p className="font-bold font-mono text-red-400">-¥{Math.round(lossJPY).toLocaleString()}</p>
+                          <p className="text-xs text-red-600">元金の{pctOfCapital.toFixed(1)}%</p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Signal Details Table */}
           <div className="bg-gray-900 rounded-xl border border-gray-800 p-5">
