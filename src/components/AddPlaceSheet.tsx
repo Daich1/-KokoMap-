@@ -392,8 +392,13 @@ export function AddPlaceSheet({
       return;
     }
 
-    // business_hours がなく opening_hours_text がある場合、AI で構造化
-    if (!businessHoursRef.current && values.opening_hours_text?.trim()) {
+    // business_hours がなく opening_hours_text がある場合、または編集で営業時間テキストを変更した場合、AI で構造化
+    const origText = (isEdit && editPlace?.opening_hours_text ?? "").trim();
+    const newText = values.opening_hours_text?.trim() ?? "";
+    const textChanged = isEdit && origText !== newText;
+    const shouldParse =
+      newText && (!businessHoursRef.current || textChanged);
+    if (shouldParse) {
       try {
         const res = await fetch("/api/places/parse-hours", {
           method: "POST",
