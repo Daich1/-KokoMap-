@@ -36,6 +36,16 @@ export interface RiskManagement {
 
 export type ActionType = "ENTER" | "WAIT" | "AVOID";
 
+export interface EventContext {
+  // Earnings phase for the most relevant upcoming earnings
+  earningsPhase?: "far" | "accumulate" | "runup" | "sell_zone" | "imminent" | "passed";
+  earningsSymbol?: string;
+  earningsDaysUntil?: number;
+  // Nearest major economic event
+  nearEconomicEvent?: string; // name
+  nearEconomicDays?: number;  // days until
+}
+
 export interface ActionRecommendation {
   action: ActionType;
   label: string;
@@ -46,7 +56,8 @@ export interface ActionRecommendation {
   waitFor: string[];
   avoidBelow: number | null;
   confidence: number;
-  vixOverride: boolean; // VIXによる強制上書きかどうか
+  vixOverride: boolean;
+  eventOverride: boolean; // イベントによる上書きかどうか
 }
 
 function analyzeRSI(current: IndicatorData): SignalDetail {
@@ -236,7 +247,8 @@ export function generateActionRecommendation(
   signals: SignalResult,
   current: IndicatorData,
   risk: RiskManagement,
-  vix?: number | null
+  vix?: number | null,
+  events?: EventContext | null
 ): ActionRecommendation {
   const { details, score } = signals;
   const price = current.close;
@@ -400,6 +412,82 @@ export function generateActionRecommendation(
     }
   }
 
+  // ─── Event Override ───────────────────────────────────────────
+  let eventOverride = false;
+
+  if (events && !vixOverride) {
+    const phase = events.earningsPhase;
+    const sym = events.earningsSymbol ?? "NVDA";
+    const days = events.earningsDaysUntil ?? 99;
+
+    // 経済イベントが1-2日以内 → 待機推奨
+    if (events.nearEconomicDays !== undefined && events.nearEconomicDays >= 0 && events.nearEconomicDays <= 2) {
+      const evtName = events.nearEconomicEvent ?? "重要経済指標";
+      if (action === "ENTER") {
+        action = "WAIT";
+        label = "待機（イベント前）";
+        actionColor = "#F59E0B";
+        borderColor = "#78350F";
+        confidence = Math.max(confidence - 15, 50);
+        summary = `${evtName}が${events.nearEconomicDays === 0 ? "本日" : `${events.nearEconomicDays}日後`}に発表。テクニカルは良好でも発表前後の乱高下に注意。`;
+        waitFor.unshift(`${evtName}の結果確認後にエントリー判断`);
+        eventOverride = true;
+      } else {
+        reasons.push(`⚠ ${evtName}が${events.nearEconomicDays === 0 ? "本日" : `${events.nearEconomicDays}日後`}に発表。発表後に再判断を`);
+      }
+    }
+
+    // 決算戦略の上書き
+    if (phase === "sell_zone" || phase === "imminent") {
+      // 決算3日前〜当日 → 強制利確警告
+      if (action === "ENTER") {
+        // 新規エントリーは禁止
+        action = "WAIT";
+        label = "待機（決算直前）";
+        actionColor = "#F97316";
+        borderColor = "#78350F";
+        confidence = 80;
+        summary = `${sym}決算まで${days}日。新規エントリーは不利。既に保有している場合は利確を検討。`;
+        waitFor.unshift(`${sym}決算（あと${days}日）通過後に再エントリー検討`);
+        eventOverride = true;
+      } else {
+        // WAIT/AVOIDのときも利確警告を追加
+        reasons.unshift(`⚡ ${sym}決算まで${days}日 → 保有中なら利確推奨`);
+        eventOverride = true;
+      }
+    } else if (phase === "runup") {
+      // 決算10日前 → プレアーニングス上昇期 → 買いを後押し
+      if (action === "WAIT" || action === "ENTER") {
+        reasons.unshift(`★ ${sym}決算まで${days}日 — プレアーニングス上昇期（期待感で株価が上がりやすい）`);
+        if (action === "WAIT") {
+          // WAITをENTERに格上げする可能性（テクニカルがそこそこ良ければ）
+          if (score >= 0) {
+            action = "ENTER";
+            label = `エントリー検討（${sym}決算前仕込み）`;
+            actionColor = "#10B981";
+            borderColor = "#065F46";
+            confidence = Math.min(confidence + 10, 80);
+            summary = `${sym}決算${days}日前のプレアーニングス期。テクニカルも許容範囲。決算3日前には利確を計画して。`;
+            waitFor.length = 0;
+            waitFor.push(`決算${Math.max(days - 7, 3)}日前（約${sym}決算${days - Math.max(days - 7, 3)}日後）に利確`);
+            waitFor.push(`損切りは ${risk.stopLoss.toFixed(2)} を下回った時点`);
+            eventOverride = true;
+          }
+        } else {
+          // ENTER ならさらに強調
+          waitFor.unshift(`決算3日前（${days - 3}日後）には利確を計画すること`);
+          eventOverride = true;
+        }
+      }
+    } else if (phase === "accumulate") {
+      // 仕込みウィンドウ（28日前まで）→ 買いを後押し
+      reasons.push(`★ ${sym}決算まで${days}日 — 仕込みウィンドウ期間（${sym}関連が上がりやすい局面）`);
+      if (action === "WAIT" && score >= 0) {
+        waitFor.push(`テクニカルが揃えば決算前仕込みとして積極的に検討`);
+      }
+    }
+  }
+
   // Avoid below: MA50の3%下、またはMA200
   const avoidBelow = ma50 !== null
     ? parseFloat((ma50 * 0.97).toFixed(2))
@@ -416,5 +504,6 @@ export function generateActionRecommendation(
     avoidBelow,
     confidence,
     vixOverride,
+    eventOverride,
   };
 }

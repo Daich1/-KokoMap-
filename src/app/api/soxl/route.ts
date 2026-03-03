@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { calculateAllIndicators, type OHLCVData } from "@/lib/technical-analysis";
-import { generateSignals, generateActionRecommendation } from "@/lib/soxl-signals";
+import { generateSignals, generateActionRecommendation, type EventContext } from "@/lib/soxl-signals";
 
 const TICKER = "SOXL";
 
@@ -71,6 +71,101 @@ async function fetchHistory(period: string): Promise<OHLCVData[]> {
   throw lastError ?? new Error("All Yahoo Finance endpoints failed");
 }
 
+async function fetchEventContext(): Promise<EventContext | null> {
+  try {
+    function estimateEarningsDate(symbol: string): string | null {
+      const today = new Date();
+      const y = today.getFullYear();
+      function lastWeekday(year: number, month: number, weekday: number): Date {
+        const d = new Date(Date.UTC(year, month, 0));
+        while (d.getUTCDay() !== weekday) d.setUTCDate(d.getUTCDate() - 1);
+        return d;
+      }
+      function nthWeekday(year: number, month: number, weekday: number, nth: number): Date {
+        const d = new Date(Date.UTC(year, month - 1, 1));
+        let count = 0;
+        while (count < nth) { if (d.getUTCDay() === weekday) count++; if (count < nth) d.setUTCDate(d.getUTCDate() + 1); }
+        return d;
+      }
+      let candidates: Date[] = [];
+      if (symbol === "NVDA") {
+        candidates = [lastWeekday(y,2,3),lastWeekday(y,5,3),lastWeekday(y,8,3),lastWeekday(y,11,3),lastWeekday(y+1,2,3)];
+      } else if (symbol === "MU") {
+        candidates = [nthWeekday(y,3,3,3),nthWeekday(y,6,3,3),nthWeekday(y,9,3,3),nthWeekday(y,12,3,3),nthWeekday(y+1,3,3,3)];
+      }
+      const threshold = new Date(today.getTime() - 86400000 * 3);
+      const upcoming = candidates.filter(d => d >= threshold).sort((a,b) => a.getTime()-b.getTime());
+      return upcoming.length > 0 ? upcoming[0].toISOString().slice(0,10) : null;
+    }
+
+    const todayStr = new Date().toISOString().slice(0, 10);
+
+    // Check all major semiconductor earnings; pick the most strategically relevant one
+    const symbols = ["NVDA", "MU", "AMD"];
+    let earningsPhase: EventContext["earningsPhase"] = "far";
+    let earningsDaysUntil = 999;
+    let earningsSymbol = "NVDA";
+
+    const phasePriority: Record<string, number> = {
+      imminent: 0, sell_zone: 1, runup: 2, accumulate: 3, far: 4, passed: 5,
+    };
+
+    for (const sym of symbols) {
+      const date = estimateEarningsDate(sym);
+      if (!date) continue;
+      const days = Math.round((new Date(date).getTime() - new Date(todayStr).getTime()) / 86400000);
+      let phase: EventContext["earningsPhase"] = "far";
+      if (days < -14) phase = "passed";
+      else if (days <= 0) phase = "imminent";
+      else if (days <= 3) phase = "sell_zone";
+      else if (days <= 10) phase = "runup";
+      else if (days <= 28) phase = "accumulate";
+      else phase = "far";
+
+      // Pick the most urgent/relevant (lower priority number wins)
+      if (phasePriority[phase] < phasePriority[earningsPhase]) {
+        earningsPhase = phase;
+        earningsDaysUntil = days;
+        earningsSymbol = sym;
+      }
+    }
+
+    // Nearest major economic event (NFP: first Friday)
+    function firstFriday(year: number, month: number): Date {
+      const d = new Date(Date.UTC(year, month - 1, 1));
+      const dow = d.getUTCDay();
+      d.setUTCDate(1 + (dow <= 5 ? 5 - dow : 12 - dow));
+      return d;
+    }
+    const today = new Date();
+    let nearEconomicEvent: string | undefined;
+    let nearEconomicDays: number | undefined;
+
+    const candidates: { name: string; date: Date }[] = [];
+    for (let i = 0; i <= 2; i++) {
+      const m = new Date(today.getFullYear(), today.getMonth() + i, 1);
+      candidates.push({ name: "雇用統計（NFP）", date: firstFriday(m.getFullYear(), m.getMonth() + 1) });
+      candidates.push({ name: "CPI発表", date: new Date(Date.UTC(m.getFullYear(), m.getMonth() + 1, 12)) });
+    }
+    const FOMC = ["2026-03-19","2026-04-30","2026-06-18","2026-07-30","2026-09-17","2026-10-29","2026-12-10"];
+    FOMC.forEach(d => candidates.push({ name: "FOMC", date: new Date(d + "T00:00:00Z") }));
+
+    const upcoming = candidates
+      .map(c => ({ ...c, days: Math.round((c.date.getTime() - today.getTime()) / 86400000) }))
+      .filter(c => c.days >= -1 && c.days <= 7)
+      .sort((a, b) => a.days - b.days);
+
+    if (upcoming.length > 0) {
+      nearEconomicEvent = upcoming[0].name;
+      nearEconomicDays = upcoming[0].days;
+    }
+
+    return { earningsPhase, earningsSymbol, earningsDaysUntil, nearEconomicEvent, nearEconomicDays };
+  } catch {
+    return null;
+  }
+}
+
 async function fetchVix(): Promise<number | null> {
   for (const host of CHART_HOSTS) {
     try {
@@ -94,9 +189,10 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const period = searchParams.get("period") ?? "1y";
 
-    const [rawHistory, vix] = await Promise.all([
+    const [rawHistory, vix, eventCtx] = await Promise.all([
       fetchHistory(period),
       fetchVix(),
+      fetchEventContext(),
     ]);
 
     if (rawHistory.length === 0) {
@@ -106,8 +202,8 @@ export async function GET(request: Request) {
     const history = calculateAllIndicators(rawHistory);
     const { signals, riskManagement } = generateSignals(history);
     const current = history[history.length - 1];
-    // Rebuild action with VIX
-    const action = generateActionRecommendation(signals, current, riskManagement, vix);
+    // Rebuild action with VIX + events
+    const action = generateActionRecommendation(signals, current, riskManagement, vix, eventCtx);
 
     const prev = history.length >= 2 ? history[history.length - 2] : null;
     const priceChange = prev ? current.close - prev.close : 0;

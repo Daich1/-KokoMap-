@@ -113,9 +113,38 @@ interface SOXLData {
     avoidBelow: number | null;
     confidence: number;
     vixOverride: boolean;
+    eventOverride: boolean;
   };
   vix: number | null;
   lastUpdated: string;
+}
+
+interface EarningsEvent {
+  symbol: string;
+  name: string;
+  date: string;
+  daysUntil: number;
+  phase: string;
+  phaseLabel: string;
+  phaseColor: string;
+  strategy: string;
+}
+
+interface EconomicEvent {
+  id: string;
+  name: string;
+  nameEn: string;
+  date: string;
+  daysUntil: number;
+  importance: string;
+  impact: string;
+  strategy: string;
+}
+
+interface EventsData {
+  earnings: EarningsEvent[];
+  economic: EconomicEvent[];
+  updatedAt: string;
 }
 
 interface MacroData {
@@ -189,6 +218,7 @@ export default function SOXLDashboard() {
   const [usdJpy, setUsdJpy] = useState(150);
   const [usdJpyLoading, setUsdJpyLoading] = useState(true);
   const [macro, setMacro] = useState<MacroData | null>(null);
+  const [events, setEvents] = useState<EventsData | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -204,6 +234,10 @@ export default function SOXLDashboard() {
     fetch("/api/soxl/macro")
       .then(r => r.json())
       .then(d => setMacro(d))
+      .catch(() => {});
+    fetch("/api/soxl/events")
+      .then(r => r.json())
+      .then(d => setEvents(d))
       .catch(() => {});
   }, []);
 
@@ -482,6 +516,11 @@ export default function SOXLDashboard() {
                             VIX調整済み
                           </span>
                         )}
+                        {a.eventOverride && (
+                          <span className="text-blue-400 bg-blue-900/40 border border-blue-700/50 rounded px-1.5 py-0.5 text-xs font-bold normal-case tracking-normal">
+                            イベント考慮済み
+                          </span>
+                        )}
                       </p>
                       <p
                         className="text-2xl font-black leading-tight"
@@ -690,6 +729,102 @@ export default function SOXLDashboard() {
                   </div>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* ── Events Calendar ── */}
+          {events && (events.earnings.length > 0 || events.economic.length > 0) && (
+            <div className="bg-gray-900 rounded-xl border border-gray-800 p-4">
+              <h2 className="font-semibold text-white text-sm flex items-center gap-2 mb-3">
+                <span className="text-lg">📅</span>
+                重要イベントカレンダー
+                <span className="text-xs text-gray-500 font-normal">（今後90日）</span>
+              </h2>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                {/* Earnings */}
+                <div>
+                  <p className="text-xs text-gray-500 font-bold uppercase tracking-wide mb-2">
+                    決算スケジュール（SOXL主要構成銘柄）
+                  </p>
+                  <div className="space-y-2">
+                    {events.earnings.map((e) => (
+                      <div
+                        key={e.symbol}
+                        className="rounded-lg border p-3"
+                        style={{ borderColor: `${e.phaseColor}40`, background: `${e.phaseColor}10` }}
+                      >
+                        <div className="flex items-center justify-between gap-2 mb-1">
+                          <div className="flex items-center gap-2">
+                            <span className="font-black text-white font-mono">{e.symbol}</span>
+                            <span
+                              className="text-xs px-2 py-0.5 rounded-full font-bold"
+                              style={{ color: e.phaseColor, background: `${e.phaseColor}25` }}
+                            >
+                              {e.phaseLabel}
+                            </span>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-xs font-mono text-gray-400">{e.date}</p>
+                            <p
+                              className="text-sm font-black font-mono"
+                              style={{ color: e.phaseColor }}
+                            >
+                              {e.daysUntil <= 0 ? "本日！" : e.daysUntil === 1 ? "明日" : `${e.daysUntil}日後`}
+                            </p>
+                          </div>
+                        </div>
+                        <p className="text-xs text-gray-400 leading-relaxed">{e.strategy}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Economic events */}
+                <div>
+                  <p className="text-xs text-gray-500 font-bold uppercase tracking-wide mb-2">
+                    経済指標スケジュール
+                  </p>
+                  <div className="space-y-2">
+                    {events.economic.map((e) => {
+                      const isImminent = e.daysUntil <= 2;
+                      const isSoon = e.daysUntil <= 7;
+                      return (
+                        <div
+                          key={e.id}
+                          className={`rounded-lg border p-3 ${
+                            isImminent
+                              ? "bg-red-900/20 border-red-800/50"
+                              : isSoon
+                              ? "bg-orange-900/15 border-orange-800/40"
+                              : "bg-gray-800/40 border-gray-700/50"
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-2 mb-1">
+                            <div>
+                              <p className={`text-sm font-bold ${isImminent ? "text-red-400" : isSoon ? "text-orange-400" : "text-white"}`}>
+                                {e.name}
+                                {isImminent && <span className="ml-1 text-xs">⚡</span>}
+                              </p>
+                              <p className="text-xs text-gray-500">{e.nameEn}</p>
+                            </div>
+                            <div className="text-right flex-shrink-0">
+                              <p className="text-xs font-mono text-gray-500">{e.date}</p>
+                              <p className={`text-sm font-black font-mono ${isImminent ? "text-red-400" : isSoon ? "text-orange-400" : "text-gray-400"}`}>
+                                {e.daysUntil === 0 ? "本日" : e.daysUntil === 1 ? "明日" : `${e.daysUntil}日後`}
+                              </p>
+                            </div>
+                          </div>
+                          <p className="text-xs text-gray-500 leading-relaxed">{e.impact}</p>
+                          {isImminent && (
+                            <p className="text-xs text-red-400 mt-1 font-medium">⚡ {e.strategy}</p>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
             </div>
           )}
 
