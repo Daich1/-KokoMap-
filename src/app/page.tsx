@@ -24,6 +24,7 @@ import { RoomJoinDialog } from "@/components/RoomJoinDialog";
 import { WelcomeScreen } from "@/components/WelcomeScreen";
 import { AuthScreen } from "@/components/AuthScreen";
 import { MemberManageSheet } from "@/components/MemberManageSheet";
+import { ShareRoomSheet } from "@/components/ShareRoomSheet";
 import { supabase, type Place, type Room, type SpotStatus, type RoomMember } from "@/lib/supabase";
 import type { User } from "@supabase/supabase-js";
 import { useMapStore } from "@/store/useMapStore";
@@ -33,6 +34,7 @@ import { PRESET_CATEGORIES } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { calcDistance, formatDistance } from "@/lib/geo";
 import { isPlaceOpenNow } from "@/lib/openNow";
+import { usePWA } from "@/hooks/usePWA";
 
 const ROLE_LABELS: Record<string, string> = {
   leader: "リーダー",
@@ -70,6 +72,8 @@ function applyPopupStatusStyles(
 }
 
 export default function Home() {
+  const isPWA = usePWA();
+
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
   const pickingModeRef = useRef(false);
@@ -122,10 +126,18 @@ export default function Home() {
   const [expanded, setExpanded] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(true);
   const [drawerSnap, setDrawerSnap] = useState<number | string | null>(0.3);
+
+  // PWA検知後にスナップ初期値を同期
+  useEffect(() => {
+    setDrawerSnap(isPWA ? 0.32 : 0.3);
+  }, [isPWA]);
   const [mapLoaded, setMapLoaded] = useState(false);
   const [roomDialogOpen, setRoomDialogOpen] = useState(!room);
   const [memberManageOpen, setMemberManageOpen] = useState(false);
   const [urlCode, setUrlCode] = useState<string | undefined>(undefined);
+  const [urlPlace, setUrlPlace] = useState<string | null>(null);
+  const [shareSheetOpen, setShareSheetOpen] = useState(false);
+  const [shareSheetPlace, setShareSheetPlace] = useState<Place | null>(null);
 
   // ── Supabase Auth セッション管理 ──────────────────────────────
   const [authUser, setAuthUser] = useState<User | null>(null);
@@ -153,10 +165,11 @@ export default function Home() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // URL の ?code= パラメータを検出してダイアログに渡す（room hydration より先に実行）
+  // URL の ?code= / ?place= パラメータを検出
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const code = params.get("code");
+    const placeId = params.get("place");
     if (code) {
       const normalized = code.trim().toUpperCase().slice(0, 8);
       setUrlCode(normalized);
@@ -164,7 +177,21 @@ export default function Home() {
       const clean = window.location.pathname;
       window.history.replaceState({}, "", clean);
     }
+    if (placeId) {
+      setUrlPlace(placeId);
+    }
   }, []);
+
+  // ルーム参加後、?place= で指定されたスポット詳細を自動で開く
+  useEffect(() => {
+    if (!urlPlace || !room || places.length === 0) return;
+    const target = places.find((p) => p.id === urlPlace);
+    if (target) {
+      setDetailPlace(target);
+      setDetailOpen(true);
+      setUrlPlace(null);
+    }
+  }, [urlPlace, room, places]);
 
   // Zustand が localStorage から hydrate した後にダイアログ状態を同期
   // urlCode がある場合はダイアログを閉じない
@@ -754,9 +781,10 @@ export default function Home() {
     setAuthUser(null);
   }
 
-  function getRoomUrl() {
+  function getRoomUrl(placeId?: string) {
     if (!room) return "";
-    return `${window.location.origin}${window.location.pathname}?code=${room.share_code}`;
+    const base = `${window.location.origin}${window.location.pathname}?code=${room.share_code}`;
+    return placeId ? `${base}&place=${placeId}` : base;
   }
 
   function copyRoomCode() {
@@ -766,21 +794,9 @@ export default function Home() {
     setTimeout(() => setCodeCopied(false), 2000);
   }
 
-  async function shareRoomUrl() {
-    const url = getRoomUrl();
-    if (!url || !room) return;
-    const shareData = {
-      title: room.name ?? "KokoMap ルーム",
-      text: `「${room.name ?? room.share_code}」に参加しませんか？`,
-      url,
-    };
-    if (navigator.share) {
-      try { await navigator.share(shareData); } catch { /* キャンセル等は無視 */ }
-    } else {
-      navigator.clipboard.writeText(url);
-      setCodeCopied(true);
-      setTimeout(() => setCodeCopied(false), 2000);
-    }
+  function openShareSheet(place?: Place | null) {
+    setShareSheetPlace(place ?? null);
+    setShareSheetOpen(true);
   }
 
   async function toggleRoomOpen() {
@@ -924,7 +940,7 @@ export default function Home() {
     <div className="flex flex-col h-[100dvh] w-screen overflow-hidden">
 
       {/* ── PC: トップカテゴリ＋フィルターバー ── */}
-      <div className="hidden md:flex shrink-0 bg-background border-b h-[52px]">
+      <div className="hidden md:flex shrink-0 bg-background border-b h-[52px]" style={{ marginTop: isPWA ? 'env(safe-area-inset-top, 0px)' : undefined }}>
 
         {/* 左: マップ幅エリア（カテゴリ横スクロール + フィルターボタン） */}
         <div className="relative flex-1 overflow-hidden h-full flex items-center">
@@ -1018,7 +1034,13 @@ export default function Home() {
 
       {/* ── モバイル: ルーム情報ヘッダーバー ── */}
       {room && (
-        <div className="md:hidden shrink-0 flex items-center justify-between px-3 bg-background border-b gap-2" style={{ minHeight: '52px' }}>
+        <div
+          className="md:hidden shrink-0 flex items-center justify-between px-3 bg-background border-b gap-2"
+          style={{
+            paddingTop: isPWA ? 'env(safe-area-inset-top, 0px)' : undefined,
+            minHeight: isPWA ? 'calc(52px + env(safe-area-inset-top, 0px))' : '52px',
+          }}
+        >
           {/* 左: ロール + コード */}
           <div className="flex items-center gap-2 min-w-0 flex-1">
             {myRole && (
@@ -1067,7 +1089,7 @@ export default function Home() {
               {codeCopied ? <Check className="size-4 text-green-600" /> : <Copy className="size-4" />}
             </button>
             <button
-              onClick={shareRoomUrl}
+              onClick={() => openShareSheet()}
               title="シェア"
               className="p-2.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
             >
@@ -1125,11 +1147,22 @@ export default function Home() {
             </button>
           )}
 
-          {/* 現在地ボタン */}
+          {/* 現在地ボタン: PC は右下固定、モバイルはドロワーの上 */}
           <button
             onClick={handleLocateMe}
-            className="absolute z-10 bg-white rounded-full shadow-lg p-2.5 hover:bg-gray-50 hover:shadow-xl active:scale-95 transition-all cursor-pointer right-3 md:bottom-6"
-            style={{ bottom: 'calc(34dvh + env(safe-area-inset-bottom, 0px) + 3.5rem)' }}
+            className="absolute z-10 bg-white rounded-full shadow-lg p-2.5 hover:bg-gray-50 hover:shadow-xl active:scale-95 transition-all cursor-pointer right-3 md:bottom-6 hidden md:flex items-center justify-center"
+            title="現在地へ移動"
+          >
+            <LocateFixed className="size-5 text-gray-700" />
+          </button>
+          <button
+            onClick={handleLocateMe}
+            className="md:hidden absolute z-10 bg-white rounded-full shadow-lg p-2.5 hover:bg-gray-50 hover:shadow-xl active:scale-95 transition-all cursor-pointer right-3"
+            style={{
+              bottom: isPWA
+                ? 'calc(32dvh + env(safe-area-inset-bottom, 0px) + 3.5rem)'
+                : 'calc(30dvh + env(safe-area-inset-bottom, 0px) + 3.5rem)',
+            }}
             title="現在地へ移動"
           >
             <LocateFixed className="size-5 text-gray-700" />
@@ -1141,7 +1174,11 @@ export default function Home() {
               onClick={() => { setEditPlace(undefined); setSheetOpen(true); }}
               disabled={!room}
               className="md:hidden absolute right-3 z-10 bg-primary text-primary-foreground rounded-full shadow-lg p-3 hover:opacity-90 active:scale-95 transition-all disabled:opacity-40 cursor-pointer"
-              style={{ bottom: 'calc(34dvh + env(safe-area-inset-bottom, 0px) + 0.75rem)' }}
+              style={{
+                bottom: isPWA
+                  ? 'calc(32dvh + env(safe-area-inset-bottom, 0px) + 0.75rem)'
+                  : 'calc(30dvh + env(safe-area-inset-bottom, 0px) + 0.75rem)',
+              }}
               title="場所を追加"
             >
               <Plus className="size-5" />
@@ -1227,7 +1264,7 @@ export default function Home() {
                     {codeCopied ? <Check className="size-3.5 text-green-600" /> : <Copy className="size-3.5" />}
                   </button>
                   <button
-                    onClick={shareRoomUrl}
+                    onClick={() => openShareSheet()}
                     title="シェア"
                     className="p-1.5 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground cursor-pointer"
                   >
@@ -1290,16 +1327,16 @@ export default function Home() {
       </div>
 
       {/* ── モバイル Drawer（常時ペーク表示） ── */}
+      {/* PWA: ステータスバー分だけ高さが増えるためスナップ比率を微調整 */}
       <Drawer
         open={drawerOpen}
         onOpenChange={(v) => {
           if (!v) {
-            // 閉じようとしたら最小スナップに戻す
-            setDrawerSnap(0.3);
+            setDrawerSnap(isPWA ? 0.32 : 0.3);
             setDrawerOpen(true);
           }
         }}
-        snapPoints={[0.3, 1]}
+        snapPoints={isPWA ? [0.32, 1] : [0.3, 1]}
         activeSnapPoint={drawerSnap}
         setActiveSnapPoint={setDrawerSnap}
         modal={false}
@@ -1431,7 +1468,20 @@ export default function Home() {
         onOpenChange={setDetailOpen}
         onEdit={handleEdit}
         onDeleted={handleDeleted}
+        onShare={(place) => openShareSheet(place)}
       />
+
+      {/* 共有シート */}
+      {room && (
+        <ShareRoomSheet
+          open={shareSheetOpen}
+          onOpenChange={setShareSheetOpen}
+          roomName={room.name}
+          shareCode={room.share_code}
+          shareUrl={getRoomUrl(shareSheetPlace?.id)}
+          placeName={shareSheetPlace?.name}
+        />
+      )}
 
       {/* ルーム未参加時: グループ作成/参加 */}
       {!room && roomDialogOpen && (

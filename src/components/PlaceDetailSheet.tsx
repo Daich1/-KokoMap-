@@ -11,6 +11,7 @@ import {
   Clock,
   FileText,
   Navigation,
+  Share2,
 } from "lucide-react";
 import {
   Sheet,
@@ -42,6 +43,7 @@ interface PlaceDetailSheetProps {
   onOpenChange: (open: boolean) => void;
   onEdit: (place: Place) => void;
   onDeleted: (placeId: string) => void;
+  onShare?: (place: Place) => void;
 }
 
 function UserAvatar({ name }: { name: string }) {
@@ -60,6 +62,7 @@ export function PlaceDetailSheet({
   onOpenChange,
   onEdit,
   onDeleted,
+  onShare,
 }: PlaceDetailSheetProps) {
   const [imgIdx, setImgIdx] = useState(0);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -178,6 +181,17 @@ export function PlaceDetailSheet({
             <div className="flex items-start justify-between gap-3">
               <h2 className="text-xl font-bold leading-tight">{place.name}</h2>
               <div className="flex gap-1 shrink-0">
+                {onShare && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-8 text-muted-foreground hover:text-foreground"
+                    onClick={() => onShare(place)}
+                    title="シェア"
+                  >
+                    <Share2 className="size-4" />
+                  </Button>
+                )}
                 {canEdit && (
                 <Button
                   variant="ghost"

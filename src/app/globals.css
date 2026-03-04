@@ -4,6 +4,9 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* PWA（ホーム画面追加）モードの判定バリアント */
+@custom-variant pwa (@media (display-mode: standalone));
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -128,9 +131,14 @@
     @apply bg-background text-foreground;
     height: 100%;
     overflow: hidden;
-    /* iOS Safari でのリサイズによるズレを防ぐ */
-    position: fixed;
-    width: 100%;
+  }
+
+  /* ブラウザ表示時: アドレスバーの出没によるリサイズズレを防ぐ */
+  @media not (display-mode: standalone) {
+    body {
+      position: fixed;
+      width: 100%;
+    }
   }
 }
 
