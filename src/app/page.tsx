@@ -56,15 +56,24 @@ const CATEGORY_ICONS = {
 } as const;
 
 // ── ポップアップのステータスボタンスタイル更新（純粋関数）────────────
+const POPUP_CATEGORY_EMOJI: Record<string, string> = {
+  "食事": "🍜", "飲み": "🍺", "娯楽": "🎮", "観光": "🏛", "カフェ・休憩": "☕",
+  "買い物": "🛍", "映え・絶景": "📸", "宿": "🏨", "風呂": "♨️",
+};
+
+function getCategoryEmoji(category: string): string | null {
+  return POPUP_CATEGORY_EMOJI[category] ?? null;
+}
+
 function applyPopupStatusStyles(
   wantBtn: HTMLButtonElement,
   visitedBtn: HTMLButtonElement,
   status: SpotStatus | null
 ) {
-  const base = "flex-1 text-xs rounded-md py-1.5 border transition-colors truncate";
-  const activeWant = `${base} bg-amber-50 text-amber-700 border-amber-300 font-semibold`;
-  const activeVisit = `${base} bg-green-50 text-green-700 border-green-300 font-semibold`;
-  const inactive = `${base} text-gray-400 border-gray-200 hover:bg-gray-50`;
+  const base = "flex-1 text-xs rounded-full py-1.5 px-1 border transition-all duration-150 truncate font-medium cursor-pointer";
+  const activeWant = `${base} bg-amber-50 text-amber-700 border-amber-300 font-semibold shadow-sm`;
+  const activeVisit = `${base} bg-emerald-50 text-emerald-700 border-emerald-300 font-semibold shadow-sm`;
+  const inactive = `${base} text-gray-400 border-gray-200 hover:bg-gray-50 hover:text-gray-600 hover:border-gray-300`;
 
   wantBtn.className = status === "want_to_go" ? activeWant : inactive;
   visitedBtn.className = status === "visited" ? activeVisit : inactive;
@@ -318,41 +327,68 @@ export default function Home() {
 
     const popupEl = document.createElement("div");
     popupEl.className =
-      "w-44 overflow-hidden cursor-pointer transition-opacity hover:opacity-90 active:opacity-75";
+      "w-56 overflow-hidden cursor-pointer group";
 
+    // ── 画像部分 ──
     const imageWrap = document.createElement("div");
     imageWrap.className =
-      "h-24 w-full overflow-hidden bg-gray-100 flex items-center justify-center";
+      "h-32 w-full overflow-hidden bg-gradient-to-br from-gray-100 to-gray-50 flex items-center justify-center popup-img-wrap";
 
     if (place.image_urls && place.image_urls.length > 0) {
       const img = document.createElement("img");
       img.src = place.image_urls[0];
       img.alt = place.name;
-      img.className = "h-full w-full object-cover";
+      img.className = "h-full w-full object-cover transition-transform duration-300";
+      img.style.cssText = "will-change:transform";
+      // ホバー時に少し拡大
+      popupEl.addEventListener("mouseenter", () => { img.style.transform = "scale(1.05)"; });
+      popupEl.addEventListener("mouseleave", () => { img.style.transform = "scale(1)"; });
       imageWrap.appendChild(img);
     } else {
-      imageWrap.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>`;
+      // カテゴリ絵文字 or デフォルトアイコン
+      const emoji = place.categories?.[0] ? getCategoryEmoji(place.categories[0]) : null;
+      if (emoji) {
+        const emojiEl = document.createElement("span");
+        emojiEl.className = "text-4xl select-none";
+        emojiEl.textContent = emoji;
+        imageWrap.appendChild(emojiEl);
+      } else {
+        imageWrap.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>`;
+      }
     }
 
+    // 画像上に投稿者名をオーバーレイ
+    if (place.created_by_name) {
+      const creatorBadge = document.createElement("span");
+      creatorBadge.className =
+        "absolute bottom-1.5 left-1.5 z-10 bg-black/50 backdrop-blur-sm text-white text-[10px] font-medium rounded-full px-2 py-0.5";
+      creatorBadge.textContent = `by ${place.created_by_name}`;
+      imageWrap.appendChild(creatorBadge);
+    }
+
+    // ── 情報セクション ──
     const info = document.createElement("div");
-    info.className = "p-3 flex flex-col gap-1.5";
+    info.className = "px-3 pt-2.5 pb-3 flex flex-col gap-1.5";
 
     const titleEl = document.createElement("p");
-    titleEl.className = "font-semibold text-sm truncate";
+    titleEl.className = "font-bold text-sm truncate leading-tight";
     titleEl.textContent = place.name;
     info.appendChild(titleEl);
 
+    // カテゴリ + 予算のメタ行
+    const metaRow = document.createElement("div");
+    metaRow.className = "flex items-center gap-1.5 flex-wrap";
+    let hasMeta = false;
+
     if (place.categories && place.categories.length > 0) {
-      const catsRow = document.createElement("div");
-      catsRow.className = "flex gap-1 flex-wrap";
       place.categories.slice(0, 2).forEach((cat) => {
         const badge = document.createElement("span");
         badge.className =
-          "inline-flex items-center rounded-full border border-gray-200 px-2 py-0.5 text-xs font-medium text-gray-600";
+          "inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-600";
         badge.textContent = cat;
-        catsRow.appendChild(badge);
+        metaRow.appendChild(badge);
+        hasMeta = true;
       });
-      info.appendChild(catsRow);
     }
 
     const budgetParts: string[] = [];
@@ -361,15 +397,18 @@ export default function Home() {
     if (place.budget_max != null)
       budgetParts.push(`¥${place.budget_max.toLocaleString()}`);
     if (budgetParts.length > 0) {
-      const budgetEl = document.createElement("p");
-      budgetEl.className = "text-xs text-gray-400";
+      const budgetEl = document.createElement("span");
+      budgetEl.className = "text-[10px] text-gray-400 font-medium";
       budgetEl.textContent = budgetParts.join(" 〜 ");
-      info.appendChild(budgetEl);
+      metaRow.appendChild(budgetEl);
+      hasMeta = true;
     }
 
-    // ── ステータストグルボタン ───────────────────────────
+    if (hasMeta) info.appendChild(metaRow);
+
+    // ステータストグルボタン
     const statusRow = document.createElement("div");
-    statusRow.className = "flex gap-1 mt-0.5";
+    statusRow.className = "flex gap-1.5 mt-0.5";
 
     const wantBtn = document.createElement("button");
     wantBtn.textContent = "⭐ 行きたい";
@@ -377,7 +416,6 @@ export default function Home() {
     const visitedBtn = document.createElement("button");
     visitedBtn.textContent = "✅ 行った";
 
-    // 初期スタイル（未登録は null = 未選択）
     const initialStatus: SpotStatus | null =
       useMapStore.getState().spotStatuses[place.id] ?? null;
     applyPopupStatusStyles(wantBtn, visitedBtn, initialStatus);
@@ -412,7 +450,6 @@ export default function Home() {
     statusRow.appendChild(visitedBtn);
     info.appendChild(statusRow);
 
-    // ボタン要素を登録（Zustand 更新時に DOM 同期するため）
     popupStatusEls.current.set(place.id, { wantBtn, visitedBtn });
 
     popupEl.appendChild(imageWrap);
