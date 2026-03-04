@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
 // HTML から OGP + 本文テキストを抽出するユーティリティ
 function extractTextFromHtml(html: string): string {
   // OGP メタタグを優先抽出
@@ -29,6 +27,7 @@ function extractTextFromHtml(html: string): string {
 }
 
 export async function POST(req: NextRequest) {
+  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
   const { url } = await req.json();
   if (!url?.trim()) {
     return NextResponse.json({ error: "URL が指定されていません" }, { status: 400 });
