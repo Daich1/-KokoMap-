@@ -22,22 +22,22 @@ export const viewport: Viewport = {
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://minimal-map.vercel.app"),
-  title: "ココマッチE(KokoMap) - みんなで作るスポット�EチE�E",
+  title: "ココマップ (KokoMap) - みんなで作るスポットマップ",
   description:
-    "URLを�E有するだけで、仲間とリアルタイムにお気に入り�E場所を�EチE�Eにまとめられるアプリです、E,
+    "URLを共有するだけで、仲間とリアルタイムにお気に入りの場所をマップにまとめられるアプリです。",
   openGraph: {
     type: "website",
     locale: "ja_JP",
-    siteName: "ココマッチE(KokoMap)",
-    title: "ココマッチE(KokoMap) - みんなで作るスポット�EチE�E",
+    siteName: "ココマップ (KokoMap)",
+    title: "ココマップ (KokoMap) - みんなで作るスポットマップ",
     description:
-      "URLを�E有するだけで、仲間とリアルタイムにお気に入り�E場所を�EチE�Eにまとめられるアプリです、E,
+      "URLを共有するだけで、仲間とリアルタイムにお気に入りの場所をマップにまとめられるアプリです。",
   },
   twitter: {
     card: "summary_large_image",
-    title: "ココマッチE(KokoMap) - みんなで作るスポット�EチE�E",
+    title: "ココマップ (KokoMap) - みんなで作るスポットマップ",
     description:
-      "URLを�E有するだけで、仲間とリアルタイムにお気に入り�E場所を�EチE�Eにまとめられるアプリです、E,
+      "URLを共有するだけで、仲間とリアルタイムにお気に入りの場所をマップにまとめられるアプリです。",
   },
   manifest: "/manifest.json",
   icons: {
@@ -48,7 +48,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "ここマッチE,
+    title: "ここマップ",
   },
 };
 

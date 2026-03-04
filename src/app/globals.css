@@ -120,10 +120,12 @@
   * {
     @apply border-border outline-ring/50;
   }
+
   html {
     height: 100%;
     overflow: hidden;
   }
+
   body {
     @apply bg-background text-foreground;
     height: 100%;
@@ -145,6 +147,7 @@
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
+
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
 }
@@ -177,4 +180,89 @@
 
 .custom-popup.mapboxgl-popup-anchor-right .mapboxgl-popup-tip {
   border-left-color: var(--background);
+}
+
+/* ── カードフェードインアニメーション ── */
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-up {
+  animation: fade-up 0.35s ease both;
+}
+
+/* stagger で各カードを連続フェードイン */
+.place-card-stagger:nth-child(1) {
+  animation-delay: 0.03s;
+}
+
+.place-card-stagger:nth-child(2) {
+  animation-delay: 0.06s;
+}
+
+.place-card-stagger:nth-child(3) {
+  animation-delay: 0.09s;
+}
+
+.place-card-stagger:nth-child(4) {
+  animation-delay: 0.12s;
+}
+
+.place-card-stagger:nth-child(5) {
+  animation-delay: 0.15s;
+}
+
+.place-card-stagger:nth-child(6) {
+  animation-delay: 0.18s;
+}
+
+.place-card-stagger:nth-child(7) {
+  animation-delay: 0.21s;
+}
+
+.place-card-stagger:nth-child(8) {
+  animation-delay: 0.24s;
+}
+
+/* ── タッチフィードバック ── */
+.touch-press:active {
+  transform: scale(0.97);
+  transition: transform 0.1s ease;
+}
+
+/* ── カード左辺アクセントボーダー ── */
+.card-accent-left {
+  position: relative;
+}
+
+.card-accent-left::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: transparent;
+  border-radius: 3px 0 0 3px;
+  transition: background 0.2s ease;
+  z-index: 1;
+}
+
+.card-accent-left:hover::before,
+.card-accent-want::before {
+  background: #f59e0b;
+  /* amber */
+}
+
+.card-accent-visited::before {
+  background: #2dd4bf;
+  /* teal */
 }

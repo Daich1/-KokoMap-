@@ -1,10 +1,10 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import MapboxLanguage from "@mapbox/mapbox-gl-language";
-import { LocateFixed, List, Search, Copy, Check, LogOut, SlidersHorizontal, X, Star, CheckCircle2, Utensils, Wine, Gamepad2, Landmark, Coffee, ShoppingBag, Camera, BedDouble, Waves, Plus, Shield, Lock, Unlock, Share2, Users, Crown, Eye, ChevronUp, Mail } from "lucide-react";
+import { LocateFixed, List, Search, Copy, Check, LogOut, SlidersHorizontal, X, Star, CheckCircle2, Utensils, Wine, Gamepad2, Landmark, Coffee, ShoppingBag, Camera, BedDouble, Waves, Plus, Shield, Lock, Unlock, Share2, Users, Crown, Eye, ChevronUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -24,7 +24,6 @@ import { RoomJoinDialog } from "@/components/RoomJoinDialog";
 import { WelcomeScreen } from "@/components/WelcomeScreen";
 import { AuthScreen } from "@/components/AuthScreen";
 import { MemberManageSheet } from "@/components/MemberManageSheet";
-import { EmailRegistration } from "@/components/EmailRegistration";
 import { supabase, type Place, type Room, type SpotStatus, type RoomMember } from "@/lib/supabase";
 import type { User } from "@supabase/supabase-js";
 import { useMapStore } from "@/store/useMapStore";
@@ -36,32 +35,32 @@ import { calcDistance, formatDistance } from "@/lib/geo";
 import { isPlaceOpenNow } from "@/lib/openNow";
 
 const ROLE_LABELS: Record<string, string> = {
-  leader: "リーダー",
-  admin: "管理者",
-  member: "メンバー",
-  viewer: "閲覧者",
+  leader: "繝ｪ繝ｼ繝繝ｼ",
+  admin:  "邂｡逅・・,
+  member: "繝｡繝ｳ繝舌・",
+  viewer: "髢ｲ隕ｧ閠・,
 };
 
-// ── カテゴリアイコンマッピング ──────────────────────────────────────
+// 笏笏 繧ｫ繝・ざ繝ｪ繧｢繧､繧ｳ繝ｳ繝槭ャ繝斐Φ繧ｰ 笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏
 const CATEGORY_ICONS = {
-  "食事": Utensils,
-  "飲み": Wine,
-  "娯楽": Gamepad2,
-  "観光": Landmark,
-  "カフェ・休憩": Coffee,
-  "買い物": ShoppingBag,
-  "映え・絶景": Camera,
-  "宿": BedDouble,
-  "風呂": Waves,
+  "鬟滉ｺ・: Utensils,
+  "鬟ｲ縺ｿ": Wine,
+  "螽ｯ讌ｽ": Gamepad2,
+  "隕ｳ蜈・: Landmark,
+  "繧ｫ繝輔ぉ繝ｻ莨第・": Coffee,
+  "雋ｷ縺・黄": ShoppingBag,
+  "譏縺医・邨ｶ譎ｯ": Camera,
+  "螳ｿ": BedDouble,
+  "鬚ｨ蜻・: Waves,
 } as const;
 
-// ── ポップアップのステータスボタンスタイル更新（純粋関数）────────────
+// 笏笏 繝昴ャ繝励い繝・・縺ｮ繧ｹ繝・・繧ｿ繧ｹ繝懊ち繝ｳ繧ｹ繧ｿ繧､繝ｫ譖ｴ譁ｰ・育ｴ皮ｲ矩未謨ｰ・俄楳笏笏笏笏笏笏笏笏笏笏笏
 function applyPopupStatusStyles(
   wantBtn: HTMLButtonElement,
   visitedBtn: HTMLButtonElement,
   status: SpotStatus | null
 ) {
-  const base = "flex-1 text-xs rounded-md py-1.5 border transition-colors truncate";
+  const base = "flex-1 text-[11px] rounded-md py-1 border transition-colors truncate";
   const activeWant = `${base} bg-amber-50 text-amber-700 border-amber-300 font-semibold`;
   const activeVisit = `${base} bg-green-50 text-green-700 border-green-300 font-semibold`;
   const inactive = `${base} text-gray-400 border-gray-200 hover:bg-gray-50`;
@@ -76,15 +75,14 @@ export default function Home() {
   const pickingModeRef = useRef(false);
   const markers = useRef<Map<string, mapboxgl.Marker>>(new Map());
   const previewMarkerRef = useRef<mapboxgl.Marker | null>(null);
-  const popupClickRef = useRef<(place: Place) => void>(() => { });
-  // ポップアップ内のステータスボタン要素を保持（spotStatuses 変化時に DOM 更新用）
-  const popupStatusEls = useRef<
+  const popupClickRef = useRef<(place: Place) => void>(() => {});
+  // 繝昴ャ繝励い繝・・蜀・・繧ｹ繝・・繧ｿ繧ｹ繝懊ち繝ｳ隕∫ｴ繧剃ｿ晄戟・・potStatuses 螟牙喧譎ゅ↓ DOM 譖ｴ譁ｰ逕ｨ・・  const popupStatusEls = useRef<
     Map<string, { wantBtn: HTMLButtonElement; visitedBtn: HTMLButtonElement }>
   >(new Map());
   const geoWatchRef = useRef<number | null>(null);
   const peekTouchStartY = useRef<number | null>(null);
 
-  // ── Zustand ストア ────────────────────────────────────
+  // 笏笏 Zustand 繧ｹ繝医い 笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏
   const {
     places,
     room,
@@ -108,7 +106,7 @@ export default function Home() {
     loadSpotStatuses,
   } = useMapStore();
 
-  // 権限ヘルパー
+  // 讓ｩ髯舌・繝ｫ繝代・
   const canAdd = myRole !== "viewer" && myRole !== null;
   const canManageRoom = myRole === "leader";
   const canManageMembers = myRole === "leader";
@@ -128,10 +126,9 @@ export default function Home() {
   const [memberManageOpen, setMemberManageOpen] = useState(false);
   const [urlCode, setUrlCode] = useState<string | undefined>(undefined);
 
-  // ── Supabase Auth セッション管理 ──────────────────────────────
+  // 笏笏 Supabase Auth 繧ｻ繝・す繝ｧ繝ｳ邂｡逅・笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏
   const [authUser, setAuthUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
-  const [emailRegOpen, setEmailRegOpen] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -152,11 +149,10 @@ export default function Home() {
       }
     });
     return () => subscription.unsubscribe();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // URL の ?code= パラメータを検出してダイアログに渡す（room hydration より先に実行）
-  useEffect(() => {
+  // URL 縺ｮ ?code= 繝代Λ繝｡繝ｼ繧ｿ繧呈､懷・縺励※繝繧､繧｢繝ｭ繧ｰ縺ｫ貂｡縺呻ｼ・oom hydration 繧医ｊ蜈医↓螳溯｡鯉ｼ・  useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const code = params.get("code");
     if (code) {
@@ -168,9 +164,8 @@ export default function Home() {
     }
   }, []);
 
-  // Zustand が localStorage から hydrate した後にダイアログ状態を同期
-  // urlCode がある場合はダイアログを閉じない
-  useEffect(() => {
+  // Zustand 縺・localStorage 縺九ｉ hydrate 縺励◆蠕後↓繝繧､繧｢繝ｭ繧ｰ迥ｶ諷九ｒ蜷梧悄
+  // urlCode 縺後≠繧句ｴ蜷医・繝繧､繧｢繝ｭ繧ｰ繧帝哩縺倥↑縺・  useEffect(() => {
     if (room && !urlCode) setRoomDialogOpen(false);
   }, [room, urlCode]);
   const [codeCopied, setCodeCopied] = useState(false);
@@ -184,13 +179,13 @@ export default function Home() {
   const [filterStatus, setFilterStatus] = useState<SpotStatus | null>(null);
   const [sortOrder, setSortOrder] = useState<"default" | "distance">("default");
 
-  // ── 初期化: スポットステータスを読み込む ─────────────────
+  // 笏笏 蛻晄悄蛹・ 繧ｹ繝昴ャ繝医せ繝・・繧ｿ繧ｹ繧定ｪｭ縺ｿ霎ｼ繧 笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏
   useEffect(() => {
     loadSpotStatuses(currentUser.id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser.id]);
 
-  // ── 初期化: ルームのメンバー一覧とロールを取得 ──────────
+  // 笏笏 蛻晄悄蛹・ 繝ｫ繝ｼ繝縺ｮ繝｡繝ｳ繝舌・荳隕ｧ縺ｨ繝ｭ繝ｼ繝ｫ繧貞叙蠕・笏笏笏笏笏笏笏笏笏笏
   useEffect(() => {
     if (!room) return;
     supabase
@@ -203,10 +198,10 @@ export default function Home() {
         const me = data.find((m: RoomMember) => m.user_id === currentUser.id);
         if (me) setMyRole(me.role);
       });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [room?.id]);
 
-  // ── ジオロケーション（watchPosition）────────────────────
+  // 笏笏 繧ｸ繧ｪ繝ｭ繧ｱ繝ｼ繧ｷ繝ｧ繝ｳ・・atchPosition・俄楳笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏
   useEffect(() => {
     if (!navigator.geolocation) return;
 
@@ -223,10 +218,10 @@ export default function Home() {
         navigator.geolocation.clearWatch(geoWatchRef.current);
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── spotStatuses 変化時にポップアップ DOM を更新 ─────────
+  // 笏笏 spotStatuses 螟牙喧譎ゅ↓繝昴ャ繝励い繝・・ DOM 繧呈峩譁ｰ 笏笏笏笏笏笏笏笏笏
   useEffect(() => {
     popupStatusEls.current.forEach(({ wantBtn, visitedBtn }, placeId) => {
       const status: SpotStatus | null = spotStatuses[placeId] ?? null;
@@ -258,20 +253,19 @@ export default function Home() {
       if (budgetMax !== null && !isNaN(budgetMax)) {
         if (place.budget_min !== null && place.budget_min > budgetMax) return false;
       }
-      // 🟢 営業中フィルター
+      // 泙 蝟ｶ讌ｭ荳ｭ繝輔ぅ繝ｫ繧ｿ繝ｼ
       if (filterOpenNow) {
         const openStatus = isPlaceOpenNow(place.business_hours, place.opening_hours_text);
         if (openStatus !== true) return false;
       }
-      // ⭐/✅ ステータスフィルター
+      // 箝・笨・繧ｹ繝・・繧ｿ繧ｹ繝輔ぅ繝ｫ繧ｿ繝ｼ
       if (filterStatus !== null) {
         if (spotStatuses[place.id] !== filterStatus) return false;
       }
       return true;
     });
 
-    // 近い順ソート
-    if (sortOrder === "distance" && userLocation) {
+    // 霑代＞鬆・た繝ｼ繝・    if (sortOrder === "distance" && userLocation) {
       result = [...result].sort((a, b) => {
         const da = calcDistance(userLocation.lat, userLocation.lng, a.lat, a.lng);
         const db = calcDistance(userLocation.lat, userLocation.lng, b.lat, b.lng);
@@ -282,8 +276,7 @@ export default function Home() {
     return result;
   }, [places, filterText, filterCategories, filterBudgetMin, filterBudgetMax, filterOpenNow, filterStatus, spotStatuses, sortOrder, userLocation]);
 
-  // 距離テキストのマップ（再レンダリングの最適化）
-  const distanceMap = useMemo(() => {
+  // 霍晞屬繝・く繧ｹ繝医・繝槭ャ繝暦ｼ亥・繝ｬ繝ｳ繝繝ｪ繝ｳ繧ｰ縺ｮ譛驕ｩ蛹厄ｼ・  const distanceMap = useMemo(() => {
     if (!userLocation) return new Map<string, string>();
     return new Map(
       filteredPlaces.map((p) => [
@@ -293,7 +286,7 @@ export default function Home() {
     );
   }, [filteredPlaces, userLocation]);
 
-  // filteredPlaces が変わったらマーカー表示/非表示を更新
+  // filteredPlaces 縺悟､峨ｏ縺｣縺溘ｉ繝槭・繧ｫ繝ｼ陦ｨ遉ｺ/髱櫁｡ｨ遉ｺ繧呈峩譁ｰ
   useEffect(() => {
     const filteredIds = new Set(filteredPlaces.map((p) => p.id));
     markers.current.forEach((marker, id) => {
@@ -307,12 +300,11 @@ export default function Home() {
     );
   }
 
-  // ── マーカー追加（冪等: 既存は削除してから追加）──────
+  // 笏笏 繝槭・繧ｫ繝ｼ霑ｽ蜉・亥・遲・ 譌｢蟄倥・蜑企勁縺励※縺九ｉ霑ｽ蜉・俄楳笏笏笏笏笏
   const addMarker = useCallback((place: Place) => {
     if (!map.current) return;
 
-    // 既存マーカーを除去（idempotent）
-    markers.current.get(place.id)?.remove();
+    // 譌｢蟄倥・繝ｼ繧ｫ繝ｼ繧帝勁蜴ｻ・・dempotent・・    markers.current.get(place.id)?.remove();
     markers.current.delete(place.id);
     popupStatusEls.current.delete(place.id);
 
@@ -357,28 +349,27 @@ export default function Home() {
 
     const budgetParts: string[] = [];
     if (place.budget_min != null)
-      budgetParts.push(`¥${place.budget_min.toLocaleString()}`);
+      budgetParts.push(`ﾂ･${place.budget_min.toLocaleString()}`);
     if (place.budget_max != null)
-      budgetParts.push(`¥${place.budget_max.toLocaleString()}`);
+      budgetParts.push(`ﾂ･${place.budget_max.toLocaleString()}`);
     if (budgetParts.length > 0) {
       const budgetEl = document.createElement("p");
       budgetEl.className = "text-xs text-gray-400";
-      budgetEl.textContent = budgetParts.join(" 〜 ");
+      budgetEl.textContent = budgetParts.join(" 縲・");
       info.appendChild(budgetEl);
     }
 
-    // ── ステータストグルボタン ───────────────────────────
+    // 笏笏 繧ｹ繝・・繧ｿ繧ｹ繝医げ繝ｫ繝懊ち繝ｳ 笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏
     const statusRow = document.createElement("div");
     statusRow.className = "flex gap-1 mt-0.5";
 
     const wantBtn = document.createElement("button");
-    wantBtn.textContent = "⭐ 行きたい";
+    wantBtn.textContent = "箝・陦後″縺溘＞";
 
     const visitedBtn = document.createElement("button");
-    visitedBtn.textContent = "✅ 行った";
+    visitedBtn.textContent = "笨・陦後▲縺・;
 
-    // 初期スタイル（未登録は null = 未選択）
-    const initialStatus: SpotStatus | null =
+    // 蛻晄悄繧ｹ繧ｿ繧､繝ｫ・域悴逋ｻ骭ｲ縺ｯ null = 譛ｪ驕ｸ謚橸ｼ・    const initialStatus: SpotStatus | null =
       useMapStore.getState().spotStatuses[place.id] ?? null;
     applyPopupStatusStyles(wantBtn, visitedBtn, initialStatus);
 
@@ -412,8 +403,7 @@ export default function Home() {
     statusRow.appendChild(visitedBtn);
     info.appendChild(statusRow);
 
-    // ボタン要素を登録（Zustand 更新時に DOM 同期するため）
-    popupStatusEls.current.set(place.id, { wantBtn, visitedBtn });
+    // 繝懊ち繝ｳ隕∫ｴ繧堤匳骭ｲ・・ustand 譖ｴ譁ｰ譎ゅ↓ DOM 蜷梧悄縺吶ｋ縺溘ａ・・    popupStatusEls.current.set(place.id, { wantBtn, visitedBtn });
 
     popupEl.appendChild(imageWrap);
     popupEl.appendChild(info);
@@ -446,13 +436,13 @@ export default function Home() {
     popupStatusEls.current.delete(placeId);
   }, []);
 
-  // addMarker/removeMarker を Realtime 内で使うためのref
+  // addMarker/removeMarker 繧・Realtime 蜀・〒菴ｿ縺・◆繧√・ref
   const addMarkerRef = useRef(addMarker);
   const removeMarkerRef = useRef(removeMarker);
   useEffect(() => { addMarkerRef.current = addMarker; }, [addMarker]);
   useEffect(() => { removeMarkerRef.current = removeMarker; }, [removeMarker]);
 
-  // ── マップ初期化 ─────────────────────────────────────
+  // 笏笏 繝槭ャ繝怜・譛溷喧 笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏
   useEffect(() => {
     if (map.current || !mapContainer.current) return;
 
@@ -488,11 +478,11 @@ export default function Home() {
     };
   }, []);
 
-  // ── room + mapLoaded → スポットを読み込む ───────────
+  // 笏笏 room + mapLoaded 竊・繧ｹ繝昴ャ繝医ｒ隱ｭ縺ｿ霎ｼ繧 笏笏笏笏笏笏笏笏笏笏笏
   useEffect(() => {
     if (!mapLoaded || !room) return;
 
-    // 既存マーカーをすべてクリア
+    // 譌｢蟄倥・繝ｼ繧ｫ繝ｼ繧偵☆縺ｹ縺ｦ繧ｯ繝ｪ繧｢
     markers.current.forEach((m) => m.remove());
     markers.current.clear();
     popupStatusEls.current.clear();
@@ -509,15 +499,15 @@ export default function Home() {
           loaded.forEach((p) => addMarkerRef.current(p));
         }
       });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mapLoaded, room?.id, setPlaces]);
 
-  // ── Supabase Realtime 購読 ───────────────────────────
+  // 笏笏 Supabase Realtime 雉ｼ隱ｭ 笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏
   useEffect(() => {
     if (!room) return;
     const myId = currentUser.id;
 
-    // ── places チャンネル ──
+    // 笏笏 places 繝√Ε繝ｳ繝阪Ν 笏笏
     const placesChannel = supabase
       .channel(`room-places-${room.id}`)
       .on(
@@ -530,9 +520,9 @@ export default function Home() {
             if (place.deleted_at) return;
             store.addPlace(place);
             addMarkerRef.current(place);
-            // 他のユーザーが追加したスポットを通知
+            // 莉悶・繝ｦ繝ｼ繧ｶ繝ｼ縺瑚ｿｽ蜉縺励◆繧ｹ繝昴ャ繝医ｒ騾夂衍
             if (place.created_by_id !== myId) {
-              toast.info(`📍 ${place.created_by_name ?? "誰か"}さんが「${place.name}」を追加しました`);
+              toast.info(`桃 ${place.created_by_name ?? "隱ｰ縺・}縺輔ｓ縺後・{place.name}縲阪ｒ霑ｽ蜉縺励∪縺励◆`);
             }
           } else if (payload.eventType === "UPDATE") {
             const place = payload.new as Place;
@@ -548,7 +538,7 @@ export default function Home() {
       )
       .subscribe();
 
-    // ── room_members チャンネル ──
+    // 笏笏 room_members 繝√Ε繝ｳ繝阪Ν 笏笏
     const membersChannel = supabase
       .channel(`room-members-${room.id}`)
       .on(
@@ -559,17 +549,17 @@ export default function Home() {
           if (payload.eventType === "INSERT") {
             const member = payload.new as RoomMember;
             store.upsertRoomMember(member);
-            // リーダーに参加通知
+            // 繝ｪ繝ｼ繝繝ｼ縺ｫ蜿ょ刈騾夂衍
             if (store.myRole === "leader" && member.user_id !== myId) {
-              toast.success(`👋 ${member.user_name}さんが参加しました`);
+              toast.success(`窓 ${member.user_name}縺輔ｓ縺悟盾蜉縺励∪縺励◆`);
             }
           } else if (payload.eventType === "UPDATE") {
             const member = payload.new as RoomMember;
             store.upsertRoomMember(member);
-            // 自分のロールが変わったら即時反映
+            // 閾ｪ蛻・・繝ｭ繝ｼ繝ｫ縺悟､峨ｏ縺｣縺溘ｉ蜊ｳ譎ょ渚譏
             if (member.user_id === myId) {
               store.setMyRole(member.role);
-              toast.info(`ロールが「${ROLE_LABELS[member.role]}」に変更されました`);
+              toast.info(`繝ｭ繝ｼ繝ｫ縺後・{ROLE_LABELS[member.role]}縲阪↓螟画峩縺輔ｌ縺ｾ縺励◆`);
             }
           } else if (payload.eventType === "DELETE") {
             const old = payload.old as { user_id: string };
@@ -583,7 +573,7 @@ export default function Home() {
       supabase.removeChannel(placesChannel);
       supabase.removeChannel(membersChannel);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [room?.id]);
 
   useEffect(() => {
@@ -591,13 +581,13 @@ export default function Home() {
     map.current.getCanvas().style.cursor = pickingMode ? "crosshair" : "";
   }, [pickingMode]);
 
-  // 拡大縮小時にリサイズ
+  // 諡｡螟ｧ邵ｮ蟆乗凾縺ｫ繝ｪ繧ｵ繧､繧ｺ
   useEffect(() => {
     const timer = setTimeout(() => map.current?.resize(), 310);
     return () => clearTimeout(timer);
   }, [expanded]);
 
-  // ドラッグ可能なプレビューマーカー
+  // 繝峨Λ繝・げ蜿ｯ閭ｽ縺ｪ繝励Ξ繝薙Η繝ｼ繝槭・繧ｫ繝ｼ
   useEffect(() => {
     if (!map.current) return;
 
@@ -624,10 +614,9 @@ export default function Home() {
     }
   }, [sheetOpen, coords]);
 
-  // ── ハンドラー ───────────────────────────────────────
+  // 笏笏 繝上Φ繝峨Λ繝ｼ 笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏
   function handleLocateMe() {
-    // watchPosition で取得済みの座標があれば即座に使う
-    if (userLocation) {
+    // watchPosition 縺ｧ蜿門ｾ玲ｸ医∩縺ｮ蠎ｧ讓吶′縺ゅｌ縺ｰ蜊ｳ蠎ｧ縺ｫ菴ｿ縺・    if (userLocation) {
       map.current?.flyTo({
         center: [userLocation.lng, userLocation.lat],
         zoom: 15,
@@ -635,8 +624,7 @@ export default function Home() {
       });
       return;
     }
-    // 未取得の場合は一度だけ取得
-    if (!navigator.geolocation) return;
+    // 譛ｪ蜿門ｾ励・蝣ｴ蜷医・荳蠎ｦ縺縺大叙蠕・    if (!navigator.geolocation) return;
     navigator.geolocation.getCurrentPosition(
       ({ coords: { latitude, longitude } }) => {
         map.current?.flyTo({
@@ -694,7 +682,7 @@ export default function Home() {
     } else {
       addPlace(place);
     }
-    addMarker(place); // idempotent: 古いマーカーを除去して再追加
+    addMarker(place); // idempotent: 蜿､縺・・繝ｼ繧ｫ繝ｼ繧帝勁蜴ｻ縺励※蜀崎ｿｽ蜉
     setCoords(null);
     setEditPlace(undefined);
   }
@@ -723,8 +711,7 @@ export default function Home() {
     );
   }
 
-  // WelcomeScreen 用: 名前設定 + ルーム参加を一括処理
-  async function handleWelcomeComplete(name: string, joinedRoom: Room, isCreator: boolean) {
+  // WelcomeScreen 逕ｨ: 蜷榊燕險ｭ螳・+ 繝ｫ繝ｼ繝蜿ょ刈繧剃ｸ諡ｬ蜃ｦ逅・  async function handleWelcomeComplete(name: string, joinedRoom: Room, isCreator: boolean) {
     await handleRoomJoined(joinedRoom, name, isCreator);
   }
 
@@ -772,12 +759,12 @@ export default function Home() {
     const url = getRoomUrl();
     if (!url || !room) return;
     const shareData = {
-      title: room.name ?? "KokoMap ルーム",
-      text: `「${room.name ?? room.share_code}」に参加しませんか？`,
+      title: room.name ?? "KokoMap 繝ｫ繝ｼ繝",
+      text: `縲・{room.name ?? room.share_code}縲阪↓蜿ょ刈縺励∪縺帙ｓ縺具ｼ歔,
       url,
     };
     if (navigator.share) {
-      try { await navigator.share(shareData); } catch { /* キャンセル等は無視 */ }
+      try { await navigator.share(shareData); } catch { /* 繧ｭ繝｣繝ｳ繧ｻ繝ｫ遲峨・辟｡隕・*/ }
     } else {
       navigator.clipboard.writeText(url);
       setCodeCopied(true);
@@ -798,11 +785,10 @@ export default function Home() {
 
   const countLabel =
     filteredPlaces.length === places.length
-      ? `${places.length}件`
-      : `${filteredPlaces.length}/${places.length}件`;
+      ? `${places.length}莉ｶ`
+      : `${filteredPlaces.length}/${places.length}莉ｶ`;
 
-  // アクティブフィルター数（バッジ表示用）
-  const activeFilterCount = [
+  // 繧｢繧ｯ繝・ぅ繝悶ヵ繧｣繝ｫ繧ｿ繝ｼ謨ｰ・医ヰ繝・ず陦ｨ遉ｺ逕ｨ・・  const activeFilterCount = [
     filterCategories.length > 0,
     !!filterBudgetMin,
     !!filterBudgetMax,
@@ -818,80 +804,76 @@ export default function Home() {
     setFilterStatus(null);
   }
 
-  // ── 認証前はローディングor認証画面を返す ──────────────────────
-  // フィルター Popover の中身（PC ヘッダー・モバイルドロワー共通）
-  const filterPopoverContent = (
+  // 笏笏 隱崎ｨｼ蜑阪・繝ｭ繝ｼ繝・ぅ繝ｳ繧ｰor隱崎ｨｼ逕ｻ髱｢繧定ｿ斐☆ 笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏
+  // 繝輔ぅ繝ｫ繧ｿ繝ｼ Popover 縺ｮ荳ｭ霄ｫ・・C 繝倥ャ繝繝ｼ繝ｻ繝｢繝舌う繝ｫ繝峨Ο繝ｯ繝ｼ蜈ｱ騾夲ｼ・  const filterPopoverContent = (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
-        <span className="text-sm font-semibold">フィルター</span>
+        <span className="text-sm font-semibold">繝輔ぅ繝ｫ繧ｿ繝ｼ</span>
         {activeFilterCount > 0 && (
           <button
             onClick={clearAllFilters}
             className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
           >
             <X className="size-3" />
-            クリア
+            繧ｯ繝ｪ繧｢
           </button>
         )}
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <span className="text-xs font-medium text-muted-foreground">ステータス</span>
+        <span className="text-xs font-medium text-muted-foreground">繧ｹ繝・・繧ｿ繧ｹ</span>
         <div className="flex gap-1.5">
           <Badge
             variant={filterStatus === "want_to_go" ? "default" : "outline"}
             className={cn("cursor-pointer select-none text-xs transition-colors gap-1", filterStatus === "want_to_go" && "bg-amber-500 hover:bg-amber-600 border-amber-500")}
             onClick={() => setFilterStatus((prev) => prev === "want_to_go" ? null : "want_to_go")}
           >
-            <Star className="size-3" />行きたい
+            <Star className="size-3" />陦後″縺溘＞
           </Badge>
           <Badge
             variant={filterStatus === "visited" ? "default" : "outline"}
             className={cn("cursor-pointer select-none text-xs transition-colors gap-1", filterStatus === "visited" && "bg-green-600 hover:bg-green-700 border-green-600")}
             onClick={() => setFilterStatus((prev) => prev === "visited" ? null : "visited")}
           >
-            <CheckCircle2 className="size-3" />行った
-          </Badge>
+            <CheckCircle2 className="size-3" />陦後▲縺・          </Badge>
         </div>
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <span className="text-xs font-medium text-muted-foreground">予算</span>
+        <span className="text-xs font-medium text-muted-foreground">莠育ｮ・/span>
         <div className="flex items-center gap-1.5">
-          <Input type="number" min={0} value={filterBudgetMin} onChange={(e) => setFilterBudgetMin(e.target.value)} placeholder="下限" className="h-8 text-xs w-0 flex-1" />
-          <span className="text-xs text-muted-foreground shrink-0">円〜</span>
-          <Input type="number" min={0} value={filterBudgetMax} onChange={(e) => setFilterBudgetMax(e.target.value)} placeholder="上限" className="h-8 text-xs w-0 flex-1" />
-          <span className="text-xs text-muted-foreground shrink-0">円</span>
+          <Input type="number" min={0} value={filterBudgetMin} onChange={(e) => setFilterBudgetMin(e.target.value)} placeholder="荳矩剞" className="h-8 text-xs w-0 flex-1" />
+          <span className="text-xs text-muted-foreground shrink-0">蜀・・/span>
+          <Input type="number" min={0} value={filterBudgetMax} onChange={(e) => setFilterBudgetMax(e.target.value)} placeholder="荳企剞" className="h-8 text-xs w-0 flex-1" />
+          <span className="text-xs text-muted-foreground shrink-0">蜀・/span>
         </div>
       </div>
 
       <div className="flex flex-col gap-2">
         <label className="flex items-center gap-2 cursor-pointer select-none">
           <Switch checked={filterOpenNow} onCheckedChange={setFilterOpenNow} className="scale-90" />
-          <span className="text-xs">🟢 営業中のみ</span>
+          <span className="text-xs">泙 蝟ｶ讌ｭ荳ｭ縺ｮ縺ｿ</span>
         </label>
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <span className="text-xs font-medium text-muted-foreground">並び順</span>
+        <span className="text-xs font-medium text-muted-foreground">荳ｦ縺ｳ鬆・/span>
         <div className="flex gap-1.5">
           <Badge variant={sortOrder === "default" ? "default" : "outline"} className="cursor-pointer select-none text-xs transition-colors" onClick={() => setSortOrder("default")}>
-            追加順
-          </Badge>
+            霑ｽ蜉鬆・          </Badge>
           <Badge
             variant={sortOrder === "distance" ? "default" : "outline"}
             className={cn("cursor-pointer select-none text-xs transition-colors", !userLocation && "opacity-40 pointer-events-none")}
             onClick={() => { if (userLocation) setSortOrder("distance"); }}
-            title={userLocation ? undefined : "現在地の取得中..."}
+            title={userLocation ? undefined : "迴ｾ蝨ｨ蝨ｰ縺ｮ蜿門ｾ嶺ｸｭ..."}
           >
-            近い順
-          </Badge>
+            霑代＞鬆・          </Badge>
         </div>
       </div>
     </div>
   );
 
-  // モバイルドロワー用: 検索 + フィルターボタン
+  // 繝｢繝舌う繝ｫ繝峨Ο繝ｯ繝ｼ逕ｨ: 讀懃ｴ｢ + 繝輔ぅ繝ｫ繧ｿ繝ｼ繝懊ち繝ｳ
   const filterUI = (
     <div className="flex items-center gap-2 px-4 py-2.5 border-b">
       <div className="relative flex-1">
@@ -899,7 +881,7 @@ export default function Home() {
         <Input
           value={filterText}
           onChange={(e) => setFilterText(e.target.value)}
-          placeholder="名前やメモで検索..."
+          placeholder="蜷榊燕繧・Γ繝｢縺ｧ讀懃ｴ｢..."
           className="h-8 pl-8 text-xs"
         />
       </div>
@@ -907,7 +889,7 @@ export default function Home() {
         <PopoverTrigger asChild>
           <Button variant="outline" size="sm" className={cn("h-8 gap-1.5 text-xs shrink-0 cursor-pointer", activeFilterCount > 0 && "border-primary text-primary")}>
             <SlidersHorizontal className="size-3.5" />
-            フィルター
+            繝輔ぅ繝ｫ繧ｿ繝ｼ
             {activeFilterCount > 0 && (
               <span className="ml-0.5 flex size-4 items-center justify-center rounded-full bg-primary text-[10px] text-primary-foreground font-bold">
                 {activeFilterCount}
@@ -925,10 +907,10 @@ export default function Home() {
   return (
     <div className="flex flex-col h-[100dvh] w-screen overflow-hidden">
 
-      {/* ── PC: トップカテゴリ＋フィルターバー ── */}
+      {/* 笏笏 PC: 繝医ャ繝励き繝・ざ繝ｪ・九ヵ繧｣繝ｫ繧ｿ繝ｼ繝舌・ 笏笏 */}
       <div className="hidden md:flex shrink-0 bg-background border-b h-[52px]">
 
-        {/* 左: マップ幅エリア（カテゴリ横スクロール + フィルターボタン） */}
+        {/* 蟾ｦ: 繝槭ャ繝怜ｹ・お繝ｪ繧｢・医き繝・ざ繝ｪ讓ｪ繧ｹ繧ｯ繝ｭ繝ｼ繝ｫ + 繝輔ぅ繝ｫ繧ｿ繝ｼ繝懊ち繝ｳ・・*/}
         <div className="relative flex-1 overflow-hidden h-full flex items-center">
           <div className="overflow-x-auto scrollbar-hide h-full flex items-center w-full">
             <div className="flex items-center gap-1.5 px-4 h-full min-w-max">
@@ -941,7 +923,7 @@ export default function Home() {
                     : "text-muted-foreground border-transparent hover:border-border hover:text-foreground hover:bg-muted/50"
                 )}
               >
-                すべて
+                縺吶∋縺ｦ
               </button>
               {PRESET_CATEGORIES.map((cat) => {
                 const Icon = CATEGORY_ICONS[cat as keyof typeof CATEGORY_ICONS];
@@ -965,10 +947,10 @@ export default function Home() {
             </div>
           </div>
 
-          {/* グラデーション境界 + フィルターボタン（マップ右端に固定） */}
+          {/* 繧ｰ繝ｩ繝・・繧ｷ繝ｧ繝ｳ蠅・阜 + 繝輔ぅ繝ｫ繧ｿ繝ｼ繝懊ち繝ｳ・医・繝・・蜿ｳ遶ｯ縺ｫ蝗ｺ螳夲ｼ・*/}
           <div className="absolute right-0 top-0 h-full flex items-center">
             <div className="w-16 h-full bg-gradient-to-l from-background to-transparent pointer-events-none" />
-            <div className="flex items-center gap-2 pr-3 pl-1 bg-background h-full">
+            <div className="flex items-center pr-3 pl-1 bg-background h-full">
               <Popover>
                 <PopoverTrigger asChild>
                   <button
@@ -980,7 +962,7 @@ export default function Home() {
                     )}
                   >
                     <SlidersHorizontal className="size-4" />
-                    フィルター
+                    繝輔ぅ繝ｫ繧ｿ繝ｼ
                     {activeFilterCount > 0 && (
                       <span className="flex size-4 items-center justify-center rounded-full bg-primary-foreground text-[10px] text-primary font-bold">
                         {activeFilterCount}
@@ -992,56 +974,46 @@ export default function Home() {
                   {filterPopoverContent}
                 </PopoverContent>
               </Popover>
-
-              {/* PC: アカウント＆メール設定（常に右上に表示） */}
-              {authUser && (
-                <div className="hidden md:flex items-center gap-1 border-l pl-2">
-                  <span className="text-xs text-muted-foreground mr-1 hidden lg:inline">{currentUser.name}</span>
-                  <button
-                    onClick={() => setEmailRegOpen(true)}
-                    title="メールアドレス設定"
-                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs text-muted-foreground hover:text-primary hover:bg-primary/5 transition-colors cursor-pointer"
-                  >
-                    <Mail className="size-3.5" />
-                    <span className="hidden xl:inline">メール設定</span>
-                  </button>
-                  <button
-                    onClick={handleLogout}
-                    title="ログアウト"
-                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs text-muted-foreground hover:text-red-500 hover:bg-red-50 transition-colors cursor-pointer"
-                  >
-                    <LogOut className="size-3.5" />
-                    <span className="hidden xl:inline">ログアウト</span>
-                  </button>
-                </div>
-              )}
             </div>
           </div>
         </div>
 
-        {/* 右: サイドバーと同幅スペーサー（マップ右端をヘッダーと揃える） */}
+        {/* 蜿ｳ: 繧ｵ繧､繝峨ヰ繝ｼ縺ｨ蜷悟ｹ・せ繝壹・繧ｵ繝ｼ・医・繝・・蜿ｳ遶ｯ繧偵・繝・ム繝ｼ縺ｨ謠・∴繧具ｼ・*/}
         <div className={cn(
-          "shrink-0 border-l transition-[width] duration-300 ease-in-out hidden md:block",
-          expanded ? "w-0" : "w-[420px]"
-        )} />
+          "shrink-0 border-l transition-[width] duration-300 ease-in-out flex items-center justify-end px-3",
+          expanded ? "w-0 overflow-hidden" : "w-[420px]"
+        )}>
+          {authUser && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">{currentUser.name}</span>
+              <button
+                onClick={handleLogout}
+                title="繝ｭ繧ｰ繧｢繧ｦ繝・
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs text-muted-foreground hover:text-red-500 hover:bg-red-50 transition-colors cursor-pointer"
+              >
+                <LogOut className="size-3.5" />
+                繝ｭ繧ｰ繧｢繧ｦ繝・              </button>
+            </div>
+          )}
+        </div>
 
       </div>
 
-      {/* ── モバイル: ルーム情報ヘッダーバー ── */}
+      {/* 笏笏 繝｢繝舌う繝ｫ: 繝ｫ繝ｼ繝諠・ｱ繝倥ャ繝繝ｼ繝舌・ 笏笏 */}
       {room && (
         <div className="md:hidden shrink-0 flex items-center justify-between px-3 bg-background border-b gap-2" style={{ minHeight: '52px' }}>
-          {/* 左: ロール + コード */}
+          {/* 蟾ｦ: 繝ｭ繝ｼ繝ｫ + 繧ｳ繝ｼ繝・*/}
           <div className="flex items-center gap-2 min-w-0 flex-1">
             {myRole && (
-              <span className={`flex items-center gap-0.5 text-[11px] font-bold rounded-full px-1.5 py-0.5 shrink-0 border
+              <span className={`flex items-center gap-0.5 text-[10px] font-bold rounded-full px-1.5 py-0.5 shrink-0 border
                 ${myRole === "leader" ? "text-yellow-700 bg-yellow-50 border-yellow-200" :
-                  myRole === "admin" ? "text-blue-700 bg-blue-50 border-blue-200" :
-                    myRole === "viewer" ? "text-gray-500 bg-gray-50 border-gray-200" :
-                      "text-green-700 bg-green-50 border-green-200"}`}>
+                  myRole === "admin"  ? "text-blue-700 bg-blue-50 border-blue-200" :
+                  myRole === "viewer" ? "text-gray-500 bg-gray-50 border-gray-200" :
+                  "text-green-700 bg-green-50 border-green-200"}`}>
                 {myRole === "leader" ? <Crown className="size-2.5" /> :
-                  myRole === "admin" ? <Shield className="size-2.5" /> :
-                    myRole === "viewer" ? <Eye className="size-2.5" /> :
-                      <Users className="size-2.5" />}
+                 myRole === "admin"  ? <Shield className="size-2.5" /> :
+                 myRole === "viewer" ? <Eye className="size-2.5" /> :
+                 <Users className="size-2.5" />}
                 {ROLE_LABELS[myRole]}
               </span>
             )}
@@ -1050,12 +1022,12 @@ export default function Home() {
             )}
             <span className="text-xs text-muted-foreground shrink-0 font-mono font-bold tracking-wider">{room.share_code}</span>
           </div>
-          {/* 右: アイコンのみボタン群 */}
+          {/* 蜿ｳ: 繧｢繧､繧ｳ繝ｳ縺ｮ縺ｿ繝懊ち繝ｳ鄒､ */}
           <div className="flex items-center shrink-0">
             {canManageRoom && (
               <button
                 onClick={toggleRoomOpen}
-                title={room.is_open ? "参加を締め切る" : "参加を再開する"}
+                title={room.is_open ? "蜿ょ刈繧堤ｷ繧∝・繧・ : "蜿ょ刈繧貞・髢九☆繧・}
                 className={`p-2.5 rounded-md transition-colors cursor-pointer ${room.is_open ? "text-green-600 hover:bg-green-50" : "text-red-500 hover:bg-red-50"}`}
               >
                 {room.is_open ? <Unlock className="size-4" /> : <Lock className="size-4" />}
@@ -1064,7 +1036,7 @@ export default function Home() {
             {canManageMembers && (
               <button
                 onClick={() => setMemberManageOpen(true)}
-                title="メンバー管理"
+                title="繝｡繝ｳ繝舌・邂｡逅・
                 className="p-2.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
               >
                 <Users className="size-4" />
@@ -1072,111 +1044,95 @@ export default function Home() {
             )}
             <button
               onClick={copyRoomCode}
-              title="コードをコピー"
+              title="繧ｳ繝ｼ繝峨ｒ繧ｳ繝斐・"
               className="p-2.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
             >
               {codeCopied ? <Check className="size-4 text-green-600" /> : <Copy className="size-4" />}
             </button>
             <button
               onClick={shareRoomUrl}
-              title="シェア"
+              title="繧ｷ繧ｧ繧｢"
               className="p-2.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
             >
               <Share2 className="size-4" />
             </button>
             <button
               onClick={handleLeaveRoom}
-              title="ルームを変更"
+              title="繝ｫ繝ｼ繝繧貞､画峩"
               className="p-2.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
             >
               <LogOut className="size-4" />
-            </button>
-            <button
-              onClick={() => setEmailRegOpen(true)}
-              title="メールアドレス登録"
-              className="p-2.5 rounded-md text-muted-foreground hover:text-primary hover:bg-primary/5 transition-colors cursor-pointer"
-            >
-              <Mail className="size-4" />
             </button>
           </div>
         </div>
       )}
 
-      {/* ── メインコンテンツ（マップ＋リスト） ── */}
+      {/* 笏笏 繝｡繧､繝ｳ繧ｳ繝ｳ繝・Φ繝・ｼ医・繝・・・九Μ繧ｹ繝茨ｼ・笏笏 */}
       <div className="flex flex-1 overflow-hidden">
 
-        {/* ── マップ（PC: 左 flex-1、モバイル: 全画面） ── */}
+        {/* 笏笏 繝槭ャ繝暦ｼ・C: 蟾ｦ flex-1縲√Δ繝舌う繝ｫ: 蜈ｨ逕ｻ髱｢・・笏笏 */}
         <div className="relative flex-1 overflow-hidden">
           <div ref={mapContainer} className="w-full h-full" />
 
           {pickingMode && (
             <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 bg-white rounded-full shadow-lg px-5 py-2.5 flex items-center gap-3 text-sm font-medium whitespace-nowrap">
-              <span>地図をクリックして場所を指定してください</span>
+              <span>蝨ｰ蝗ｳ繧偵け繝ｪ繝・け縺励※蝣ｴ謇繧呈欠螳壹＠縺ｦ縺上□縺輔＞</span>
               <button
                 onClick={cancelPicking}
                 className="text-xs underline opacity-60 hover:opacity-100 cursor-pointer transition-opacity"
               >
-                キャンセル
+                繧ｭ繝｣繝ｳ繧ｻ繝ｫ
               </button>
             </div>
           )}
 
 
-          {/* PC: リスト切替ボタン */}
+          {/* PC: 繝ｪ繧ｹ繝亥・譖ｿ繝懊ち繝ｳ */}
           <button
             onClick={() => setExpanded((v) => !v)}
             className="hidden md:flex absolute top-4 right-3 z-10 items-center gap-1.5 bg-white rounded-full shadow-md px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 hover:shadow-lg active:scale-95 transition-all border border-gray-100 cursor-pointer"
-            title={expanded ? "リストを表示" : "リストを隠す"}
+            title={expanded ? "繝ｪ繧ｹ繝医ｒ陦ｨ遉ｺ" : "繝ｪ繧ｹ繝医ｒ髫縺・}
           >
             <List className="size-3.5" />
-            {expanded ? "リスト表示" : "リストを隠す"}
+            {expanded ? "繝ｪ繧ｹ繝郁｡ｨ遉ｺ" : "繝ｪ繧ｹ繝医ｒ髫縺・}
           </button>
 
-          {/* モバイル: 右上ボタン群（マップ上） */}
+          {/* 繝｢繝舌う繝ｫ: 繝ｭ繧ｰ繧｢繧ｦ繝医・繧ｿ繝ｳ・亥承荳奇ｼ・*/}
           {authUser && (
-            <div className="md:hidden absolute top-3 right-3 z-20 flex items-center gap-2">
-              <button
-                onClick={() => setEmailRegOpen(true)}
-                title="メールアドレス設定"
-                className="bg-white rounded-full shadow-md p-2.5 text-muted-foreground hover:text-primary transition-colors cursor-pointer"
-              >
-                <Mail className="size-4" />
-              </button>
-              <button
-                onClick={handleLogout}
-                title="ログアウト"
-                className="bg-white rounded-full shadow-md p-2.5 text-muted-foreground hover:text-red-500 hover:bg-red-50 transition-colors cursor-pointer"
-              >
-                <LogOut className="size-4" />
-              </button>
-            </div>
+            <button
+              onClick={handleLogout}
+              title="繝ｭ繧ｰ繧｢繧ｦ繝・
+              className="md:hidden absolute top-3 right-3 z-20 bg-white rounded-full shadow-md p-2.5 text-muted-foreground hover:text-red-500 hover:bg-red-50 transition-colors cursor-pointer"
+            >
+              <LogOut className="size-4" />
+            </button>
           )}
 
-          {/* 現在地ボタン */}
+          {/* 迴ｾ蝨ｨ蝨ｰ繝懊ち繝ｳ */}
           <button
             onClick={handleLocateMe}
             className="absolute z-10 bg-white rounded-full shadow-lg p-2.5 hover:bg-gray-50 hover:shadow-xl active:scale-95 transition-all cursor-pointer right-3 md:bottom-6"
             style={{ bottom: 'calc(34dvh + env(safe-area-inset-bottom, 0px) + 3.5rem)' }}
-            title="現在地へ移動"
+            title="迴ｾ蝨ｨ蝨ｰ縺ｸ遘ｻ蜍・
           >
             <LocateFixed className="size-5 text-gray-700" />
           </button>
 
-          {/* モバイル: ＋ 追加 FAB（閲覧者には非表示） */}
+          {/* 繝｢繝舌う繝ｫ: ・・霑ｽ蜉 FAB・磯夢隕ｧ閠・↓縺ｯ髱櫁｡ｨ遉ｺ・・*/}
           {canAdd && (
             <button
               onClick={() => { setEditPlace(undefined); setSheetOpen(true); }}
               disabled={!room}
               className="md:hidden absolute right-3 z-10 bg-primary text-primary-foreground rounded-full shadow-lg p-3 hover:opacity-90 active:scale-95 transition-all disabled:opacity-40 cursor-pointer"
               style={{ bottom: 'calc(34dvh + env(safe-area-inset-bottom, 0px) + 0.75rem)' }}
-              title="場所を追加"
+              title="蝣ｴ謇繧定ｿｽ蜉"
             >
               <Plus className="size-5" />
             </button>
           )}
         </div>
 
-        {/* ── PC: 右リストパネル ── */}
+        {/* 笏笏 PC: 蜿ｳ繝ｪ繧ｹ繝医ヱ繝阪Ν 笏笏 */}
         <div
           className={cn(
             "hidden md:flex flex-col bg-background border-l shrink-0 transition-[width] duration-300 ease-in-out overflow-hidden",
@@ -1184,11 +1140,11 @@ export default function Home() {
           )}
         >
           <div className="shrink-0 bg-background">
-            {/* タイトルバー */}
+            {/* 繧ｿ繧､繝医Ν繝舌・ */}
             <div className="flex items-center justify-between px-5 py-3.5 border-b">
-              <h2 className="font-bold text-base tracking-tight">
-                スポット一覧
-                <span className="ml-2 text-muted-foreground font-normal text-sm">{countLabel}</span>
+              <h2 className="font-semibold text-sm">
+                繧ｹ繝昴ャ繝井ｸ隕ｧ
+                <span className="ml-2 text-muted-foreground font-normal">{countLabel}</span>
               </h2>
               <Button
                 size="sm"
@@ -1196,25 +1152,25 @@ export default function Home() {
                 onClick={() => { setEditPlace(undefined); setSheetOpen(true); }}
                 disabled={!room || !canAdd}
               >
-                ＋ 追加する
+                ・・霑ｽ蜉縺吶ｋ
               </Button>
             </div>
 
-            {/* ルーム情報バー */}
+            {/* 繝ｫ繝ｼ繝諠・ｱ繝舌・ */}
             {room && (
               <div className="flex items-center justify-between px-5 py-2 bg-muted/40 border-b">
                 <div className="flex flex-col min-w-0 gap-0.5">
                   <div className="flex items-center gap-1.5">
                     {myRole && (
-                      <span className={`flex items-center gap-0.5 text-[11px] font-bold rounded-full px-1.5 py-0.5 shrink-0 border
+                      <span className={`flex items-center gap-0.5 text-[10px] font-bold rounded-full px-1.5 py-0.5 shrink-0 border
                         ${myRole === "leader" ? "text-yellow-700 bg-yellow-50 border-yellow-200" :
-                          myRole === "admin" ? "text-blue-700 bg-blue-50 border-blue-200" :
-                            myRole === "viewer" ? "text-gray-500 bg-gray-50 border-gray-200" :
-                              "text-green-700 bg-green-50 border-green-200"}`}>
+                          myRole === "admin"  ? "text-blue-700 bg-blue-50 border-blue-200" :
+                          myRole === "viewer" ? "text-gray-500 bg-gray-50 border-gray-200" :
+                          "text-green-700 bg-green-50 border-green-200"}`}>
                         {myRole === "leader" ? <Crown className="size-2.5" /> :
-                          myRole === "admin" ? <Shield className="size-2.5" /> :
-                            myRole === "viewer" ? <Eye className="size-2.5" /> :
-                              <Users className="size-2.5" />}
+                         myRole === "admin"  ? <Shield className="size-2.5" /> :
+                         myRole === "viewer" ? <Eye className="size-2.5" /> :
+                         <Users className="size-2.5" />}
                         {ROLE_LABELS[myRole]}
                       </span>
                     )}
@@ -1223,15 +1179,15 @@ export default function Home() {
                     )}
                   </div>
                   <span className="text-xs text-muted-foreground">
-                    コード:{" "}
+                    繧ｳ繝ｼ繝・{" "}
                     <span className="font-mono font-bold text-foreground">{room.share_code}</span>
                   </span>
                 </div>
-                <div className="flex gap-1.5 shrink-0">
+                <div className="flex gap-1 shrink-0">
                   {canManageRoom && (
                     <button
                       onClick={toggleRoomOpen}
-                      title={room.is_open ? "参加を締め切る" : "参加を再開する"}
+                      title={room.is_open ? "蜿ょ刈繧堤ｷ繧∝・繧・ : "蜿ょ刈繧貞・髢九☆繧・}
                       className={`p-1.5 rounded transition-colors cursor-pointer ${room.is_open ? "text-green-700 hover:bg-green-50" : "text-red-600 hover:bg-red-50"}`}
                     >
                       {room.is_open ? <Unlock className="size-3.5" /> : <Lock className="size-3.5" />}
@@ -1240,7 +1196,7 @@ export default function Home() {
                   {canManageMembers && (
                     <button
                       onClick={() => setMemberManageOpen(true)}
-                      title="メンバー管理"
+                      title="繝｡繝ｳ繝舌・邂｡逅・
                       className="p-1.5 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground cursor-pointer"
                     >
                       <Users className="size-3.5" />
@@ -1248,21 +1204,21 @@ export default function Home() {
                   )}
                   <button
                     onClick={copyRoomCode}
-                    title="コードをコピー"
+                    title="繧ｳ繝ｼ繝峨ｒ繧ｳ繝斐・"
                     className="p-1.5 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground cursor-pointer"
                   >
                     {codeCopied ? <Check className="size-3.5 text-green-600" /> : <Copy className="size-3.5" />}
                   </button>
                   <button
                     onClick={shareRoomUrl}
-                    title="シェア"
+                    title="繧ｷ繧ｧ繧｢"
                     className="p-1.5 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground cursor-pointer"
                   >
                     <Share2 className="size-3.5" />
                   </button>
                   <button
                     onClick={handleLeaveRoom}
-                    title="ルームを変更"
+                    title="繝ｫ繝ｼ繝繧貞､画峩"
                     className="p-1.5 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground cursor-pointer"
                   >
                     <LogOut className="size-3.5" />
@@ -1271,35 +1227,35 @@ export default function Home() {
               </div>
             )}
 
-            {/* 検索バー */}
+            {/* 讀懃ｴ｢繝舌・ */}
             <div className="flex items-center px-4 py-2.5 border-b">
               <div className="relative flex-1">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground pointer-events-none" />
                 <Input
                   value={filterText}
                   onChange={(e) => setFilterText(e.target.value)}
-                  placeholder="名前やメモで検索..."
+                  placeholder="蜷榊燕繧・Γ繝｢縺ｧ讀懃ｴ｢..."
                   className="h-8 pl-8 text-xs"
                 />
               </div>
             </div>
           </div>
 
-          {/* スクロール可能なリスト */}
+          {/* 繧ｹ繧ｯ繝ｭ繝ｼ繝ｫ蜿ｯ閭ｽ縺ｪ繝ｪ繧ｹ繝・*/}
           <div className="flex-1 overflow-y-auto p-4">
             {filteredPlaces.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-60 text-muted-foreground text-sm gap-2">
                 <p>
                   {places.length === 0
-                    ? "まだスポットがありません"
-                    : "条件に合うスポットがありません"}
+                    ? "縺ｾ縺繧ｹ繝昴ャ繝医′縺ゅｊ縺ｾ縺帙ｓ"
+                    : "譚｡莉ｶ縺ｫ蜷医≧繧ｹ繝昴ャ繝医′縺ゅｊ縺ｾ縺帙ｓ"}
                 </p>
                 {places.length === 0 && (
-                  <p className="text-xs">「＋ 追加する」で登録してみましょう</p>
+                  <p className="text-xs">縲鯉ｼ・霑ｽ蜉縺吶ｋ縲阪〒逋ｻ骭ｲ縺励※縺ｿ縺ｾ縺励ｇ縺・/p>
                 )}
               </div>
             ) : (
-              <div className="flex flex-col gap-3" role="list">
+              <div className="flex flex-col gap-3">
                 {filteredPlaces.map((place) => (
                   <PlaceCard
                     key={place.id}
@@ -1316,28 +1272,27 @@ export default function Home() {
 
       </div>
 
-      {/* ── モバイル Drawer（常時ペーク表示） ── */}
+      {/* 笏笏 繝｢繝舌う繝ｫ Drawer・亥ｸｸ譎ゅ・繝ｼ繧ｯ陦ｨ遉ｺ・・笏笏 */}
       <Drawer
         open={drawerOpen}
         onOpenChange={(v) => {
           if (!v) {
-            // 閉じようとしたら最小スナップに戻す
-            setDrawerSnap(0.3);
+            // 髢峨§繧医≧縺ｨ縺励◆繧画怙蟆上せ繝翫ャ繝励↓謌ｻ縺・            setDrawerSnap(0.3);
             setDrawerOpen(true);
           }
         }}
-        snapPoints={[0.35, 0.65, 1]}
+        snapPoints={[0.3, 1]}
         activeSnapPoint={drawerSnap}
-        setActiveSnapPoint={(snap) => { if (snap !== undefined) setDrawerSnap(snap); }}
+        setActiveSnapPoint={setDrawerSnap}
         modal={false}
         dismissible={false}
       >
         <DrawerContent className="flex flex-col md:hidden fixed">
           <DrawerHeader className="pb-0 text-left">
             <div className="flex items-center justify-between">
-              <DrawerTitle className="text-base font-bold tracking-tight">
-                スポット一覧
-                <span className="ml-2 text-muted-foreground font-normal text-sm">
+              <DrawerTitle className="text-sm">
+                繧ｹ繝昴ャ繝井ｸ隕ｧ
+                <span className="ml-2 text-muted-foreground font-normal">
                   {countLabel}
                 </span>
               </DrawerTitle>
@@ -1347,13 +1302,13 @@ export default function Home() {
                   className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer bg-muted rounded-full px-2 py-0.5"
                 >
                   <X className="size-3" />
-                  フィルター({activeFilterCount})クリア
+                  繝輔ぅ繝ｫ繧ｿ繝ｼ({activeFilterCount})繧ｯ繝ｪ繧｢
                 </button>
               )}
             </div>
           </DrawerHeader>
 
-          {/* モバイル: カテゴリバー（snap スクロール対応） */}
+          {/* 繝｢繝舌う繝ｫ: 繧ｫ繝・ざ繝ｪ繝舌・・・nap 繧ｹ繧ｯ繝ｭ繝ｼ繝ｫ蟇ｾ蠢懶ｼ・*/}
           <div className="overflow-x-auto scrollbar-hide border-b snap-x snap-mandatory">
             <div className="flex gap-1.5 px-3 py-2 min-w-max">
               <button
@@ -1365,7 +1320,7 @@ export default function Home() {
                     : "text-muted-foreground border-transparent hover:border-border hover:text-foreground hover:bg-muted/50"
                 )}
               >
-                すべて
+                縺吶∋縺ｦ
               </button>
               {PRESET_CATEGORIES.map((cat) => {
                 const Icon = CATEGORY_ICONS[cat as keyof typeof CATEGORY_ICONS];
@@ -1393,20 +1348,19 @@ export default function Home() {
 
           <div
             className="overflow-y-auto flex flex-col gap-3 p-4"
-            onClick={() => { if (drawerSnap === 0.35) setDrawerSnap(0.65); }}
             style={{
               flex: 1,
-              overflowY: drawerSnap === 0.35 ? "hidden" : "auto",
-              maskImage: drawerSnap === 0.35 ? "linear-gradient(to bottom, black 60%, transparent 100%)" : undefined,
-              WebkitMaskImage: drawerSnap === 0.35 ? "linear-gradient(to bottom, black 60%, transparent 100%)" : undefined,
+              overflowY: drawerSnap === 1 ? "auto" : "hidden",
+              maskImage: drawerSnap !== 1 ? "linear-gradient(to bottom, black 60%, transparent 100%)" : undefined,
+              WebkitMaskImage: drawerSnap !== 1 ? "linear-gradient(to bottom, black 60%, transparent 100%)" : undefined,
             }}
           >
             {filteredPlaces.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-32 text-muted-foreground text-sm gap-2">
                 <p>
                   {places.length === 0
-                    ? "まだスポットがありません"
-                    : "条件に合うスポットがありません"}
+                    ? "縺ｾ縺繧ｹ繝昴ャ繝医′縺ゅｊ縺ｾ縺帙ｓ"
+                    : "譚｡莉ｶ縺ｫ蜷医≧繧ｹ繝昴ャ繝医′縺ゅｊ縺ｾ縺帙ｓ"}
                 </p>
               </div>
             ) : (
@@ -1433,14 +1387,14 @@ export default function Home() {
                 disabled={!room}
               >
                 <Plus className="size-4" />
-                スポットを追加する
+                繧ｹ繝昴ャ繝医ｒ霑ｽ蜉縺吶ｋ
               </Button>
             </DrawerFooter>
           )}
         </DrawerContent>
       </Drawer>
 
-      {/* 追加・編集フォーム */}
+      {/* 霑ｽ蜉繝ｻ邱ｨ髮・ヵ繧ｩ繝ｼ繝 */}
       <AddPlaceSheet
         open={sheetOpen}
         onOpenChange={handleSheetOpenChange}
@@ -1452,7 +1406,7 @@ export default function Home() {
         editPlace={editPlace}
       />
 
-      {/* 詳細シート */}
+      {/* 隧ｳ邏ｰ繧ｷ繝ｼ繝・*/}
       <PlaceDetailSheet
         place={detailPlace}
         open={detailOpen}
@@ -1461,7 +1415,7 @@ export default function Home() {
         onDeleted={handleDeleted}
       />
 
-      {/* ルーム未参加時: グループ作成/参加 */}
+      {/* 繝ｫ繝ｼ繝譛ｪ蜿ょ刈譎・ 繧ｰ繝ｫ繝ｼ繝嶺ｽ懈・/蜿ょ刈 */}
       {!room && roomDialogOpen && (
         <WelcomeScreen
           initialCode={urlCode}
@@ -1470,7 +1424,7 @@ export default function Home() {
         />
       )}
 
-      {/* ルーム変更ダイアログ（ルームを持っているときに退出後など） */}
+      {/* 繝ｫ繝ｼ繝螟画峩繝繧､繧｢繝ｭ繧ｰ・医Ν繝ｼ繝繧呈戟縺｣縺ｦ縺・ｋ縺ｨ縺阪↓騾蜃ｺ蠕後↑縺ｩ・・*/}
       {room && (
         <RoomJoinDialog
           open={roomDialogOpen}
@@ -1480,7 +1434,7 @@ export default function Home() {
         />
       )}
 
-      {/* メンバー管理シート */}
+      {/* 繝｡繝ｳ繝舌・邂｡逅・す繝ｼ繝・*/}
       {room && (
         <MemberManageSheet
           open={memberManageOpen}
@@ -1492,22 +1446,12 @@ export default function Home() {
         />
       )}
 
-      {/* メールアドレス登録 */}
-      {authUser && (
-        <EmailRegistration
-          open={emailRegOpen}
-          onOpenChange={setEmailRegOpen}
-          userId={authUser.id}
-          currentEmail={authUser.user_metadata?.recovery_email}
-        />
-      )}
-
-      {/* ── 認証オーバーレイ（マップは背後で初期化し続ける） ── */}
+      {/* 笏笏 隱崎ｨｼ繧ｪ繝ｼ繝舌・繝ｬ繧､・医・繝・・縺ｯ閭悟ｾ後〒蛻晄悄蛹悶＠邯壹￠繧具ｼ・笏笏 */}
       {authLoading && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-white">
           <div className="flex flex-col items-center gap-3 text-muted-foreground">
             <div className="size-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-            <p className="text-sm">読み込み中...</p>
+            <p className="text-sm">隱ｭ縺ｿ霎ｼ縺ｿ荳ｭ...</p>
           </div>
         </div>
       )}
