@@ -1,1488 +1,1458 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback, useMemo } from "react";
-import mapboxgl from "mapbox-gl";
-import "mapbox-gl/dist/mapbox-gl.css";
-import MapboxLanguage from "@mapbox/mapbox-gl-language";
-import { LocateFixed, List, Search, Copy, Check, LogOut, SlidersHorizontal, X, Star, CheckCircle2, Utensils, Wine, Gamepad2, Landmark, Coffee, ShoppingBag, Camera, BedDouble, Waves, Plus, Shield, Lock, Unlock, Share2, Users, Crown, Eye, ChevronUp } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import { Switch } from "@/components/ui/switch";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { useEffect, useState, useCallback, useRef } from "react";
+import dynamic from "next/dynamic";
 import {
-  Drawer,
-  DrawerContent,
-  DrawerHeader,
-  DrawerTitle,
-  DrawerFooter,
-} from "@/components/ui/drawer";
-import { AddPlaceSheet } from "@/components/AddPlaceSheet";
-import { PlaceDetailSheet } from "@/components/PlaceDetailSheet";
-import { PlaceCard } from "@/components/PlaceCard";
-import { RoomJoinDialog } from "@/components/RoomJoinDialog";
-import { WelcomeScreen } from "@/components/WelcomeScreen";
-import { AuthScreen } from "@/components/AuthScreen";
-import { MemberManageSheet } from "@/components/MemberManageSheet";
-import { supabase, type Place, type Room, type SpotStatus, type RoomMember } from "@/lib/supabase";
-import type { User } from "@supabase/supabase-js";
-import { useMapStore } from "@/store/useMapStore";
-import { toast } from "sonner";
-import { reverseGeocode } from "@/lib/geocoding";
-import { PRESET_CATEGORIES } from "@/lib/constants";
-import { cn } from "@/lib/utils";
-import { calcDistance, formatDistance } from "@/lib/geo";
-import { isPlaceOpenNow } from "@/lib/openNow";
+  RefreshCw,
+  TrendingUp,
+  TrendingDown,
+  Minus,
+  Bell,
+  BellOff,
+  Settings,
+  ChevronDown,
+  ChevronUp,
+  AlertTriangle,
+  BarChart2,
+  Activity,
+  Wallet,
+  Calculator,
+} from "lucide-react";
 
-const ROLE_LABELS: Record<string, string> = {
-  leader: "リーダー",
-  admin:  "管理者",
-  member: "メンバー",
-  viewer: "閲覧者",
-};
+const PriceChart = dynamic(
+  () => import("@/components/soxl/PriceChart").then((m) => m.PriceChart),
+  { ssr: false }
+);
+const RSIChart = dynamic(
+  () => import("@/components/soxl/IndicatorCharts").then((m) => m.RSIChart),
+  { ssr: false }
+);
+const MACDChart = dynamic(
+  () => import("@/components/soxl/IndicatorCharts").then((m) => m.MACDChart),
+  { ssr: false }
+);
+const VolumeChart = dynamic(
+  () => import("@/components/soxl/IndicatorCharts").then((m) => m.VolumeChart),
+  { ssr: false }
+);
 
-// ── カテゴリアイコンマッピング ──────────────────────────────────────
-const CATEGORY_ICONS = {
-  "食事": Utensils,
-  "飲み": Wine,
-  "娯楽": Gamepad2,
-  "観光": Landmark,
-  "カフェ・休憩": Coffee,
-  "買い物": ShoppingBag,
-  "映え・絶景": Camera,
-  "宿": BedDouble,
-  "風呂": Waves,
-} as const;
+type Period = "3mo" | "6mo" | "1y" | "2y";
 
-// ── ポップアップのステータスボタンスタイル更新（純粋関数）────────────
-function applyPopupStatusStyles(
-  wantBtn: HTMLButtonElement,
-  visitedBtn: HTMLButtonElement,
-  status: SpotStatus | null
-) {
-  const base = "flex-1 text-[11px] rounded-md py-1 border transition-colors truncate";
-  const activeWant = `${base} bg-amber-50 text-amber-700 border-amber-300 font-semibold`;
-  const activeVisit = `${base} bg-green-50 text-green-700 border-green-300 font-semibold`;
-  const inactive = `${base} text-gray-400 border-gray-200 hover:bg-gray-50`;
-
-  wantBtn.className = status === "want_to_go" ? activeWant : inactive;
-  visitedBtn.className = status === "visited" ? activeVisit : inactive;
+interface SOXLData {
+  quote: {
+    price: number;
+    priceChange: number;
+    priceChangePct: number;
+    open: number;
+    high: number;
+    low: number;
+    volume: number;
+    ma50: number | null;
+    ma200: number | null;
+    rsi: number | null;
+    atr: number | null;
+    fiftyTwoWeekHigh: number;
+    fiftyTwoWeekLow: number;
+    marketState: string;
+  };
+  chartData: {
+    date: string;
+    open: number;
+    high: number;
+    low: number;
+    close: number;
+    volume: number;
+    ma20: number | null;
+    ma50: number | null;
+    ma200: number | null;
+    rsi: number | null;
+    macd: number | null;
+    macdSignal: number | null;
+    macdHist: number | null;
+    bbUpper: number | null;
+    bbMiddle: number | null;
+    bbLower: number | null;
+    stochK: number | null;
+    stochD: number | null;
+  }[];
+  signals: {
+    overall: string;
+    overallLabel: string;
+    score: number;
+    maxScore: number;
+    scorePct: number;
+    color: string;
+    bgColor: string;
+    details: {
+      name: string;
+      nameJa: string;
+      signal: "BUY" | "SELL" | "NEUTRAL";
+      strength: number;
+      description: string;
+      value: number | null;
+    }[];
+  };
+  riskManagement: {
+    entryPrice: number;
+    stopLoss: number;
+    takeProfit1: number;
+    takeProfit2: number;
+    riskRewardRatio1: number;
+    riskRewardRatio2: number;
+    atr: number;
+    suggestedPositionNote: string;
+  };
+  action: {
+    action: "ENTER" | "WAIT" | "AVOID";
+    label: string;
+    summary: string;
+    color: string;
+    borderColor: string;
+    reasons: string[];
+    waitFor: string[];
+    avoidBelow: number | null;
+    confidence: number;
+    vixOverride: boolean;
+    eventOverride: boolean;
+  };
+  vix: number | null;
+  lastUpdated: string;
 }
 
-export default function Home() {
-  const mapContainer = useRef<HTMLDivElement>(null);
-  const map = useRef<mapboxgl.Map | null>(null);
-  const pickingModeRef = useRef(false);
-  const markers = useRef<Map<string, mapboxgl.Marker>>(new Map());
-  const previewMarkerRef = useRef<mapboxgl.Marker | null>(null);
-  const popupClickRef = useRef<(place: Place) => void>(() => {});
-  // ポップアップ内のステータスボタン要素を保持（spotStatuses 変化時に DOM 更新用）
-  const popupStatusEls = useRef<
-    Map<string, { wantBtn: HTMLButtonElement; visitedBtn: HTMLButtonElement }>
-  >(new Map());
-  const geoWatchRef = useRef<number | null>(null);
-  const peekTouchStartY = useRef<number | null>(null);
+interface EarningsEvent {
+  symbol: string;
+  name: string;
+  date: string;
+  daysUntil: number;
+  phase: string;
+  phaseLabel: string;
+  phaseColor: string;
+  strategy: string;
+}
 
-  // ── Zustand ストア ────────────────────────────────────
-  const {
-    places,
-    room,
-    currentUser,
-    myRole,
-    roomMembers,
-    spotStatuses,
-    userLocation,
-    setRoom,
-    clearRoom,
-    setMyRole,
-    setRoomMembers,
-    upsertRoomMember,
-    removeRoomMember,
-    setPlaces,
-    addPlace,
-    upsertPlace,
-    removePlace,
-    setCurrentUser,
-    setUserLocation,
-    loadSpotStatuses,
-  } = useMapStore();
+interface EconomicEvent {
+  id: string;
+  name: string;
+  nameEn: string;
+  date: string;
+  daysUntil: number;
+  importance: string;
+  impact: string;
+  strategy: string;
+}
 
-  // 権限ヘルパー
-  const canAdd = myRole !== "viewer" && myRole !== null;
-  const canManageRoom = myRole === "leader";
-  const canManageMembers = myRole === "leader";
+interface EventsData {
+  earnings: EarningsEvent[];
+  economic: EconomicEvent[];
+  updatedAt: string;
+}
 
-  const [sheetOpen, setSheetOpen] = useState(false);
-  const [detailOpen, setDetailOpen] = useState(false);
-  const [detailPlace, setDetailPlace] = useState<Place | null>(null);
-  const [editPlace, setEditPlace] = useState<Place | undefined>(undefined);
-  const [pickingMode, setPickingMode] = useState(false);
-  const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
-  const [geocodedAddress, setGeocodedAddress] = useState<string | null>(null);
-  const [expanded, setExpanded] = useState(false);
-  const [drawerOpen, setDrawerOpen] = useState(true);
-  const [drawerSnap, setDrawerSnap] = useState<number | string | null>(0.3);
-  const [mapLoaded, setMapLoaded] = useState(false);
-  const [roomDialogOpen, setRoomDialogOpen] = useState(!room);
-  const [memberManageOpen, setMemberManageOpen] = useState(false);
-  const [urlCode, setUrlCode] = useState<string | undefined>(undefined);
+interface MacroData {
+  vix: { symbol: string; price: number | null; change: number | null; changePct: number | null; classification: { level: string; label: string; color: string; soxlImpact: string } | null };
+  sox: { price: number | null; change: number | null; changePct: number | null };
+  ndx: { price: number | null; change: number | null; changePct: number | null };
+  tnx: { price: number | null; changePct: number | null; danger: boolean; label: string | null; rising: boolean; falling: boolean };
+  nvdaRS: { value: number | null; label: string | null };
+  fearGreed: { value: number; label: string } | null;
+  news: { title: string; publisher: string; link: string; publishedAt: number }[];
+  updatedAt: string;
+}
 
-  // ── Supabase Auth セッション管理 ──────────────────────────────
-  const [authUser, setAuthUser] = useState<User | null>(null);
-  const [authLoading, setAuthLoading] = useState(true);
-
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      const user = session?.user ?? null;
-      setAuthUser(user);
-      if (user) {
-        const userName = user.user_metadata?.username ?? user.email?.split("@")[0] ?? "";
-        setCurrentUser({ id: user.id, name: userName });
-      }
-      setAuthLoading(false);
-    });
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      const user = session?.user ?? null;
-      setAuthUser(user);
-      if (user) {
-        const userName = user.user_metadata?.username ?? user.email?.split("@")[0] ?? "";
-        setCurrentUser({ id: user.id, name: userName });
-      }
-    });
-    return () => subscription.unsubscribe();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // URL の ?code= パラメータを検出してダイアログに渡す（room hydration より先に実行）
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const code = params.get("code");
-    if (code) {
-      const normalized = code.trim().toUpperCase().slice(0, 8);
-      setUrlCode(normalized);
-      setRoomDialogOpen(true);
-      const clean = window.location.pathname;
-      window.history.replaceState({}, "", clean);
-    }
-  }, []);
-
-  // Zustand が localStorage から hydrate した後にダイアログ状態を同期
-  // urlCode がある場合はダイアログを閉じない
-  useEffect(() => {
-    if (room && !urlCode) setRoomDialogOpen(false);
-  }, [room, urlCode]);
-  const [codeCopied, setCodeCopied] = useState(false);
-
-  // Filter state
-  const [filterText, setFilterText] = useState("");
-  const [filterCategories, setFilterCategories] = useState<string[]>([]);
-  const [filterBudgetMin, setFilterBudgetMin] = useState("");
-  const [filterBudgetMax, setFilterBudgetMax] = useState("");
-  const [filterOpenNow, setFilterOpenNow] = useState(false);
-  const [filterStatus, setFilterStatus] = useState<SpotStatus | null>(null);
-  const [sortOrder, setSortOrder] = useState<"default" | "distance">("default");
-
-  // ── 初期化: スポットステータスを読み込む ─────────────────
-  useEffect(() => {
-    loadSpotStatuses(currentUser.id);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentUser.id]);
-
-  // ── 初期化: ルームのメンバー一覧とロールを取得 ──────────
-  useEffect(() => {
-    if (!room) return;
-    supabase
-      .from("room_members")
-      .select("*")
-      .eq("room_id", room.id)
-      .then(({ data }) => {
-        if (!data) return;
-        setRoomMembers(data as RoomMember[]);
-        const me = data.find((m: RoomMember) => m.user_id === currentUser.id);
-        if (me) setMyRole(me.role);
-      });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [room?.id]);
-
-  // ── ジオロケーション（watchPosition）────────────────────
-  useEffect(() => {
-    if (!navigator.geolocation) return;
-
-    geoWatchRef.current = navigator.geolocation.watchPosition(
-      ({ coords: c }) => {
-        setUserLocation({ lat: c.latitude, lng: c.longitude });
-      },
-      (err) => console.warn("Geolocation error:", err),
-      { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 }
+function SignalBadge({ signal, strength }: { signal: "BUY" | "SELL" | "NEUTRAL"; strength: number }) {
+  if (signal === "BUY") {
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-900/60 text-emerald-400 border border-emerald-700">
+        <TrendingUp size={10} /> 買い {strength > 0 ? `+${strength}` : strength}
+      </span>
     );
+  }
+  if (signal === "SELL") {
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-red-900/60 text-red-400 border border-red-700">
+        <TrendingDown size={10} /> 売り {strength}
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-gray-700/60 text-gray-400 border border-gray-600">
+      <Minus size={10} /> 中立
+    </span>
+  );
+}
+
+function ScoreBar({ score, maxScore }: { score: number; maxScore: number }) {
+  const pct = maxScore > 0 ? ((score + maxScore) / (2 * maxScore)) * 100 : 50;
+  const clampedPct = Math.max(0, Math.min(100, pct));
+  return (
+    <div className="relative w-full h-3 bg-gray-800 rounded-full overflow-hidden">
+      <div className="absolute inset-0 flex">
+        <div className="w-1/2 h-full bg-gradient-to-r from-red-600 to-yellow-500" />
+        <div className="w-1/2 h-full bg-gradient-to-r from-yellow-500 to-emerald-500" />
+      </div>
+      <div
+        className="absolute top-0 h-full w-1 bg-white rounded-full shadow-lg transition-all duration-500"
+        style={{ left: `calc(${clampedPct}% - 2px)` }}
+      />
+    </div>
+  );
+}
+
+export default function SOXLDashboard() {
+  const [data, setData] = useState<SOXLData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [period, setPeriod] = useState<Period>("1y");
+  const [autoRefresh, setAutoRefresh] = useState(false);
+  const [refreshInterval, setRefreshInterval] = useState(300); // seconds
+  const [countdown, setCountdown] = useState(0);
+  const [showSettings, setShowSettings] = useState(false);
+  const [showChartOptions, setShowChartOptions] = useState(false);
+  const [lineToken, setLineToken] = useState("");
+  const [lastNotifiedSignal, setLastNotifiedSignal] = useState<string | null>(null);
+  const [notifStatus, setNotifStatus] = useState<string | null>(null);
+  const [chartOptions, setChartOptions] = useState({
+    showMA20: true,
+    showMA50: true,
+    showMA200: true,
+    showBB: true,
+  });
+  const [capitalJPY, setCapitalJPY] = useState(300000);
+  const [usdJpy, setUsdJpy] = useState(150);
+  const [usdJpyLoading, setUsdJpyLoading] = useState(true);
+  const [macro, setMacro] = useState<MacroData | null>(null);
+  const [events, setEvents] = useState<EventsData | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    fetch("/api/fx")
+      .then(r => r.json())
+      .then(d => { if (d.rate) setUsdJpy(d.rate); })
+      .catch(() => {})
+      .finally(() => setUsdJpyLoading(false));
+  }, []);
+
+  useEffect(() => {
+    fetch("/api/soxl/macro")
+      .then(r => r.json())
+      .then(d => setMacro(d))
+      .catch(() => {});
+    fetch("/api/soxl/events")
+      .then(r => r.json())
+      .then(d => setEvents(d))
+      .catch(() => {});
+  }, []);
+
+  const fetchData = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const res = await fetch(`/api/soxl?period=${period}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json: SOXLData = await res.json();
+      setData(json);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "データ取得エラー");
+    } finally {
+      setLoading(false);
+    }
+  }, [period]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  useEffect(() => {
+    if (intervalRef.current) clearInterval(intervalRef.current);
+    if (countdownRef.current) clearInterval(countdownRef.current);
+
+    if (autoRefresh) {
+      setCountdown(refreshInterval);
+      intervalRef.current = setInterval(() => {
+        fetchData();
+        setCountdown(refreshInterval);
+      }, refreshInterval * 1000);
+
+      countdownRef.current = setInterval(() => {
+        setCountdown(prev => (prev > 0 ? prev - 1 : refreshInterval));
+      }, 1000);
+    }
 
     return () => {
-      if (geoWatchRef.current !== null) {
-        navigator.geolocation.clearWatch(geoWatchRef.current);
-      }
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      if (countdownRef.current) clearInterval(countdownRef.current);
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [autoRefresh, refreshInterval, fetchData]);
 
-  // ── spotStatuses 変化時にポップアップ DOM を更新 ─────────
+  // Auto LINE notification when signal changes
   useEffect(() => {
-    popupStatusEls.current.forEach(({ wantBtn, visitedBtn }, placeId) => {
-      const status: SpotStatus | null = spotStatuses[placeId] ?? null;
-      applyPopupStatusStyles(wantBtn, visitedBtn, status);
-    });
-  }, [spotStatuses]);
+    if (!data || !lineToken) return;
+    const currentSignal = data.signals.overall;
+    if (lastNotifiedSignal !== null && lastNotifiedSignal !== currentSignal) {
+      sendLineNotification(data);
+    }
+    setLastNotifiedSignal(currentSignal);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data?.signals.overall]);
 
-  // Derived: filtered + sorted places
-  const filteredPlaces = useMemo(() => {
-    const query = filterText.trim().toLowerCase();
-    const budgetMin = filterBudgetMin.trim() ? parseInt(filterBudgetMin, 10) : null;
-    const budgetMax = filterBudgetMax.trim() ? parseInt(filterBudgetMax, 10) : null;
-
-    let result = places.filter((place) => {
-      if (query) {
-        const name = (place.name ?? "").toLowerCase();
-        const note = (place.note ?? "").toLowerCase();
-        if (!name.includes(query) && !note.includes(query)) return false;
-      }
-      if (filterCategories.length > 0) {
-        const hasMatch = place.categories?.some((cat) =>
-          filterCategories.includes(cat)
-        );
-        if (!hasMatch) return false;
-      }
-      if (budgetMin !== null && !isNaN(budgetMin)) {
-        if (place.budget_max !== null && place.budget_max < budgetMin) return false;
-      }
-      if (budgetMax !== null && !isNaN(budgetMax)) {
-        if (place.budget_min !== null && place.budget_min > budgetMax) return false;
-      }
-      // 🟢 営業中フィルター
-      if (filterOpenNow) {
-        const openStatus = isPlaceOpenNow(place.business_hours, place.opening_hours_text);
-        if (openStatus !== true) return false;
-      }
-      // ⭐/✅ ステータスフィルター
-      if (filterStatus !== null) {
-        if (spotStatuses[place.id] !== filterStatus) return false;
-      }
-      return true;
-    });
-
-    // 近い順ソート
-    if (sortOrder === "distance" && userLocation) {
-      result = [...result].sort((a, b) => {
-        const da = calcDistance(userLocation.lat, userLocation.lng, a.lat, a.lng);
-        const db = calcDistance(userLocation.lat, userLocation.lng, b.lat, b.lng);
-        return da - db;
+  const sendLineNotification = async (d: SOXLData) => {
+    if (!lineToken) return;
+    const msg = `\n【SOXL 自動分析】\n現在価格: $${d.quote.price.toFixed(2)} (${d.quote.priceChangePct > 0 ? "+" : ""}${d.quote.priceChangePct.toFixed(2)}%)\nシグナル: ${d.signals.overallLabel}（スコア: ${d.signals.score > 0 ? "+" : ""}${d.signals.score}）\nRSI: ${d.quote.rsi?.toFixed(1) ?? "N/A"}\n更新: ${new Date(d.lastUpdated).toLocaleString("ja-JP")}`;
+    try {
+      const res = await fetch("/api/soxl/notify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token: lineToken, message: msg }),
       });
+      if (res.ok) setNotifStatus("LINE通知を送信しました");
+      else setNotifStatus("LINE通知に失敗しました");
+      setTimeout(() => setNotifStatus(null), 4000);
+    } catch {
+      setNotifStatus("LINE通知エラー");
     }
-
-    return result;
-  }, [places, filterText, filterCategories, filterBudgetMin, filterBudgetMax, filterOpenNow, filterStatus, spotStatuses, sortOrder, userLocation]);
-
-  // 距離テキストのマップ（再レンダリングの最適化）
-  const distanceMap = useMemo(() => {
-    if (!userLocation) return new Map<string, string>();
-    return new Map(
-      filteredPlaces.map((p) => [
-        p.id,
-        formatDistance(calcDistance(userLocation.lat, userLocation.lng, p.lat, p.lng)),
-      ])
-    );
-  }, [filteredPlaces, userLocation]);
-
-  // filteredPlaces が変わったらマーカー表示/非表示を更新
-  useEffect(() => {
-    const filteredIds = new Set(filteredPlaces.map((p) => p.id));
-    markers.current.forEach((marker, id) => {
-      marker.getElement().style.display = filteredIds.has(id) ? "" : "none";
-    });
-  }, [filteredPlaces]);
-
-  function toggleFilterCategory(cat: string) {
-    setFilterCategories((prev) =>
-      prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat]
-    );
-  }
-
-  // ── マーカー追加（冪等: 既存は削除してから追加）──────
-  const addMarker = useCallback((place: Place) => {
-    if (!map.current) return;
-
-    // 既存マーカーを除去（idempotent）
-    markers.current.get(place.id)?.remove();
-    markers.current.delete(place.id);
-    popupStatusEls.current.delete(place.id);
-
-    const popupEl = document.createElement("div");
-    popupEl.className =
-      "w-44 overflow-hidden cursor-pointer transition-opacity hover:opacity-90 active:opacity-75";
-
-    const imageWrap = document.createElement("div");
-    imageWrap.className =
-      "h-24 w-full overflow-hidden bg-gray-100 flex items-center justify-center";
-
-    if (place.image_urls && place.image_urls.length > 0) {
-      const img = document.createElement("img");
-      img.src = place.image_urls[0];
-      img.alt = place.name;
-      img.className = "h-full w-full object-cover";
-      imageWrap.appendChild(img);
-    } else {
-      imageWrap.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>`;
-    }
-
-    const info = document.createElement("div");
-    info.className = "p-3 flex flex-col gap-1.5";
-
-    const titleEl = document.createElement("p");
-    titleEl.className = "font-semibold text-sm truncate";
-    titleEl.textContent = place.name;
-    info.appendChild(titleEl);
-
-    if (place.categories && place.categories.length > 0) {
-      const catsRow = document.createElement("div");
-      catsRow.className = "flex gap-1 flex-wrap";
-      place.categories.slice(0, 2).forEach((cat) => {
-        const badge = document.createElement("span");
-        badge.className =
-          "inline-flex items-center rounded-full border border-gray-200 px-2 py-0.5 text-xs font-medium text-gray-600";
-        badge.textContent = cat;
-        catsRow.appendChild(badge);
-      });
-      info.appendChild(catsRow);
-    }
-
-    const budgetParts: string[] = [];
-    if (place.budget_min != null)
-      budgetParts.push(`¥${place.budget_min.toLocaleString()}`);
-    if (place.budget_max != null)
-      budgetParts.push(`¥${place.budget_max.toLocaleString()}`);
-    if (budgetParts.length > 0) {
-      const budgetEl = document.createElement("p");
-      budgetEl.className = "text-xs text-gray-400";
-      budgetEl.textContent = budgetParts.join(" 〜 ");
-      info.appendChild(budgetEl);
-    }
-
-    // ── ステータストグルボタン ───────────────────────────
-    const statusRow = document.createElement("div");
-    statusRow.className = "flex gap-1 mt-0.5";
-
-    const wantBtn = document.createElement("button");
-    wantBtn.textContent = "⭐ 行きたい";
-
-    const visitedBtn = document.createElement("button");
-    visitedBtn.textContent = "✅ 行った";
-
-    // 初期スタイル（未登録は null = 未選択）
-    const initialStatus: SpotStatus | null =
-      useMapStore.getState().spotStatuses[place.id] ?? null;
-    applyPopupStatusStyles(wantBtn, visitedBtn, initialStatus);
-
-    wantBtn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      const store = useMapStore.getState();
-      const cur = store.spotStatuses[place.id] ?? null;
-      if (cur === "want_to_go") {
-        store.removeSpotStatus(place.id);
-        applyPopupStatusStyles(wantBtn, visitedBtn, null);
-      } else {
-        store.setSpotStatus(place.id, "want_to_go");
-        applyPopupStatusStyles(wantBtn, visitedBtn, "want_to_go");
-      }
-    });
-
-    visitedBtn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      const store = useMapStore.getState();
-      const cur = store.spotStatuses[place.id] ?? null;
-      if (cur === "visited") {
-        store.removeSpotStatus(place.id);
-        applyPopupStatusStyles(wantBtn, visitedBtn, null);
-      } else {
-        store.setSpotStatus(place.id, "visited");
-        applyPopupStatusStyles(wantBtn, visitedBtn, "visited");
-      }
-    });
-
-    statusRow.appendChild(wantBtn);
-    statusRow.appendChild(visitedBtn);
-    info.appendChild(statusRow);
-
-    // ボタン要素を登録（Zustand 更新時に DOM 同期するため）
-    popupStatusEls.current.set(place.id, { wantBtn, visitedBtn });
-
-    popupEl.appendChild(imageWrap);
-    popupEl.appendChild(info);
-
-    let markerInstance: mapboxgl.Marker | null = null;
-    popupEl.addEventListener("click", () => {
-      markerInstance?.getPopup()?.remove();
-      popupClickRef.current(place);
-    });
-
-    const popup = new mapboxgl.Popup({
-      offset: 12,
-      closeButton: false,
-      maxWidth: "none",
-      className: "custom-popup",
-    }).setDOMContent(popupEl);
-
-    const marker = new mapboxgl.Marker()
-      .setLngLat([place.lng, place.lat])
-      .setPopup(popup)
-      .addTo(map.current);
-
-    markerInstance = marker;
-    markers.current.set(place.id, marker);
-  }, []);
-
-  const removeMarker = useCallback((placeId: string) => {
-    markers.current.get(placeId)?.remove();
-    markers.current.delete(placeId);
-    popupStatusEls.current.delete(placeId);
-  }, []);
-
-  // addMarker/removeMarker を Realtime 内で使うためのref
-  const addMarkerRef = useRef(addMarker);
-  const removeMarkerRef = useRef(removeMarker);
-  useEffect(() => { addMarkerRef.current = addMarker; }, [addMarker]);
-  useEffect(() => { removeMarkerRef.current = removeMarker; }, [removeMarker]);
-
-  // ── マップ初期化 ─────────────────────────────────────
-  useEffect(() => {
-    if (map.current || !mapContainer.current) return;
-
-    mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
-
-    map.current = new mapboxgl.Map({
-      container: mapContainer.current,
-      style: "mapbox://styles/mapbox/streets-v12",
-      center: [139.6917, 35.6895],
-      zoom: 12,
-    });
-
-    map.current.addControl(new MapboxLanguage({ defaultLanguage: "ja" }));
-
-    map.current.on("load", () => {
-      setMapLoaded(true);
-    });
-
-    map.current.on("click", async (e) => {
-      if (!pickingModeRef.current) return;
-      const { lat, lng } = e.lngLat;
-      pickingModeRef.current = false;
-      setCoords({ lat, lng });
-      setPickingMode(false);
-      setSheetOpen(true);
-      const address = await reverseGeocode(lat, lng);
-      if (address) setGeocodedAddress(address);
-    });
-
-    return () => {
-      map.current?.remove();
-      map.current = null;
-    };
-  }, []);
-
-  // ── room + mapLoaded → スポットを読み込む ───────────
-  useEffect(() => {
-    if (!mapLoaded || !room) return;
-
-    // 既存マーカーをすべてクリア
-    markers.current.forEach((m) => m.remove());
-    markers.current.clear();
-    popupStatusEls.current.clear();
-
-    supabase
-      .from("places")
-      .select("*")
-      .eq("room_id", room.id)
-      .is("deleted_at", null)
-      .then(({ data }) => {
-        if (data) {
-          const loaded = data as Place[];
-          setPlaces(loaded);
-          loaded.forEach((p) => addMarkerRef.current(p));
-        }
-      });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mapLoaded, room?.id, setPlaces]);
-
-  // ── Supabase Realtime 購読 ───────────────────────────
-  useEffect(() => {
-    if (!room) return;
-    const myId = currentUser.id;
-
-    // ── places チャンネル ──
-    const placesChannel = supabase
-      .channel(`room-places-${room.id}`)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "places", filter: `room_id=eq.${room.id}` },
-        (payload) => {
-          const store = useMapStore.getState();
-          if (payload.eventType === "INSERT") {
-            const place = payload.new as Place;
-            if (place.deleted_at) return;
-            store.addPlace(place);
-            addMarkerRef.current(place);
-            // 他のユーザーが追加したスポットを通知
-            if (place.created_by_id !== myId) {
-              toast.info(`📍 ${place.created_by_name ?? "誰か"}さんが「${place.name}」を追加しました`);
-            }
-          } else if (payload.eventType === "UPDATE") {
-            const place = payload.new as Place;
-            if (place.deleted_at) {
-              store.removePlace(place.id);
-              removeMarkerRef.current(place.id);
-            } else {
-              store.upsertPlace(place);
-              addMarkerRef.current(place);
-            }
-          }
-        }
-      )
-      .subscribe();
-
-    // ── room_members チャンネル ──
-    const membersChannel = supabase
-      .channel(`room-members-${room.id}`)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "room_members", filter: `room_id=eq.${room.id}` },
-        (payload) => {
-          const store = useMapStore.getState();
-          if (payload.eventType === "INSERT") {
-            const member = payload.new as RoomMember;
-            store.upsertRoomMember(member);
-            // リーダーに参加通知
-            if (store.myRole === "leader" && member.user_id !== myId) {
-              toast.success(`👋 ${member.user_name}さんが参加しました`);
-            }
-          } else if (payload.eventType === "UPDATE") {
-            const member = payload.new as RoomMember;
-            store.upsertRoomMember(member);
-            // 自分のロールが変わったら即時反映
-            if (member.user_id === myId) {
-              store.setMyRole(member.role);
-              toast.info(`ロールが「${ROLE_LABELS[member.role]}」に変更されました`);
-            }
-          } else if (payload.eventType === "DELETE") {
-            const old = payload.old as { user_id: string };
-            store.removeRoomMember(old.user_id);
-          }
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(placesChannel);
-      supabase.removeChannel(membersChannel);
-    };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [room?.id]);
-
-  useEffect(() => {
-    if (!map.current) return;
-    map.current.getCanvas().style.cursor = pickingMode ? "crosshair" : "";
-  }, [pickingMode]);
-
-  // 拡大縮小時にリサイズ
-  useEffect(() => {
-    const timer = setTimeout(() => map.current?.resize(), 310);
-    return () => clearTimeout(timer);
-  }, [expanded]);
-
-  // ドラッグ可能なプレビューマーカー
-  useEffect(() => {
-    if (!map.current) return;
-
-    if (sheetOpen && coords) {
-      if (previewMarkerRef.current) {
-        previewMarkerRef.current.setLngLat([coords.lng, coords.lat]);
-      } else {
-        const marker = new mapboxgl.Marker({ color: "#E85D04", draggable: true })
-          .setLngLat([coords.lng, coords.lat])
-          .addTo(map.current);
-
-        marker.on("dragend", async () => {
-          const { lat, lng } = marker.getLngLat();
-          setCoords({ lat, lng });
-          const address = await reverseGeocode(lat, lng);
-          if (address) setGeocodedAddress(address);
-        });
-
-        previewMarkerRef.current = marker;
-      }
-    } else if (!sheetOpen) {
-      previewMarkerRef.current?.remove();
-      previewMarkerRef.current = null;
-    }
-  }, [sheetOpen, coords]);
-
-  // ── ハンドラー ───────────────────────────────────────
-  function handleLocateMe() {
-    // watchPosition で取得済みの座標があれば即座に使う
-    if (userLocation) {
-      map.current?.flyTo({
-        center: [userLocation.lng, userLocation.lat],
-        zoom: 15,
-        duration: 1500,
-      });
-      return;
-    }
-    // 未取得の場合は一度だけ取得
-    if (!navigator.geolocation) return;
-    navigator.geolocation.getCurrentPosition(
-      ({ coords: { latitude, longitude } }) => {
-        map.current?.flyTo({
-          center: [longitude, latitude],
-          zoom: 15,
-          duration: 1500,
-        });
-      },
-      (err) => console.warn("Geolocation error:", err),
-      { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
-    );
-  }
-
-  function handleSelectPlace(place: Place) {
-    map.current?.flyTo({ center: [place.lng, place.lat], zoom: 15, duration: 1200 });
-    setDrawerOpen(false);
-    setDetailPlace(place);
-    setDetailOpen(true);
-  }
-
-  popupClickRef.current = handleSelectPlace;
-
-  function handleEdit(place: Place) {
-    setEditPlace(place);
-    setCoords({ lat: place.lat, lng: place.lng });
-    setSheetOpen(true);
-  }
-
-  function handleDeleted(placeId: string) {
-    removePlace(placeId);
-    removeMarker(placeId);
-  }
-
-  function handleCoordsChange(newCoords: { lat: number; lng: number }) {
-    setCoords(newCoords);
-    map.current?.flyTo({ center: [newCoords.lng, newCoords.lat], zoom: 15, duration: 1000 });
-  }
-
-  function handlePickFromMap() {
-    setSheetOpen(false);
-    pickingModeRef.current = true;
-    setPickingMode(true);
-  }
-
-  function cancelPicking() {
-    pickingModeRef.current = false;
-    setPickingMode(false);
-    setSheetOpen(true);
-  }
-
-  function handleSaved(place: Place) {
-    const isUpdate = places.some((p) => p.id === place.id);
-    if (isUpdate) {
-      upsertPlace(place);
-    } else {
-      addPlace(place);
-    }
-    addMarker(place); // idempotent: 古いマーカーを除去して再追加
-    setCoords(null);
-    setEditPlace(undefined);
-  }
-
-  function handleSheetOpenChange(open: boolean) {
-    setSheetOpen(open);
-    if (!open) {
-      setEditPlace(undefined);
-      setCoords(null);
-      setGeocodedAddress(null);
-    }
-  }
-
-  async function handleRoomJoined(joinedRoom: Room, userName: string, isCreator: boolean) {
-    const role = isCreator ? "leader" : "member";
-    const updatedUser = { ...currentUser, name: userName };
-    setRoom(joinedRoom);
-    setCurrentUser(updatedUser);
-    setMyRole(role);
-    setRoomDialogOpen(false);
-    setUrlCode(undefined);
-
-    await supabase.from("room_members").upsert(
-      { room_id: joinedRoom.id, user_id: updatedUser.id, user_name: userName, role },
-      { onConflict: "room_id,user_id" }
-    );
-  }
-
-  // WelcomeScreen 用: 名前設定 + ルーム参加を一括処理
-  async function handleWelcomeComplete(name: string, joinedRoom: Room, isCreator: boolean) {
-    await handleRoomJoined(joinedRoom, name, isCreator);
-  }
-
-  async function handleLeaveRoom() {
-    if (room) {
-      await supabase.from("room_members")
-        .delete()
-        .eq("room_id", room.id)
-        .eq("user_id", currentUser.id);
-    }
-    clearRoom();
-    markers.current.forEach((m) => m.remove());
-    markers.current.clear();
-    setRoomDialogOpen(true);
-  }
-
-  async function handleLogout() {
-    if (room) {
-      await supabase.from("room_members")
-        .delete()
-        .eq("room_id", room.id)
-        .eq("user_id", currentUser.id);
-    }
-    clearRoom();
-    markers.current.forEach((m) => m.remove());
-    markers.current.clear();
-    await supabase.auth.signOut();
-    setCurrentUser({ id: "", name: "" });
-    setAuthUser(null);
-  }
-
-  function getRoomUrl() {
-    if (!room) return "";
-    return `${window.location.origin}${window.location.pathname}?code=${room.share_code}`;
-  }
-
-  function copyRoomCode() {
-    if (!room) return;
-    navigator.clipboard.writeText(room.share_code);
-    setCodeCopied(true);
-    setTimeout(() => setCodeCopied(false), 2000);
-  }
-
-  async function shareRoomUrl() {
-    const url = getRoomUrl();
-    if (!url || !room) return;
-    const shareData = {
-      title: room.name ?? "KokoMap ルーム",
-      text: `「${room.name ?? room.share_code}」に参加しませんか？`,
-      url,
-    };
-    if (navigator.share) {
-      try { await navigator.share(shareData); } catch { /* キャンセル等は無視 */ }
-    } else {
-      navigator.clipboard.writeText(url);
-      setCodeCopied(true);
-      setTimeout(() => setCodeCopied(false), 2000);
-    }
-  }
-
-  async function toggleRoomOpen() {
-    if (!room) return;
-    const next = !room.is_open;
-    const { error } = await supabase.from("rooms").update({ is_open: next }).eq("id", room.id);
-    if (error) {
-      console.error("Failed to update room:", error);
-      return;
-    }
-    setRoom({ ...room, is_open: next });
-  }
-
-  const countLabel =
-    filteredPlaces.length === places.length
-      ? `${places.length}件`
-      : `${filteredPlaces.length}/${places.length}件`;
-
-  // アクティブフィルター数（バッジ表示用）
-  const activeFilterCount = [
-    filterCategories.length > 0,
-    !!filterBudgetMin,
-    !!filterBudgetMax,
-    filterOpenNow,
-    !!filterStatus,
-  ].filter(Boolean).length;
-
-  function clearAllFilters() {
-    setFilterCategories([]);
-    setFilterBudgetMin("");
-    setFilterBudgetMax("");
-    setFilterOpenNow(false);
-    setFilterStatus(null);
-  }
-
-  // ── 認証前はローディングor認証画面を返す ──────────────────────
-  // フィルター Popover の中身（PC ヘッダー・モバイルドロワー共通）
-  const filterPopoverContent = (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <span className="text-sm font-semibold">フィルター</span>
-        {activeFilterCount > 0 && (
+  };
+
+  const testLineNotification = async () => {
+    if (!data) return;
+    await sendLineNotification(data);
+  };
+
+  const formatJST = (iso: string) => {
+    return new Date(iso).toLocaleString("ja-JP", {
+      timeZone: "Asia/Tokyo",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    }) + " JST";
+  };
+
+  const getSignalIcon = (overall: string) => {
+    if (overall.includes("BUY")) return <TrendingUp className="text-emerald-400" size={24} />;
+    if (overall.includes("SELL")) return <TrendingDown className="text-red-400" size={24} />;
+    return <Minus className="text-yellow-400" size={24} />;
+  };
+
+  const getOverallBg = (overall: string) => {
+    if (overall.includes("BUY")) return "from-emerald-900/40 to-emerald-800/20 border-emerald-700/50";
+    if (overall.includes("SELL")) return "from-red-900/40 to-red-800/20 border-red-700/50";
+    return "from-yellow-900/30 to-yellow-800/10 border-yellow-700/50";
+  };
+
+  const getRSIColor = (rsi: number | null) => {
+    if (rsi === null) return "text-gray-400";
+    if (rsi < 30) return "text-emerald-400";
+    if (rsi > 70) return "text-red-400";
+    return "text-blue-400";
+  };
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-950 flex items-center justify-center p-4">
+        <div className="text-center space-y-4">
+          <AlertTriangle className="text-red-500 mx-auto" size={48} />
+          <p className="text-red-400 text-lg font-medium">データ取得エラー</p>
+          <p className="text-gray-500 text-sm">{error}</p>
           <button
-            onClick={clearAllFilters}
-            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+            onClick={fetchData}
+            className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors"
           >
-            <X className="size-3" />
-            クリア
+            再試行
           </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-950 text-white">
+      {/* Header */}
+      <div className="border-b border-gray-800 bg-gray-900/50 backdrop-blur-sm sticky top-0 z-10">
+        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <BarChart2 className="text-blue-400" size={20} />
+              <span className="font-bold text-white text-lg">SOXL</span>
+              <span className="text-gray-400 text-sm hidden sm:inline">分析ダッシュボード</span>
+            </div>
+            {data && (
+              <div className="hidden md:flex items-center gap-1 text-xs text-gray-500">
+                <span>更新: {formatJST(data.lastUpdated)}</span>
+              </div>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2">
+            {/* Period selector */}
+            <div className="flex bg-gray-800 rounded-lg p-0.5 gap-0.5">
+              {(["3mo", "6mo", "1y", "2y"] as Period[]).map((p) => (
+                <button
+                  key={p}
+                  onClick={() => setPeriod(p)}
+                  className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
+                    period === p
+                      ? "bg-blue-600 text-white"
+                      : "text-gray-400 hover:text-white"
+                  }`}
+                >
+                  {p}
+                </button>
+              ))}
+            </div>
+
+            {/* Auto refresh toggle */}
+            <button
+              onClick={() => setAutoRefresh(!autoRefresh)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                autoRefresh
+                  ? "bg-blue-600 text-white"
+                  : "bg-gray-800 text-gray-400 hover:text-white"
+              }`}
+            >
+              <RefreshCw size={12} className={autoRefresh && loading ? "animate-spin" : ""} />
+              {autoRefresh ? `${countdown}s` : "自動更新"}
+            </button>
+
+            {/* Manual refresh */}
+            <button
+              onClick={fetchData}
+              disabled={loading}
+              className="p-1.5 rounded-lg bg-gray-800 text-gray-400 hover:text-white transition-colors disabled:opacity-50"
+            >
+              <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
+            </button>
+
+            {/* Settings */}
+            <button
+              onClick={() => setShowSettings(!showSettings)}
+              className={`p-1.5 rounded-lg transition-colors ${showSettings ? "bg-blue-600 text-white" : "bg-gray-800 text-gray-400 hover:text-white"}`}
+            >
+              <Settings size={14} />
+            </button>
+          </div>
+        </div>
+
+        {/* Settings panel */}
+        {showSettings && (
+          <div className="border-t border-gray-800 bg-gray-900 px-4 py-3">
+            <div className="max-w-7xl mx-auto flex flex-wrap gap-6">
+              <div className="space-y-1">
+                <p className="text-xs text-gray-500 font-medium uppercase tracking-wide">自動更新間隔</p>
+                <div className="flex gap-1">
+                  {[60, 300, 600, 1800].map(sec => (
+                    <button
+                      key={sec}
+                      onClick={() => setRefreshInterval(sec)}
+                      className={`px-2 py-1 rounded text-xs transition-colors ${
+                        refreshInterval === sec ? "bg-blue-600 text-white" : "bg-gray-800 text-gray-400 hover:text-white"
+                      }`}
+                    >
+                      {sec >= 60 ? `${sec / 60}分` : `${sec}秒`}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <p className="text-xs text-gray-500 font-medium uppercase tracking-wide">LINE通知トークン</p>
+                <div className="flex gap-2">
+                  <input
+                    type="password"
+                    value={lineToken}
+                    onChange={(e) => setLineToken(e.target.value)}
+                    placeholder="LINE Notify トークン"
+                    className="bg-gray-800 border border-gray-700 rounded px-2 py-1 text-xs text-white w-52 focus:outline-none focus:border-blue-500"
+                  />
+                  <button
+                    onClick={testLineNotification}
+                    disabled={!lineToken || !data}
+                    className="flex items-center gap-1 px-2 py-1 bg-green-700 hover:bg-green-600 text-white text-xs rounded disabled:opacity-50 transition-colors"
+                  >
+                    <Bell size={10} /> テスト
+                  </button>
+                  {lineToken ? (
+                    <Bell className="text-green-400 self-center" size={14} />
+                  ) : (
+                    <BellOff className="text-gray-600 self-center" size={14} />
+                  )}
+                </div>
+                {notifStatus && <p className="text-xs text-blue-400">{notifStatus}</p>}
+              </div>
+            </div>
+          </div>
         )}
       </div>
 
-      <div className="flex flex-col gap-1.5">
-        <span className="text-xs font-medium text-muted-foreground">ステータス</span>
-        <div className="flex gap-1.5">
-          <Badge
-            variant={filterStatus === "want_to_go" ? "default" : "outline"}
-            className={cn("cursor-pointer select-none text-xs transition-colors gap-1", filterStatus === "want_to_go" && "bg-amber-500 hover:bg-amber-600 border-amber-500")}
-            onClick={() => setFilterStatus((prev) => prev === "want_to_go" ? null : "want_to_go")}
-          >
-            <Star className="size-3" />行きたい
-          </Badge>
-          <Badge
-            variant={filterStatus === "visited" ? "default" : "outline"}
-            className={cn("cursor-pointer select-none text-xs transition-colors gap-1", filterStatus === "visited" && "bg-green-600 hover:bg-green-700 border-green-600")}
-            onClick={() => setFilterStatus((prev) => prev === "visited" ? null : "visited")}
-          >
-            <CheckCircle2 className="size-3" />行った
-          </Badge>
+      {loading && !data ? (
+        <div className="max-w-7xl mx-auto px-4 py-16 flex flex-col items-center gap-4">
+          <div className="w-10 h-10 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+          <p className="text-gray-400 text-sm">SOXLデータを取得中...</p>
         </div>
-      </div>
+      ) : data ? (
+        <div className="max-w-7xl mx-auto px-4 py-4 space-y-4">
 
-      <div className="flex flex-col gap-1.5">
-        <span className="text-xs font-medium text-muted-foreground">予算</span>
-        <div className="flex items-center gap-1.5">
-          <Input type="number" min={0} value={filterBudgetMin} onChange={(e) => setFilterBudgetMin(e.target.value)} placeholder="下限" className="h-8 text-xs w-0 flex-1" />
-          <span className="text-xs text-muted-foreground shrink-0">円〜</span>
-          <Input type="number" min={0} value={filterBudgetMax} onChange={(e) => setFilterBudgetMax(e.target.value)} placeholder="上限" className="h-8 text-xs w-0 flex-1" />
-          <span className="text-xs text-muted-foreground shrink-0">円</span>
-        </div>
-      </div>
+          {/* ── Action Recommendation Banner ── */}
+          {(() => {
+            const a = data.action;
+            const icon =
+              a.action === "ENTER" ? "🚀" :
+              a.action === "AVOID" ? "🚫" : "⏳";
+            const bgClass =
+              a.action === "ENTER"
+                ? "bg-emerald-950/70 border-emerald-700/60"
+                : a.action === "AVOID"
+                ? "bg-red-950/70 border-red-700/60"
+                : "bg-yellow-950/60 border-yellow-700/50";
 
-      <div className="flex flex-col gap-2">
-        <label className="flex items-center gap-2 cursor-pointer select-none">
-          <Switch checked={filterOpenNow} onCheckedChange={setFilterOpenNow} className="scale-90" />
-          <span className="text-xs">🟢 営業中のみ</span>
-        </label>
-      </div>
-
-      <div className="flex flex-col gap-1.5">
-        <span className="text-xs font-medium text-muted-foreground">並び順</span>
-        <div className="flex gap-1.5">
-          <Badge variant={sortOrder === "default" ? "default" : "outline"} className="cursor-pointer select-none text-xs transition-colors" onClick={() => setSortOrder("default")}>
-            追加順
-          </Badge>
-          <Badge
-            variant={sortOrder === "distance" ? "default" : "outline"}
-            className={cn("cursor-pointer select-none text-xs transition-colors", !userLocation && "opacity-40 pointer-events-none")}
-            onClick={() => { if (userLocation) setSortOrder("distance"); }}
-            title={userLocation ? undefined : "現在地の取得中..."}
-          >
-            近い順
-          </Badge>
-        </div>
-      </div>
-    </div>
-  );
-
-  // モバイルドロワー用: 検索 + フィルターボタン
-  const filterUI = (
-    <div className="flex items-center gap-2 px-4 py-2.5 border-b">
-      <div className="relative flex-1">
-        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground pointer-events-none" />
-        <Input
-          value={filterText}
-          onChange={(e) => setFilterText(e.target.value)}
-          placeholder="名前やメモで検索..."
-          className="h-8 pl-8 text-xs"
-        />
-      </div>
-      <Popover>
-        <PopoverTrigger asChild>
-          <Button variant="outline" size="sm" className={cn("h-8 gap-1.5 text-xs shrink-0 cursor-pointer", activeFilterCount > 0 && "border-primary text-primary")}>
-            <SlidersHorizontal className="size-3.5" />
-            フィルター
-            {activeFilterCount > 0 && (
-              <span className="ml-0.5 flex size-4 items-center justify-center rounded-full bg-primary text-[10px] text-primary-foreground font-bold">
-                {activeFilterCount}
-              </span>
-            )}
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-72 p-4" align="end" sideOffset={8}>
-          {filterPopoverContent}
-        </PopoverContent>
-      </Popover>
-    </div>
-  );
-
-  return (
-    <div className="flex flex-col h-[100dvh] w-screen overflow-hidden">
-
-      {/* ── PC: トップカテゴリ＋フィルターバー ── */}
-      <div className="hidden md:flex shrink-0 bg-background border-b h-[52px]">
-
-        {/* 左: マップ幅エリア（カテゴリ横スクロール + フィルターボタン） */}
-        <div className="relative flex-1 overflow-hidden h-full flex items-center">
-          <div className="overflow-x-auto scrollbar-hide h-full flex items-center w-full">
-            <div className="flex items-center gap-1.5 px-4 h-full min-w-max">
-              <button
-                onClick={() => setFilterCategories([])}
-                className={cn(
-                  "flex items-center gap-1.5 px-4 py-1.5 rounded-full text-sm font-medium border transition-all shrink-0 cursor-pointer",
-                  filterCategories.length === 0
-                    ? "bg-foreground text-background border-foreground hover:opacity-80"
-                    : "text-muted-foreground border-transparent hover:border-border hover:text-foreground hover:bg-muted/50"
-                )}
-              >
-                すべて
-              </button>
-              {PRESET_CATEGORIES.map((cat) => {
-                const Icon = CATEGORY_ICONS[cat as keyof typeof CATEGORY_ICONS];
-                const isActive = filterCategories.includes(cat);
-                return (
-                  <button
-                    key={cat}
-                    onClick={() => toggleFilterCategory(cat)}
-                    className={cn(
-                      "flex items-center gap-1.5 px-4 py-1.5 rounded-full text-sm font-medium border transition-all shrink-0 cursor-pointer",
-                      isActive
-                        ? "bg-foreground text-background border-foreground hover:opacity-80"
-                        : "text-muted-foreground border-transparent hover:border-border hover:text-foreground hover:bg-muted/50"
-                    )}
-                  >
-                    <Icon className="size-4" />
-                    {cat}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* グラデーション境界 + フィルターボタン（マップ右端に固定） */}
-          <div className="absolute right-0 top-0 h-full flex items-center">
-            <div className="w-16 h-full bg-gradient-to-l from-background to-transparent pointer-events-none" />
-            <div className="flex items-center pr-3 pl-1 bg-background h-full">
-              <Popover>
-                <PopoverTrigger asChild>
-                  <button
-                    className={cn(
-                      "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition-all cursor-pointer hover:scale-105 active:scale-95",
-                      activeFilterCount > 0
-                        ? "bg-foreground text-background border-foreground hover:opacity-80"
-                        : "text-muted-foreground border-border hover:bg-muted/50 hover:text-foreground hover:border-foreground/30"
-                    )}
-                  >
-                    <SlidersHorizontal className="size-4" />
-                    フィルター
-                    {activeFilterCount > 0 && (
-                      <span className="flex size-4 items-center justify-center rounded-full bg-primary-foreground text-[10px] text-primary font-bold">
-                        {activeFilterCount}
+            return (
+              <div className={`rounded-xl border-2 p-5 ${bgClass}`}>
+                {/* Top row */}
+                <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+                  <div className="flex items-center gap-3">
+                    <span className="text-3xl">{icon}</span>
+                    <div>
+                      <p className="text-xs text-gray-400 uppercase tracking-widest font-medium flex items-center gap-2">
+                        現在の推奨アクション
+                        {a.vixOverride && (
+                          <span className="text-orange-400 bg-orange-900/40 border border-orange-700/50 rounded px-1.5 py-0.5 text-xs font-bold normal-case tracking-normal">
+                            VIX調整済み
+                          </span>
+                        )}
+                        {a.eventOverride && (
+                          <span className="text-blue-400 bg-blue-900/40 border border-blue-700/50 rounded px-1.5 py-0.5 text-xs font-bold normal-case tracking-normal">
+                            イベント考慮済み
+                          </span>
+                        )}
+                      </p>
+                      <p
+                        className="text-2xl font-black leading-tight"
+                        style={{ color: a.color }}
+                      >
+                        {a.label}
+                      </p>
+                    </div>
+                  </div>
+                  {/* Confidence bar */}
+                  <div className="text-right min-w-[100px]">
+                    <p className="text-xs text-gray-500 mb-1">確信度</p>
+                    <div className="flex items-center gap-2">
+                      <div className="w-24 h-2 bg-gray-800 rounded-full overflow-hidden">
+                        <div
+                          className="h-full rounded-full transition-all"
+                          style={{
+                            width: `${a.confidence}%`,
+                            backgroundColor: a.color,
+                          }}
+                        />
+                      </div>
+                      <span className="text-sm font-bold" style={{ color: a.color }}>
+                        {a.confidence}%
                       </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Summary */}
+                <p className="text-white text-sm font-medium mb-4 leading-relaxed">
+                  {a.summary}
+                </p>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Reasons */}
+                  {a.reasons.length > 0 && (
+                    <div>
+                      <p className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-2">
+                        {a.action === "AVOID" ? "⚠ 懸念点" : "✓ 根拠"}
+                      </p>
+                      <ul className="space-y-1">
+                        {a.reasons.map((r, i) => (
+                          <li key={i} className="flex items-start gap-2 text-sm">
+                            <span
+                              className="mt-0.5 flex-shrink-0 font-bold"
+                              style={{ color: a.color }}
+                            >
+                              {a.action === "AVOID" ? "✗" : "✓"}
+                            </span>
+                            <span className="text-gray-300">{r}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* Wait for / Danger */}
+                  <div className="space-y-3">
+                    {a.waitFor.length > 0 && (
+                      <div>
+                        <p className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-2">
+                          {a.action === "AVOID" ? "回復の条件" : "エントリー待ちの条件"}
+                        </p>
+                        <ul className="space-y-1">
+                          {a.waitFor.map((w, i) => (
+                            <li key={i} className="flex items-start gap-2 text-sm">
+                              <span className="text-yellow-500 mt-0.5 flex-shrink-0">→</span>
+                              <span className="text-gray-300">{w}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
                     )}
-                  </button>
-                </PopoverTrigger>
-                <PopoverContent className="w-72 p-4" align="end" sideOffset={8}>
-                  {filterPopoverContent}
-                </PopoverContent>
-              </Popover>
-            </div>
-          </div>
-        </div>
-
-        {/* 右: サイドバーと同幅スペーサー（マップ右端をヘッダーと揃える） */}
-        <div className={cn(
-          "shrink-0 border-l transition-[width] duration-300 ease-in-out flex items-center justify-end px-3",
-          expanded ? "w-0 overflow-hidden" : "w-[420px]"
-        )}>
-          {authUser && (
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground">{currentUser.name}</span>
-              <button
-                onClick={handleLogout}
-                title="ログアウト"
-                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs text-muted-foreground hover:text-red-500 hover:bg-red-50 transition-colors cursor-pointer"
-              >
-                <LogOut className="size-3.5" />
-                ログアウト
-              </button>
-            </div>
-          )}
-        </div>
-
-      </div>
-
-      {/* ── モバイル: ルーム情報ヘッダーバー ── */}
-      {room && (
-        <div className="md:hidden shrink-0 flex items-center justify-between px-3 bg-background border-b gap-2" style={{ minHeight: '52px' }}>
-          {/* 左: ロール + コード */}
-          <div className="flex items-center gap-2 min-w-0 flex-1">
-            {myRole && (
-              <span className={`flex items-center gap-0.5 text-[10px] font-bold rounded-full px-1.5 py-0.5 shrink-0 border
-                ${myRole === "leader" ? "text-yellow-700 bg-yellow-50 border-yellow-200" :
-                  myRole === "admin"  ? "text-blue-700 bg-blue-50 border-blue-200" :
-                  myRole === "viewer" ? "text-gray-500 bg-gray-50 border-gray-200" :
-                  "text-green-700 bg-green-50 border-green-200"}`}>
-                {myRole === "leader" ? <Crown className="size-2.5" /> :
-                 myRole === "admin"  ? <Shield className="size-2.5" /> :
-                 myRole === "viewer" ? <Eye className="size-2.5" /> :
-                 <Users className="size-2.5" />}
-                {ROLE_LABELS[myRole]}
-              </span>
-            )}
-            {room.name && (
-              <span className="text-xs font-medium truncate max-w-[80px]">{room.name}</span>
-            )}
-            <span className="text-xs text-muted-foreground shrink-0 font-mono font-bold tracking-wider">{room.share_code}</span>
-          </div>
-          {/* 右: アイコンのみボタン群 */}
-          <div className="flex items-center shrink-0">
-            {canManageRoom && (
-              <button
-                onClick={toggleRoomOpen}
-                title={room.is_open ? "参加を締め切る" : "参加を再開する"}
-                className={`p-2.5 rounded-md transition-colors cursor-pointer ${room.is_open ? "text-green-600 hover:bg-green-50" : "text-red-500 hover:bg-red-50"}`}
-              >
-                {room.is_open ? <Unlock className="size-4" /> : <Lock className="size-4" />}
-              </button>
-            )}
-            {canManageMembers && (
-              <button
-                onClick={() => setMemberManageOpen(true)}
-                title="メンバー管理"
-                className="p-2.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
-              >
-                <Users className="size-4" />
-              </button>
-            )}
-            <button
-              onClick={copyRoomCode}
-              title="コードをコピー"
-              className="p-2.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
-            >
-              {codeCopied ? <Check className="size-4 text-green-600" /> : <Copy className="size-4" />}
-            </button>
-            <button
-              onClick={shareRoomUrl}
-              title="シェア"
-              className="p-2.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
-            >
-              <Share2 className="size-4" />
-            </button>
-            <button
-              onClick={handleLeaveRoom}
-              title="ルームを変更"
-              className="p-2.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
-            >
-              <LogOut className="size-4" />
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* ── メインコンテンツ（マップ＋リスト） ── */}
-      <div className="flex flex-1 overflow-hidden">
-
-        {/* ── マップ（PC: 左 flex-1、モバイル: 全画面） ── */}
-        <div className="relative flex-1 overflow-hidden">
-          <div ref={mapContainer} className="w-full h-full" />
-
-          {pickingMode && (
-            <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 bg-white rounded-full shadow-lg px-5 py-2.5 flex items-center gap-3 text-sm font-medium whitespace-nowrap">
-              <span>地図をクリックして場所を指定してください</span>
-              <button
-                onClick={cancelPicking}
-                className="text-xs underline opacity-60 hover:opacity-100 cursor-pointer transition-opacity"
-              >
-                キャンセル
-              </button>
-            </div>
-          )}
-
-
-          {/* PC: リスト切替ボタン */}
-          <button
-            onClick={() => setExpanded((v) => !v)}
-            className="hidden md:flex absolute top-4 right-3 z-10 items-center gap-1.5 bg-white rounded-full shadow-md px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 hover:shadow-lg active:scale-95 transition-all border border-gray-100 cursor-pointer"
-            title={expanded ? "リストを表示" : "リストを隠す"}
-          >
-            <List className="size-3.5" />
-            {expanded ? "リスト表示" : "リストを隠す"}
-          </button>
-
-          {/* モバイル: ログアウトボタン（右上） */}
-          {authUser && (
-            <button
-              onClick={handleLogout}
-              title="ログアウト"
-              className="md:hidden absolute top-3 right-3 z-20 bg-white rounded-full shadow-md p-2.5 text-muted-foreground hover:text-red-500 hover:bg-red-50 transition-colors cursor-pointer"
-            >
-              <LogOut className="size-4" />
-            </button>
-          )}
-
-          {/* 現在地ボタン */}
-          <button
-            onClick={handleLocateMe}
-            className="absolute z-10 bg-white rounded-full shadow-lg p-2.5 hover:bg-gray-50 hover:shadow-xl active:scale-95 transition-all cursor-pointer right-3 md:bottom-6"
-            style={{ bottom: 'calc(34dvh + env(safe-area-inset-bottom, 0px) + 3.5rem)' }}
-            title="現在地へ移動"
-          >
-            <LocateFixed className="size-5 text-gray-700" />
-          </button>
-
-          {/* モバイル: ＋ 追加 FAB（閲覧者には非表示） */}
-          {canAdd && (
-            <button
-              onClick={() => { setEditPlace(undefined); setSheetOpen(true); }}
-              disabled={!room}
-              className="md:hidden absolute right-3 z-10 bg-primary text-primary-foreground rounded-full shadow-lg p-3 hover:opacity-90 active:scale-95 transition-all disabled:opacity-40 cursor-pointer"
-              style={{ bottom: 'calc(34dvh + env(safe-area-inset-bottom, 0px) + 0.75rem)' }}
-              title="場所を追加"
-            >
-              <Plus className="size-5" />
-            </button>
-          )}
-        </div>
-
-        {/* ── PC: 右リストパネル ── */}
-        <div
-          className={cn(
-            "hidden md:flex flex-col bg-background border-l shrink-0 transition-[width] duration-300 ease-in-out overflow-hidden",
-            expanded ? "w-0" : "w-[420px]"
-          )}
-        >
-          <div className="shrink-0 bg-background">
-            {/* タイトルバー */}
-            <div className="flex items-center justify-between px-5 py-3.5 border-b">
-              <h2 className="font-semibold text-sm">
-                スポット一覧
-                <span className="ml-2 text-muted-foreground font-normal">{countLabel}</span>
-              </h2>
-              <Button
-                size="sm"
-                className="rounded-full font-medium gap-1 hover:scale-105 hover:shadow-md transition-all cursor-pointer"
-                onClick={() => { setEditPlace(undefined); setSheetOpen(true); }}
-                disabled={!room || !canAdd}
-              >
-                ＋ 追加する
-              </Button>
-            </div>
-
-            {/* ルーム情報バー */}
-            {room && (
-              <div className="flex items-center justify-between px-5 py-2 bg-muted/40 border-b">
-                <div className="flex flex-col min-w-0 gap-0.5">
-                  <div className="flex items-center gap-1.5">
-                    {myRole && (
-                      <span className={`flex items-center gap-0.5 text-[10px] font-bold rounded-full px-1.5 py-0.5 shrink-0 border
-                        ${myRole === "leader" ? "text-yellow-700 bg-yellow-50 border-yellow-200" :
-                          myRole === "admin"  ? "text-blue-700 bg-blue-50 border-blue-200" :
-                          myRole === "viewer" ? "text-gray-500 bg-gray-50 border-gray-200" :
-                          "text-green-700 bg-green-50 border-green-200"}`}>
-                        {myRole === "leader" ? <Crown className="size-2.5" /> :
-                         myRole === "admin"  ? <Shield className="size-2.5" /> :
-                         myRole === "viewer" ? <Eye className="size-2.5" /> :
-                         <Users className="size-2.5" />}
-                        {ROLE_LABELS[myRole]}
-                      </span>
-                    )}
-                    {room.name && (
-                      <span className="text-xs font-medium truncate">{room.name}</span>
+                    {a.avoidBelow !== null && (
+                      <div className="flex items-center gap-2 bg-red-900/30 border border-red-800/50 rounded-lg px-3 py-2">
+                        <AlertTriangle className="text-red-400 flex-shrink-0" size={14} />
+                        <span className="text-sm text-red-300">
+                          <span className="font-bold">${a.avoidBelow.toFixed(2)}</span> を割ったら完全撤退 / 参加見送り
+                        </span>
+                      </div>
                     )}
                   </div>
-                  <span className="text-xs text-muted-foreground">
-                    コード:{" "}
-                    <span className="font-mono font-bold text-foreground">{room.share_code}</span>
-                  </span>
-                </div>
-                <div className="flex gap-1 shrink-0">
-                  {canManageRoom && (
-                    <button
-                      onClick={toggleRoomOpen}
-                      title={room.is_open ? "参加を締め切る" : "参加を再開する"}
-                      className={`p-1.5 rounded transition-colors cursor-pointer ${room.is_open ? "text-green-700 hover:bg-green-50" : "text-red-600 hover:bg-red-50"}`}
-                    >
-                      {room.is_open ? <Unlock className="size-3.5" /> : <Lock className="size-3.5" />}
-                    </button>
-                  )}
-                  {canManageMembers && (
-                    <button
-                      onClick={() => setMemberManageOpen(true)}
-                      title="メンバー管理"
-                      className="p-1.5 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground cursor-pointer"
-                    >
-                      <Users className="size-3.5" />
-                    </button>
-                  )}
-                  <button
-                    onClick={copyRoomCode}
-                    title="コードをコピー"
-                    className="p-1.5 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground cursor-pointer"
-                  >
-                    {codeCopied ? <Check className="size-3.5 text-green-600" /> : <Copy className="size-3.5" />}
-                  </button>
-                  <button
-                    onClick={shareRoomUrl}
-                    title="シェア"
-                    className="p-1.5 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground cursor-pointer"
-                  >
-                    <Share2 className="size-3.5" />
-                  </button>
-                  <button
-                    onClick={handleLeaveRoom}
-                    title="ルームを変更"
-                    className="p-1.5 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground cursor-pointer"
-                  >
-                    <LogOut className="size-3.5" />
-                  </button>
                 </div>
               </div>
-            )}
+            );
+          })()}
 
-            {/* 検索バー */}
-            <div className="flex items-center px-4 py-2.5 border-b">
-              <div className="relative flex-1">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground pointer-events-none" />
-                <Input
-                  value={filterText}
-                  onChange={(e) => setFilterText(e.target.value)}
-                  placeholder="名前やメモで検索..."
-                  className="h-8 pl-8 text-xs"
-                />
+          {/* ── Macro Context Panel ── */}
+          {macro && (
+            <div className="bg-gray-900 rounded-xl border border-gray-800 p-4">
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="font-semibold text-white text-sm flex items-center gap-2">
+                  <Activity size={15} className="text-purple-400" />
+                  マクロ環境 / 市場センチメント
+                </h2>
+                <span className="text-xs text-gray-600">
+                  {new Date(macro.updatedAt).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })} 更新
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-4">
+                {/* VIX */}
+                <div className={`rounded-lg p-3 border ${
+                  !macro.vix.classification ? "bg-gray-800/50 border-gray-700" :
+                  macro.vix.classification.level === "normal" ? "bg-emerald-900/20 border-emerald-800/40" :
+                  macro.vix.classification.level === "low" ? "bg-yellow-900/20 border-yellow-800/40" :
+                  macro.vix.classification.level === "extreme" ? "bg-red-900/40 border-red-700/60" :
+                  "bg-orange-900/20 border-orange-800/40"
+                }`}>
+                  <p className="text-xs text-gray-500 mb-1">VIX（恐怖指数）</p>
+                  <p className="text-2xl font-black font-mono" style={{ color: macro.vix.classification?.color ?? "#9CA3AF" }}>
+                    {macro.vix.price?.toFixed(1) ?? "N/A"}
+                  </p>
+                  <p className="text-xs mt-0.5" style={{ color: macro.vix.classification?.color ?? "#9CA3AF" }}>
+                    {macro.vix.classification?.label ?? ""}
+                  </p>
+                  {macro.vix.classification && (
+                    <p className="text-xs text-gray-600 mt-0.5">{macro.vix.classification.soxlImpact}</p>
+                  )}
+                  {macro.vix.changePct !== null && (
+                    <p className={`text-xs mt-1 font-mono ${macro.vix.changePct >= 0 ? "text-red-400" : "text-emerald-400"}`}>
+                      {macro.vix.changePct >= 0 ? "+" : ""}{macro.vix.changePct.toFixed(1)}%
+                    </p>
+                  )}
+                </div>
+
+                {/* Fear & Greed */}
+                <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-700">
+                  <p className="text-xs text-gray-500 mb-1">Fear &amp; Greed</p>
+                  {macro.fearGreed ? (
+                    <>
+                      <p className={`text-2xl font-black font-mono ${
+                        macro.fearGreed.value <= 25 ? "text-red-400" :
+                        macro.fearGreed.value <= 45 ? "text-orange-400" :
+                        macro.fearGreed.value <= 55 ? "text-yellow-400" :
+                        macro.fearGreed.value <= 75 ? "text-emerald-400" : "text-green-300"
+                      }`}>
+                        {macro.fearGreed.value}
+                      </p>
+                      <p className="text-xs text-gray-400 mt-0.5">{macro.fearGreed.label}</p>
+                      <div className="mt-1.5 h-1.5 bg-gray-700 rounded-full overflow-hidden">
+                        <div
+                          className="h-full rounded-full bg-gradient-to-r from-red-500 via-yellow-400 to-emerald-500"
+                          style={{ width: `${macro.fearGreed.value}%` }}
+                        />
+                      </div>
+                    </>
+                  ) : (
+                    <p className="text-gray-600 text-sm">取得中…</p>
+                  )}
+                </div>
+
+                {/* SOX */}
+                <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-700">
+                  <p className="text-xs text-gray-500 mb-1">SOX（半導体指数）</p>
+                  <p className="text-lg font-bold font-mono text-white">
+                    {macro.sox.price ? macro.sox.price.toLocaleString("en-US", { maximumFractionDigits: 0 }) : "N/A"}
+                  </p>
+                  {macro.sox.changePct !== null && (
+                    <p className={`text-sm font-mono font-bold mt-0.5 ${macro.sox.changePct >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                      {macro.sox.changePct >= 0 ? "+" : ""}{macro.sox.changePct.toFixed(2)}%
+                    </p>
+                  )}
+                  <p className="text-xs text-gray-600">SOXLの基礎指数</p>
+                </div>
+
+                {/* NASDAQ 100 */}
+                <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-700">
+                  <p className="text-xs text-gray-500 mb-1">NASDAQ 100</p>
+                  <p className="text-lg font-bold font-mono text-white">
+                    {macro.ndx.price ? macro.ndx.price.toLocaleString("en-US", { maximumFractionDigits: 0 }) : "N/A"}
+                  </p>
+                  {macro.ndx.changePct !== null && (
+                    <p className={`text-sm font-mono font-bold mt-0.5 ${macro.ndx.changePct >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                      {macro.ndx.changePct >= 0 ? "+" : ""}{macro.ndx.changePct.toFixed(2)}%
+                    </p>
+                  )}
+                </div>
+
+                {/* 10-year yield TNX */}
+                {macro.tnx && (
+                  <div className={`rounded-lg p-3 border ${macro.tnx.danger ? "bg-red-900/30 border-red-700/60" : macro.tnx.rising ? "bg-orange-900/20 border-orange-800/40" : "bg-gray-800/50 border-gray-700"}`}>
+                    <p className="text-xs text-gray-500 mb-1">米10年金利（TNX）</p>
+                    <p className={`text-lg font-bold font-mono ${macro.tnx.danger ? "text-red-400" : macro.tnx.rising ? "text-orange-400" : "text-emerald-400"}`}>
+                      {macro.tnx.price ? `${macro.tnx.price.toFixed(2)}%` : "N/A"}
+                    </p>
+                    <p className={`text-xs mt-0.5 ${macro.tnx.danger ? "text-red-500" : "text-gray-500"}`}>
+                      {macro.tnx.label ?? ""}
+                    </p>
+                    {macro.tnx.changePct !== null && (
+                      <p className={`text-xs font-mono mt-0.5 ${macro.tnx.rising ? "text-orange-400" : "text-emerald-400"}`}>
+                        {macro.tnx.rising ? "↑ 上昇中" : "↓ 低下中"}
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {/* NVDA Relative Strength vs SPY */}
+                {macro.nvdaRS && (
+                  <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-700">
+                    <p className="text-xs text-gray-500 mb-1">NVDA相対強度（vs SPY）</p>
+                    <p className={`text-lg font-bold font-mono ${(macro.nvdaRS.value ?? 0) >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                      {macro.nvdaRS.value != null ? `${macro.nvdaRS.value >= 0 ? "+" : ""}${macro.nvdaRS.value.toFixed(1)}%` : "N/A"}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-0.5">{macro.nvdaRS.label ?? ""}</p>
+                    <p className="text-xs text-gray-600 mt-0.5">前日比差</p>
+                  </div>
+                )}
+              </div>
+
+              {/* News */}
+              {macro.news.length > 0 && (
+                <div>
+                  <p className="text-xs text-gray-500 font-medium mb-2">最新ニュース（半導体・SOXL関連）</p>
+                  <div className="space-y-1.5">
+                    {macro.news.map((n, i) => (
+                      <a
+                        key={i}
+                        href={n.link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-start gap-2 hover:bg-gray-800/50 rounded p-1.5 transition-colors group"
+                      >
+                        <span className="text-gray-600 text-xs mt-0.5 flex-shrink-0">
+                          {new Date(n.publishedAt).toLocaleDateString("ja-JP", { month: "2-digit", day: "2-digit" })}
+                        </span>
+                        <div className="min-w-0">
+                          <p className="text-xs text-gray-300 group-hover:text-white transition-colors leading-snug line-clamp-2">
+                            {n.title}
+                          </p>
+                          <p className="text-xs text-gray-600 mt-0.5">{n.publisher}</p>
+                        </div>
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── Events Calendar ── */}
+          {events && (events.earnings.length > 0 || events.economic.length > 0) && (
+            <div className="bg-gray-900 rounded-xl border border-gray-800 p-4">
+              <h2 className="font-semibold text-white text-sm flex items-center gap-2 mb-3">
+                <span className="text-lg">📅</span>
+                重要イベントカレンダー
+                <span className="text-xs text-gray-500 font-normal">（今後90日）</span>
+              </h2>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                {/* Earnings */}
+                <div>
+                  <p className="text-xs text-gray-500 font-bold uppercase tracking-wide mb-2">
+                    決算スケジュール（SOXL主要構成銘柄）
+                  </p>
+                  <div className="space-y-2">
+                    {events.earnings.map((e) => (
+                      <div
+                        key={e.symbol}
+                        className="rounded-lg border p-3"
+                        style={{ borderColor: `${e.phaseColor}40`, background: `${e.phaseColor}10` }}
+                      >
+                        <div className="flex items-center justify-between gap-2 mb-1">
+                          <div className="flex items-center gap-2">
+                            <span className="font-black text-white font-mono">{e.symbol}</span>
+                            <span
+                              className="text-xs px-2 py-0.5 rounded-full font-bold"
+                              style={{ color: e.phaseColor, background: `${e.phaseColor}25` }}
+                            >
+                              {e.phaseLabel}
+                            </span>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-xs font-mono text-gray-400">{e.date}</p>
+                            <p
+                              className="text-sm font-black font-mono"
+                              style={{ color: e.phaseColor }}
+                            >
+                              {e.daysUntil <= 0 ? "本日！" : e.daysUntil === 1 ? "明日" : `${e.daysUntil}日後`}
+                            </p>
+                          </div>
+                        </div>
+                        <p className="text-xs text-gray-400 leading-relaxed">{e.strategy}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Economic events */}
+                <div>
+                  <p className="text-xs text-gray-500 font-bold uppercase tracking-wide mb-2">
+                    経済指標スケジュール
+                  </p>
+                  <div className="space-y-2">
+                    {events.economic.map((e) => {
+                      const isImminent = e.daysUntil <= 2;
+                      const isSoon = e.daysUntil <= 7;
+                      return (
+                        <div
+                          key={e.id}
+                          className={`rounded-lg border p-3 ${
+                            isImminent
+                              ? "bg-red-900/20 border-red-800/50"
+                              : isSoon
+                              ? "bg-orange-900/15 border-orange-800/40"
+                              : "bg-gray-800/40 border-gray-700/50"
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-2 mb-1">
+                            <div>
+                              <p className={`text-sm font-bold ${isImminent ? "text-red-400" : isSoon ? "text-orange-400" : "text-white"}`}>
+                                {e.name}
+                                {isImminent && <span className="ml-1 text-xs">⚡</span>}
+                              </p>
+                              <p className="text-xs text-gray-500">{e.nameEn}</p>
+                            </div>
+                            <div className="text-right flex-shrink-0">
+                              <p className="text-xs font-mono text-gray-500">{e.date}</p>
+                              <p className={`text-sm font-black font-mono ${isImminent ? "text-red-400" : isSoon ? "text-orange-400" : "text-gray-400"}`}>
+                                {e.daysUntil === 0 ? "本日" : e.daysUntil === 1 ? "明日" : `${e.daysUntil}日後`}
+                              </p>
+                            </div>
+                          </div>
+                          <p className="text-xs text-gray-500 leading-relaxed">{e.impact}</p>
+                          {isImminent && (
+                            <p className="text-xs text-red-400 mt-1 font-medium">⚡ {e.strategy}</p>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Price & Signal Overview */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            {/* Price card */}
+            <div className="lg:col-span-2 bg-gray-900 rounded-xl border border-gray-800 p-5">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <div className="flex items-baseline gap-3">
+                    <span className="text-4xl font-bold font-mono tabular-nums">
+                      ${data.quote.price.toFixed(2)}
+                    </span>
+                    <span className={`text-xl font-semibold ${data.quote.priceChange >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                      {data.quote.priceChange >= 0 ? "+" : ""}{data.quote.priceChange.toFixed(2)}
+                      {" "}
+                      ({data.quote.priceChangePct >= 0 ? "+" : ""}{data.quote.priceChangePct.toFixed(2)}%)
+                    </span>
+                  </div>
+                  <p className="text-gray-500 text-sm mt-1">
+                    SOXL — Direxion Daily Semiconductor Bull 3X
+                    {data.quote.marketState !== "REGULAR" && (
+                      <span className="ml-2 text-xs text-yellow-500">({data.quote.marketState})</span>
+                    )}
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
+                  <div>
+                    <p className="text-gray-500 text-xs">始値</p>
+                    <p className="font-mono font-medium">${data.quote.open.toFixed(2)}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-500 text-xs">高値</p>
+                    <p className="font-mono font-medium text-emerald-400">${data.quote.high.toFixed(2)}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-500 text-xs">安値</p>
+                    <p className="font-mono font-medium text-red-400">${data.quote.low.toFixed(2)}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-500 text-xs">出来高</p>
+                    <p className="font-mono font-medium">
+                      {data.quote.volume >= 1_000_000
+                        ? `${(data.quote.volume / 1_000_000).toFixed(1)}M`
+                        : `${(data.quote.volume / 1_000).toFixed(0)}K`}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="bg-gray-800/50 rounded-lg p-3">
+                  <p className="text-gray-500 text-xs">RSI (14)</p>
+                  <p className={`text-xl font-bold font-mono ${getRSIColor(data.quote.rsi)}`}>
+                    {data.quote.rsi?.toFixed(1) ?? "N/A"}
+                  </p>
+                  <p className="text-xs text-gray-600">
+                    {data.quote.rsi
+                      ? data.quote.rsi < 30
+                        ? "売られすぎ"
+                        : data.quote.rsi > 70
+                        ? "買われすぎ"
+                        : "中立"
+                      : ""}
+                  </p>
+                </div>
+                <div className="bg-gray-800/50 rounded-lg p-3">
+                  <p className="text-gray-500 text-xs">MA50</p>
+                  <p className="text-xl font-bold font-mono text-blue-400">
+                    {data.quote.ma50 ? `$${data.quote.ma50.toFixed(2)}` : "N/A"}
+                  </p>
+                  <p className="text-xs text-gray-600">
+                    {data.quote.ma50
+                      ? data.quote.price > data.quote.ma50
+                        ? "↑ 上回り"
+                        : "↓ 下回り"
+                      : ""}
+                  </p>
+                </div>
+                <div className="bg-gray-800/50 rounded-lg p-3">
+                  <p className="text-gray-500 text-xs">MA200</p>
+                  <p className="text-xl font-bold font-mono text-red-400">
+                    {data.quote.ma200 ? `$${data.quote.ma200.toFixed(2)}` : "N/A"}
+                  </p>
+                  <p className="text-xs text-gray-600">
+                    {data.quote.ma200
+                      ? data.quote.price > data.quote.ma200
+                        ? "↑ 上回り"
+                        : "↓ 下回り"
+                      : ""}
+                  </p>
+                </div>
+                <div className="bg-gray-800/50 rounded-lg p-3">
+                  <p className="text-gray-500 text-xs">ATR (14)</p>
+                  <p className="text-xl font-bold font-mono text-purple-400">
+                    {data.quote.atr ? `$${data.quote.atr.toFixed(2)}` : "N/A"}
+                  </p>
+                  <p className="text-xs text-gray-600">
+                    {data.quote.atr
+                      ? `±${((data.quote.atr / data.quote.price) * 100).toFixed(1)}%`
+                      : ""}
+                  </p>
+                </div>
+              </div>
+
+              {/* 52-week range */}
+              <div className="mt-4">
+                <div className="flex justify-between text-xs text-gray-500 mb-1">
+                  <span>52週安値 ${data.quote.fiftyTwoWeekLow.toFixed(2)}</span>
+                  <span>52週高値 ${data.quote.fiftyTwoWeekHigh.toFixed(2)}</span>
+                </div>
+                <div className="relative h-2 bg-gray-800 rounded-full">
+                  <div
+                    className="absolute inset-y-0 left-0 bg-gradient-to-r from-red-500 via-yellow-500 to-emerald-500 rounded-full"
+                    style={{
+                      width: `${Math.min(
+                        100,
+                        ((data.quote.price - data.quote.fiftyTwoWeekLow) /
+                          (data.quote.fiftyTwoWeekHigh - data.quote.fiftyTwoWeekLow)) *
+                          100
+                      )}%`,
+                    }}
+                  />
+                  <div
+                    className="absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full shadow-lg border-2 border-blue-500"
+                    style={{
+                      left: `calc(${Math.min(
+                        100,
+                        ((data.quote.price - data.quote.fiftyTwoWeekLow) /
+                          (data.quote.fiftyTwoWeekHigh - data.quote.fiftyTwoWeekLow)) *
+                          100
+                      )}% - 6px)`,
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Signal card */}
+            <div className={`bg-gradient-to-br ${getOverallBg(data.signals.overall)} rounded-xl border p-5 flex flex-col gap-4`}>
+              <div className="flex items-center gap-2">
+                <Activity size={16} className="text-gray-400" />
+                <span className="text-sm text-gray-400 font-medium">総合シグナル</span>
+              </div>
+
+              <div className="flex items-center gap-3">
+                {getSignalIcon(data.signals.overall)}
+                <div>
+                  <p
+                    className="text-3xl font-black"
+                    style={{ color: data.signals.color }}
+                  >
+                    {data.signals.overallLabel}
+                  </p>
+                  <p className="text-gray-400 text-sm">
+                    スコア: {data.signals.score > 0 ? "+" : ""}{data.signals.score} / {data.signals.maxScore}
+                  </p>
+                </div>
+              </div>
+
+              <ScoreBar score={data.signals.score} maxScore={data.signals.maxScore} />
+              <div className="flex justify-between text-xs text-gray-600">
+                <span>SELL</span>
+                <span>NEUTRAL</span>
+                <span>BUY</span>
+              </div>
+
+              <div className="space-y-2">
+                {data.signals.details.map((sig) => (
+                  <div key={sig.name} className="flex items-start justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-gray-400 font-medium">{sig.nameJa}</p>
+                      <p className="text-xs text-gray-600 truncate">{sig.description}</p>
+                    </div>
+                    <SignalBadge signal={sig.signal} strength={sig.strength} />
+                  </div>
+                ))}
               </div>
             </div>
           </div>
 
-          {/* スクロール可能なリスト */}
-          <div className="flex-1 overflow-y-auto p-4">
-            {filteredPlaces.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-60 text-muted-foreground text-sm gap-2">
-                <p>
-                  {places.length === 0
-                    ? "まだスポットがありません"
-                    : "条件に合うスポットがありません"}
-                </p>
-                {places.length === 0 && (
-                  <p className="text-xs">「＋ 追加する」で登録してみましょう</p>
-                )}
+          {/* Price Chart */}
+          <div className="bg-gray-900 rounded-xl border border-gray-800 p-4">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <h2 className="font-semibold text-white">価格チャート</h2>
+                <span className="text-xs text-gray-500">({period})</span>
               </div>
-            ) : (
-              <div className="flex flex-col gap-3">
-                {filteredPlaces.map((place) => (
-                  <PlaceCard
-                    key={place.id}
-                    place={place}
-                    onSelect={handleSelectPlace}
-                    distanceText={distanceMap.get(place.id)}
-                    compact={true}
-                  />
+              <button
+                onClick={() => setShowChartOptions(!showChartOptions)}
+                className="flex items-center gap-1 text-xs text-gray-400 hover:text-white transition-colors"
+              >
+                表示オプション {showChartOptions ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+              </button>
+            </div>
+
+            {showChartOptions && (
+              <div className="flex flex-wrap gap-2 mb-3 pb-3 border-b border-gray-800">
+                {Object.entries(chartOptions).map(([key, val]) => (
+                  <button
+                    key={key}
+                    onClick={() => setChartOptions(prev => ({ ...prev, [key]: !val }))}
+                    className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
+                      val ? "bg-blue-700 text-white" : "bg-gray-800 text-gray-500"
+                    }`}
+                  >
+                    {key === "showMA20" ? "MA20" : key === "showMA50" ? "MA50" : key === "showMA200" ? "MA200" : "BB"}
+                  </button>
                 ))}
               </div>
             )}
-          </div>
-        </div>
 
-      </div>
+            <PriceChart
+              data={data.chartData}
+              showMA20={chartOptions.showMA20}
+              showMA50={chartOptions.showMA50}
+              showMA200={chartOptions.showMA200}
+              showBB={chartOptions.showBB}
+            />
 
-      {/* ── モバイル Drawer（常時ペーク表示） ── */}
-      <Drawer
-        open={drawerOpen}
-        onOpenChange={(v) => {
-          if (!v) {
-            // 閉じようとしたら最小スナップに戻す
-            setDrawerSnap(0.3);
-            setDrawerOpen(true);
-          }
-        }}
-        snapPoints={[0.3, 1]}
-        activeSnapPoint={drawerSnap}
-        setActiveSnapPoint={setDrawerSnap}
-        modal={false}
-        dismissible={false}
-      >
-        <DrawerContent className="flex flex-col md:hidden fixed">
-          <DrawerHeader className="pb-0 text-left">
-            <div className="flex items-center justify-between">
-              <DrawerTitle className="text-sm">
-                スポット一覧
-                <span className="ml-2 text-muted-foreground font-normal">
-                  {countLabel}
-                </span>
-              </DrawerTitle>
-              {activeFilterCount > 0 && (
-                <button
-                  onClick={clearAllFilters}
-                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer bg-muted rounded-full px-2 py-0.5"
-                >
-                  <X className="size-3" />
-                  フィルター({activeFilterCount})クリア
-                </button>
-              )}
-            </div>
-          </DrawerHeader>
-
-          {/* モバイル: カテゴリバー（snap スクロール対応） */}
-          <div className="overflow-x-auto scrollbar-hide border-b snap-x snap-mandatory">
-            <div className="flex gap-1.5 px-3 py-2 min-w-max">
-              <button
-                onClick={() => setFilterCategories([])}
-                className={cn(
-                  "flex items-center gap-1.5 px-3 min-h-[44px] rounded-full text-xs font-medium border transition-all shrink-0 cursor-pointer snap-center",
-                  filterCategories.length === 0
-                    ? "bg-foreground text-background border-foreground hover:opacity-80"
-                    : "text-muted-foreground border-transparent hover:border-border hover:text-foreground hover:bg-muted/50"
-                )}
-              >
-                すべて
-              </button>
-              {PRESET_CATEGORIES.map((cat) => {
-                const Icon = CATEGORY_ICONS[cat as keyof typeof CATEGORY_ICONS];
-                const isActive = filterCategories.includes(cat);
-                return (
-                  <button
-                    key={cat}
-                    onClick={() => toggleFilterCategory(cat)}
-                    className={cn(
-                      "flex items-center gap-1.5 px-3 min-h-[44px] rounded-full text-xs font-medium border transition-all shrink-0 cursor-pointer snap-center",
-                      isActive
-                        ? "bg-foreground text-background border-foreground hover:opacity-80"
-                        : "text-muted-foreground border-transparent hover:border-border hover:text-foreground hover:bg-muted/50"
-                    )}
-                  >
-                    <Icon className="size-3.5" />
-                    {cat}
-                  </button>
-                );
-              })}
+            {/* Volume */}
+            <div className="mt-2">
+              <p className="text-xs text-gray-600 mb-1">出来高</p>
+              <VolumeChart data={data.chartData} />
             </div>
           </div>
 
-          {filterUI}
+          {/* RSI & MACD */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="bg-gray-900 rounded-xl border border-gray-800 p-4">
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="font-semibold text-white text-sm">RSI (14)</h2>
+                <div className="flex items-center gap-3 text-xs">
+                  <span className="flex items-center gap-1"><span className="w-3 h-0.5 bg-red-400 inline-block" />過買 70</span>
+                  <span className="flex items-center gap-1"><span className="w-3 h-0.5 bg-emerald-400 inline-block" />過売 30</span>
+                </div>
+              </div>
+              <RSIChart data={data.chartData} />
+            </div>
 
-          <div
-            className="overflow-y-auto flex flex-col gap-3 p-4"
-            style={{
-              flex: 1,
-              overflowY: drawerSnap === 1 ? "auto" : "hidden",
-              maskImage: drawerSnap !== 1 ? "linear-gradient(to bottom, black 60%, transparent 100%)" : undefined,
-              WebkitMaskImage: drawerSnap !== 1 ? "linear-gradient(to bottom, black 60%, transparent 100%)" : undefined,
-            }}
-          >
-            {filteredPlaces.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-32 text-muted-foreground text-sm gap-2">
-                <p>
-                  {places.length === 0
-                    ? "まだスポットがありません"
-                    : "条件に合うスポットがありません"}
+            <div className="bg-gray-900 rounded-xl border border-gray-800 p-4">
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="font-semibold text-white text-sm">MACD (12,26,9)</h2>
+                <div className="flex items-center gap-3 text-xs">
+                  <span className="flex items-center gap-1"><span className="w-3 h-0.5 bg-blue-400 inline-block" />MACD</span>
+                  <span className="flex items-center gap-1"><span className="w-3 h-0.5 bg-orange-400 inline-block" />シグナル</span>
+                </div>
+              </div>
+              <MACDChart data={data.chartData} />
+            </div>
+          </div>
+
+          {/* Risk Management */}
+          <div className="bg-gray-900 rounded-xl border border-gray-800 p-5">
+            <div className="flex items-center gap-2 mb-4">
+              <AlertTriangle className="text-yellow-500" size={18} />
+              <h2 className="font-semibold text-white">リスク管理パネル（参考値）</h2>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-4">
+              <div className="bg-gray-800/50 rounded-lg p-3 col-span-1">
+                <p className="text-xs text-gray-500">現在値（エントリー参考）</p>
+                <p className="text-lg font-bold font-mono text-white">
+                  ${data.riskManagement.entryPrice.toFixed(2)}
                 </p>
               </div>
-            ) : (
-              filteredPlaces.map((place) => (
-                <PlaceCard
-                  key={place.id}
-                  place={place}
-                  onSelect={handleSelectPlace}
-                  distanceText={distanceMap.get(place.id)}
-                />
-              ))
-            )}
+              <div className="bg-red-900/30 rounded-lg p-3 border border-red-800/50">
+                <p className="text-xs text-red-400">損切りライン (ATR×2)</p>
+                <p className="text-lg font-bold font-mono text-red-400">
+                  ${data.riskManagement.stopLoss.toFixed(2)}
+                </p>
+                <p className="text-xs text-red-600">
+                  -{((data.riskManagement.entryPrice - data.riskManagement.stopLoss) / data.riskManagement.entryPrice * 100).toFixed(1)}%
+                </p>
+              </div>
+              <div className="bg-emerald-900/30 rounded-lg p-3 border border-emerald-800/50">
+                <p className="text-xs text-emerald-400">利確① (ATR×2.5)</p>
+                <p className="text-lg font-bold font-mono text-emerald-400">
+                  ${data.riskManagement.takeProfit1.toFixed(2)}
+                </p>
+                <p className="text-xs text-emerald-600">
+                  +{((data.riskManagement.takeProfit1 - data.riskManagement.entryPrice) / data.riskManagement.entryPrice * 100).toFixed(1)}%
+                </p>
+              </div>
+              <div className="bg-emerald-900/20 rounded-lg p-3 border border-emerald-800/30">
+                <p className="text-xs text-emerald-300">利確② (ATR×4)</p>
+                <p className="text-lg font-bold font-mono text-emerald-300">
+                  ${data.riskManagement.takeProfit2.toFixed(2)}
+                </p>
+                <p className="text-xs text-emerald-700">
+                  +{((data.riskManagement.takeProfit2 - data.riskManagement.entryPrice) / data.riskManagement.entryPrice * 100).toFixed(1)}%
+                </p>
+              </div>
+              <div className="bg-gray-800/50 rounded-lg p-3">
+                <p className="text-xs text-gray-500">RR比① </p>
+                <p className="text-lg font-bold font-mono text-purple-400">
+                  1:{data.riskManagement.riskRewardRatio1.toFixed(1)}
+                </p>
+              </div>
+              <div className="bg-gray-800/50 rounded-lg p-3">
+                <p className="text-xs text-gray-500">ATR (14)</p>
+                <p className="text-lg font-bold font-mono text-purple-400">
+                  ${data.riskManagement.atr.toFixed(2)}
+                </p>
+                <p className="text-xs text-gray-600">日次変動幅目安</p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-2 bg-yellow-900/20 border border-yellow-800/40 rounded-lg p-3">
+              <AlertTriangle className="text-yellow-500 flex-shrink-0 mt-0.5" size={14} />
+              <p className="text-xs text-yellow-600">
+                {data.riskManagement.suggestedPositionNote}
+                {" "}SOXLは3倍レバレッジETFのため、標準ETFより大きなリスクがあります。
+                楽天証券での発注はすべて自己判断でお願いします。
+              </p>
+            </div>
           </div>
 
-          {canAdd && (
-            <DrawerFooter className="pt-0" style={{ paddingBottom: 'max(1rem, calc(env(safe-area-inset-bottom, 0px) + 0.5rem))' }}>
-              <Button
-                className="w-full rounded-full font-medium gap-2"
-                onClick={() => {
-                  setEditPlace(undefined);
-                  setSheetOpen(true);
-                  setDrawerOpen(false);
-                }}
-                disabled={!room}
-              >
-                <Plus className="size-4" />
-                スポットを追加する
-              </Button>
-            </DrawerFooter>
-          )}
-        </DrawerContent>
-      </Drawer>
+          {/* Position Sizing Panel */}
+          {(() => {
+            const entry = data.riskManagement.entryPrice;
+            const stopLoss = data.riskManagement.stopLoss;
+            const riskPerShare = entry - stopLoss;
+            const capitalUSD = capitalJPY / usdJpy;
 
-      {/* 追加・編集フォーム */}
-      <AddPlaceSheet
-        open={sheetOpen}
-        onOpenChange={handleSheetOpenChange}
-        coords={coords}
-        geocodedAddress={geocodedAddress}
-        onPickFromMap={handlePickFromMap}
-        onCoordsChange={handleCoordsChange}
-        onSaved={handleSaved}
-        editPlace={editPlace}
-      />
+            // Full position
+            const fullShares = Math.floor(capitalUSD / entry);
+            const fullCostUSD = fullShares * entry;
+            const fullCostJPY = fullCostUSD * usdJpy;
+            const fullStopLossJPY = fullShares * riskPerShare * usdJpy;
+            const fullStopLossPct = capitalJPY > 0 ? (fullStopLossJPY / capitalJPY) * 100 : 0;
 
-      {/* 詳細シート */}
-      <PlaceDetailSheet
-        place={detailPlace}
-        open={detailOpen}
-        onOpenChange={setDetailOpen}
-        onEdit={handleEdit}
-        onDeleted={handleDeleted}
-      />
+            // Price target rows: from just above entry to 52w high, plus user custom
+            const w52High = data.quote.fiftyTwoWeekHigh;
+            const step = entry < 50 ? 3 : entry < 80 ? 5 : 10;
+            const baseTargets: number[] = [];
+            let t = Math.ceil(entry / step) * step;
+            while (t <= Math.max(w52High * 1.05, entry * 1.8)) {
+              baseTargets.push(t);
+              t += step;
+            }
+            // Insert 52w high and stopLoss as special rows if not already in list
+            const allTargetPrices = Array.from(
+              new Set([stopLoss, ...baseTargets, w52High])
+            ).sort((a, b) => a - b);
 
-      {/* ルーム未参加時: グループ作成/参加 */}
-      {!room && roomDialogOpen && (
-        <WelcomeScreen
-          initialCode={urlCode}
-          onComplete={handleWelcomeComplete}
-          userName={currentUser.name}
-        />
-      )}
+            return (
+              <div className="bg-gray-900 rounded-xl border border-gray-800 p-5">
+                {/* Header */}
+                <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
+                  <h2 className="font-semibold text-white flex items-center gap-2">
+                    <Calculator className="text-blue-400" size={18} />
+                    発注シミュレーター
+                  </h2>
+                  <div className="flex items-center gap-4 text-xs text-gray-500">
+                    <span>
+                      USD/JPY:{" "}
+                      {usdJpyLoading ? (
+                        <span className="text-gray-600">取得中…</span>
+                      ) : (
+                        <span className="text-yellow-400 font-mono font-bold">{usdJpy.toFixed(2)}</span>
+                      )}
+                    </span>
+                  </div>
+                </div>
 
-      {/* ルーム変更ダイアログ（ルームを持っているときに退出後など） */}
-      {room && (
-        <RoomJoinDialog
-          open={roomDialogOpen}
-          currentUserName={currentUser.name}
-          initialCode={urlCode}
-          onJoined={handleRoomJoined}
-        />
-      )}
+                {/* Capital input */}
+                <div className="flex flex-wrap items-end gap-4 mb-5">
+                  <div className="space-y-1">
+                    <label className="text-xs text-gray-500 flex items-center gap-1">
+                      <Wallet size={11} /> 元金（円）
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        value={capitalJPY}
+                        onChange={e => setCapitalJPY(Number(e.target.value))}
+                        step={10000}
+                        min={0}
+                        className="w-40 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white font-mono text-sm focus:outline-none focus:border-blue-500"
+                      />
+                      <span className="text-gray-500 text-sm">円</span>
+                    </div>
+                    <p className="text-xs text-gray-600">≈ ${capitalUSD.toFixed(0)} USD</p>
+                  </div>
+                  <div className="flex gap-1">
+                    {[100000, 300000, 500000, 1000000].map(v => (
+                      <button
+                        key={v}
+                        onClick={() => setCapitalJPY(v)}
+                        className={`px-2 py-1.5 rounded text-xs font-medium transition-colors ${
+                          capitalJPY === v ? "bg-blue-600 text-white" : "bg-gray-800 text-gray-400 hover:text-white"
+                        }`}
+                      >
+                        {(v / 10000).toFixed(0)}万
+                      </button>
+                    ))}
+                  </div>
+                </div>
 
-      {/* メンバー管理シート */}
-      {room && (
-        <MemberManageSheet
-          open={memberManageOpen}
-          onOpenChange={setMemberManageOpen}
-          roomId={room.id}
-          myUserId={currentUser.id}
-          members={roomMembers}
-          onRoleChanged={upsertRoomMember}
-        />
-      )}
+                {/* Full position hero */}
+                <div className="bg-gradient-to-r from-blue-950/60 to-indigo-950/40 border border-blue-700/40 rounded-xl p-5 mb-5">
+                  <p className="text-xs text-blue-300 font-bold uppercase tracking-widest mb-3">
+                    全額投入シミュレーション
+                  </p>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                    <div>
+                      <p className="text-xs text-gray-400 mb-1">購入株数</p>
+                      <p className="text-5xl font-black text-white font-mono leading-none">{fullShares}</p>
+                      <p className="text-xs text-blue-400 mt-1">株</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-400 mb-1">投資額（概算）</p>
+                      <p className="text-2xl font-bold text-white font-mono">¥{Math.round(fullCostJPY).toLocaleString()}</p>
+                      <p className="text-xs text-gray-500">${fullCostUSD.toFixed(0)}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-red-400 mb-1">損切り到達時の損失</p>
+                      <p className="text-2xl font-bold text-red-400 font-mono">-¥{Math.round(fullStopLossJPY).toLocaleString()}</p>
+                      <p className="text-xs text-red-600">
+                        元金の {fullStopLossPct.toFixed(1)}% ・ 損切り ${stopLoss.toFixed(2)}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-400 mb-1">エントリー価格</p>
+                      <p className="text-2xl font-bold font-mono text-white">${entry.toFixed(2)}</p>
+                      <p className="text-xs text-gray-500">現在値</p>
+                    </div>
+                  </div>
+                </div>
 
-      {/* ── 認証オーバーレイ（マップは背後で初期化し続ける） ── */}
-      {authLoading && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-white">
-          <div className="flex flex-col items-center gap-3 text-muted-foreground">
-            <div className="size-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-            <p className="text-sm">読み込み中...</p>
+                {/* Price target P&L table */}
+                <div>
+                  <p className="text-xs text-gray-500 mb-2 font-medium">
+                    価格別 損益シミュレーション（{fullShares}株 全力保有時）
+                  </p>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-gray-800">
+                          <th className="text-left py-2 px-3 text-xs text-gray-500 font-medium">価格</th>
+                          <th className="text-right py-2 px-3 text-xs text-gray-500 font-medium">損益（円）</th>
+                          <th className="text-right py-2 px-3 text-xs text-gray-500 font-medium">元金比</th>
+                          <th className="text-right py-2 px-3 text-xs text-gray-500 font-medium hidden sm:table-cell">損益（USD）</th>
+                          <th className="text-left py-2 px-3 text-xs text-gray-500 font-medium hidden sm:table-cell">備考</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {allTargetPrices.map(price => {
+                          const pnlUSD = fullShares * (price - entry);
+                          const pnlJPY = pnlUSD * usdJpy;
+                          const pnlPct = capitalJPY > 0 ? (pnlJPY / capitalJPY) * 100 : 0;
+                          const isEntry = Math.abs(price - entry) < 0.01;
+                          const isStop = Math.abs(price - stopLoss) < 0.01;
+                          const is52wHigh = Math.abs(price - w52High) < 0.01;
+                          const isPrevSell = Math.abs(price - 71) < 0.5;
+                          const isProfit = pnlJPY > 0;
+                          const isLoss = pnlJPY < 0;
+
+                          const note = isStop
+                            ? "⚡ 損切りライン"
+                            : isEntry
+                            ? "← 現在値"
+                            : is52wHigh
+                            ? "★ 52週高値"
+                            : isPrevSell
+                            ? "★ 前回売却値"
+                            : "";
+
+                          return (
+                            <tr
+                              key={price}
+                              className={`border-b border-gray-800/40 transition-colors ${
+                                isStop
+                                  ? "bg-red-900/20"
+                                  : isEntry
+                                  ? "bg-gray-800/60"
+                                  : is52wHigh || isPrevSell
+                                  ? "bg-emerald-900/10"
+                                  : "hover:bg-gray-800/20"
+                              }`}
+                            >
+                              <td className="py-2 px-3 font-mono font-bold">
+                                <span className={isStop ? "text-red-400" : is52wHigh || isPrevSell ? "text-emerald-400" : "text-white"}>
+                                  ${price.toFixed(2)}
+                                </span>
+                              </td>
+                              <td className={`py-2 px-3 text-right font-mono font-bold ${
+                                isProfit ? "text-emerald-400" : isLoss ? "text-red-400" : "text-gray-400"
+                              }`}>
+                                {isProfit ? "+" : ""}{Math.round(pnlJPY).toLocaleString()}円
+                              </td>
+                              <td className={`py-2 px-3 text-right font-mono text-sm ${
+                                isProfit ? "text-emerald-600" : isLoss ? "text-red-600" : "text-gray-600"
+                              }`}>
+                                {isProfit ? "+" : ""}{pnlPct.toFixed(1)}%
+                              </td>
+                              <td className={`py-2 px-3 text-right font-mono text-xs hidden sm:table-cell ${
+                                isProfit ? "text-emerald-700" : isLoss ? "text-red-700" : "text-gray-700"
+                              }`}>
+                                {isProfit ? "+" : ""}{pnlUSD.toFixed(0)}
+                              </td>
+                              <td className="py-2 px-3 text-xs text-gray-500 hidden sm:table-cell">{note}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* Note */}
+                <div className="mt-4 flex items-start gap-2 bg-blue-900/10 border border-blue-800/30 rounded-lg p-3">
+                  <AlertTriangle className="text-blue-400 flex-shrink-0 mt-0.5" size={13} />
+                  <p className="text-xs text-blue-700">
+                    全額投入の場合、損切りライン（${stopLoss.toFixed(2)}）到達時の損失は元金の{fullStopLossPct.toFixed(1)}%です。
+                    楽天証券での発注前に必ず損切り注文も同時に設定してください。
+                  </p>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Signal Details Table */}
+          <div className="bg-gray-900 rounded-xl border border-gray-800 p-5">
+            <h2 className="font-semibold text-white mb-4 flex items-center gap-2">
+              <Activity size={16} className="text-blue-400" />
+              指標別シグナル詳細
+            </h2>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-800">
+                    <th className="text-left py-2 px-3 text-xs text-gray-500 font-medium">指標</th>
+                    <th className="text-left py-2 px-3 text-xs text-gray-500 font-medium">シグナル</th>
+                    <th className="text-left py-2 px-3 text-xs text-gray-500 font-medium hidden sm:table-cell">詳細</th>
+                    <th className="text-right py-2 px-3 text-xs text-gray-500 font-medium">スコア</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.signals.details.map((sig) => (
+                    <tr key={sig.name} className="border-b border-gray-800/50 hover:bg-gray-800/30 transition-colors">
+                      <td className="py-3 px-3 font-medium text-white">{sig.nameJa}</td>
+                      <td className="py-3 px-3">
+                        <SignalBadge signal={sig.signal} strength={sig.strength} />
+                      </td>
+                      <td className="py-3 px-3 text-gray-400 text-xs hidden sm:table-cell">{sig.description}</td>
+                      <td className="py-3 px-3 text-right">
+                        <span
+                          className={`font-bold font-mono text-base ${
+                            sig.strength > 0
+                              ? "text-emerald-400"
+                              : sig.strength < 0
+                              ? "text-red-400"
+                              : "text-gray-500"
+                          }`}
+                        >
+                          {sig.strength > 0 ? `+${sig.strength}` : sig.strength}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                  <tr className="bg-gray-800/30">
+                    <td className="py-3 px-3 font-bold text-white" colSpan={2}>合計スコア</td>
+                    <td className="hidden sm:table-cell" />
+                    <td className="py-3 px-3 text-right">
+                      <span
+                        className={`font-black font-mono text-xl ${
+                          data.signals.score > 0
+                            ? "text-emerald-400"
+                            : data.signals.score < 0
+                            ? "text-red-400"
+                            : "text-yellow-400"
+                        }`}
+                      >
+                        {data.signals.score > 0 ? `+${data.signals.score}` : data.signals.score}
+                      </span>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Disclaimer */}
+          <div className="bg-gray-900/50 rounded-xl border border-gray-800 p-4">
+            <p className="text-xs text-gray-600 leading-relaxed">
+              ⚠️ 免責事項: このツールは情報提供のみを目的としており、投資助言ではありません。
+              SOXLは3倍レバレッジETFであり、元本保証がなく、短期間で大きな損失が生じる可能性があります。
+              楽天証券での売買はすべてご自身の判断と責任において行ってください。
+              過去のパフォーマンスは将来の結果を保証するものではありません。
+            </p>
           </div>
         </div>
-      )}
-
-      {!authLoading && !authUser && (
-        <AuthScreen
-          onAuth={(user) => {
-            setAuthUser(user);
-            const userName = user.user_metadata?.username ?? user.email?.split("@")[0] ?? "";
-            setCurrentUser({ id: user.id, name: userName });
-          }}
-        />
-      )}
+      ) : null}
     </div>
   );
 }
