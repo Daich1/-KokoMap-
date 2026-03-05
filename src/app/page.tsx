@@ -131,7 +131,7 @@ export default function Home() {
   const [geocodedAddress, setGeocodedAddress] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(true);
-  const [drawerSnap, setDrawerSnap] = useState<number | string | null>(0.3);
+  const [drawerSnap, setDrawerSnap] = useState<number | string | null>(0.12);
   const [mapLoaded, setMapLoaded] = useState(false);
   const [roomDialogOpen, setRoomDialogOpen] = useState(!room);
   const [memberManageOpen, setMemberManageOpen] = useState(false);
@@ -523,7 +523,7 @@ export default function Home() {
       // モバイルの場合はドロワーを35%（最小）にスナップし、マップの下部に余白(約300px)を持たせてパン
       const isMobile = window.innerWidth < 768;
       if (isMobile) {
-        setDrawerSnap(0.35);
+        setDrawerSnap(0.12);
       }
       map.current?.flyTo({
         center: [place.lng, place.lat],
@@ -1259,7 +1259,11 @@ export default function Home() {
           <button
             onClick={handleLocateMe}
             className="absolute z-10 bg-white rounded-full shadow-lg p-2.5 hover:bg-gray-50 hover:shadow-xl active:scale-95 transition-all cursor-pointer right-3 md:bottom-6"
-            style={{ bottom: 'calc(34dvh + env(safe-area-inset-bottom, 0px) + 3.5rem)' }}
+            style={{
+              bottom: drawerSnap === 0.12
+                ? 'calc(12dvh + env(safe-area-inset-bottom, 0px) + 3.5rem)'
+                : 'calc(34dvh + env(safe-area-inset-bottom, 0px) + 3.5rem)'
+            }}
             title="現在地へ移動"
           >
             <LocateFixed className="size-5 text-gray-700" />
@@ -1271,7 +1275,11 @@ export default function Home() {
               onClick={() => { setEditPlace(undefined); setSheetOpen(true); }}
               disabled={!room}
               className="md:hidden absolute right-3 z-10 bg-primary text-primary-foreground rounded-full shadow-lg p-3 hover:opacity-90 active:scale-95 transition-all disabled:opacity-40 cursor-pointer"
-              style={{ bottom: 'calc(34dvh + env(safe-area-inset-bottom, 0px) + 0.75rem)' }}
+              style={{
+                bottom: drawerSnap === 0.12
+                  ? 'calc(12dvh + env(safe-area-inset-bottom, 0px) + 0.75rem)'
+                  : 'calc(34dvh + env(safe-area-inset-bottom, 0px) + 0.75rem)'
+              }}
               title="場所を追加"
             >
               <Plus className="size-5" />
@@ -1425,11 +1433,11 @@ export default function Home() {
         onOpenChange={(v) => {
           if (!v) {
             // 閉じようとしたら最小スナップに戻す
-            setDrawerSnap(0.3);
+            setDrawerSnap(0.12);
             setDrawerOpen(true);
           }
         }}
-        snapPoints={[0.35, 0.65, 1]}
+        snapPoints={[0.12, 0.35, 0.65, 1]}
         activeSnapPoint={drawerSnap}
         setActiveSnapPoint={(snap) => { if (snap !== undefined) setDrawerSnap(snap); }}
         modal={false}
@@ -1496,12 +1504,12 @@ export default function Home() {
 
           <div
             className="overflow-y-auto flex flex-col gap-3 p-4"
-            onClick={() => { if (drawerSnap === 0.35) setDrawerSnap(0.65); }}
+            onClick={() => { if (drawerSnap === 0.12) setDrawerSnap(0.35); else if (drawerSnap === 0.35) setDrawerSnap(0.65); }}
             style={{
               flex: 1,
-              overflowY: drawerSnap === 0.35 ? "hidden" : "auto",
-              maskImage: drawerSnap === 0.35 ? "linear-gradient(to bottom, black 60%, transparent 100%)" : undefined,
-              WebkitMaskImage: drawerSnap === 0.35 ? "linear-gradient(to bottom, black 60%, transparent 100%)" : undefined,
+              overflowY: (drawerSnap === 0.12 || drawerSnap === 0.35) ? "hidden" : "auto",
+              maskImage: (drawerSnap === 0.12 || drawerSnap === 0.35) ? "linear-gradient(to bottom, black 40%, transparent 100%)" : undefined,
+              WebkitMaskImage: (drawerSnap === 0.12 || drawerSnap === 0.35) ? "linear-gradient(to bottom, black 40%, transparent 100%)" : undefined,
             }}
           >
             {filteredPlaces.length === 0 ? (
