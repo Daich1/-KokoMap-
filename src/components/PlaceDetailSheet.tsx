@@ -372,7 +372,12 @@ export function PlaceDetailSheet({
             "flex flex-col p-0 overflow-y-auto",
             isDesktop ? "sm:max-w-md" : "h-[85dvh] rounded-t-2xl"
           )}
+          style={{ touchAction: "pan-y" }}
           showCloseButton={false}
+          onTouchMove={(e) => {
+            // 横スワイプをブロックしてマップがパンしないようにする
+            e.stopPropagation();
+          }}
         >
           <SheetTitle className="sr-only">{place.name}</SheetTitle>
           {content}
