@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Toaster } from "sonner";
+import { InstallPrompt } from "@/components/InstallPrompt";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -63,6 +64,7 @@ export default function RootLayout({
         suppressHydrationWarning={true}
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
+        <InstallPrompt />
         {children}
         <Toaster position="top-center" richColors />
       </body>
