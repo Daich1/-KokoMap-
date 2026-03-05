@@ -53,6 +53,22 @@ function UserAvatar({ name }: { name: string }) {
   );
 }
 
+// ウィンドウ幅がsmブレークポイント(640px)以上かを返すhook
+function useIsDesktop() {
+  const [isDesktop, setIsDesktop] = useState(
+    typeof window !== "undefined" ? window.innerWidth >= 640 : true
+  );
+
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 640px)");
+    const handler = (e: MediaQueryListEvent) => setIsDesktop(e.matches);
+    mq.addEventListener("change", handler);
+    setIsDesktop(mq.matches);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
+
+  return isDesktop;
+}
 
 export function PlaceDetailSheet({
   place,
@@ -64,6 +80,7 @@ export function PlaceDetailSheet({
   const [imgIdx, setImgIdx] = useState(0);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const isDesktop = useIsDesktop();
 
   const { spotStatuses, setSpotStatus, removeSpotStatus, currentUser, myRole } = useMapStore();
   const isPrivileged = myRole === "leader" || myRole === "admin";
@@ -113,7 +130,6 @@ export function PlaceDetailSheet({
     day: "numeric",
   });
 
-  // ── 共通コンテンツ（モバイル・PCで共有）─────────────
   const content = (
     <>
       {/* 画像ギャラリー */}
@@ -265,7 +281,7 @@ export function PlaceDetailSheet({
           />
         )}
 
-        {/* 営業時間テキスト（business_hours.weekday_text があれば統一フォーマットで表示） */}
+        {/* 営業時間テキスト */}
         {(() => {
           const displayText =
             place.business_hours?.weekday_text?.length
@@ -348,23 +364,14 @@ export function PlaceDetailSheet({
 
   return (
     <>
-      {/* モバイル: 下からスライドするBottomSheet */}
+      {/* Sheet 1つだけ: 画面幅に応じてsideを切り替え */}
       <Sheet open={open} onOpenChange={onOpenChange} modal={false}>
         <SheetContent
-          side="bottom"
-          className="flex flex-col p-0 sm:hidden h-[85dvh] rounded-t-2xl overflow-y-auto"
-          showCloseButton={false}
-        >
-          <SheetTitle className="sr-only">{place.name}</SheetTitle>
-          {content}
-        </SheetContent>
-      </Sheet>
-
-      {/* PC: 右からスライド */}
-      <Sheet open={open} onOpenChange={onOpenChange} modal={false}>
-        <SheetContent
-          side="right"
-          className="hidden sm:flex flex-col p-0 sm:max-w-md overflow-y-auto"
+          side={isDesktop ? "right" : "bottom"}
+          className={cn(
+            "flex flex-col p-0 overflow-y-auto",
+            isDesktop ? "sm:max-w-md" : "h-[85dvh] rounded-t-2xl"
+          )}
           showCloseButton={false}
         >
           <SheetTitle className="sr-only">{place.name}</SheetTitle>
