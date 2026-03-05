@@ -314,3 +314,10 @@
   background: #2dd4bf;
   /* teal */
 }
+
+/* ── Radix UI が body に設定する pointer-events: none を強制リセット ── */
+/* modal={false} の Sheet/Dialog を使うと Radix がスクロールロックのため */
+/* body に pointer-events: none を残す場合がある。これを強制的に無効化する  */
+body[style*="pointer-events: none"] {
+  pointer-events: auto !important;
+}
