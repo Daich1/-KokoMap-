@@ -142,6 +142,49 @@ export default function Home() {
   const [authLoading, setAuthLoading] = useState(true);
   const [emailRegOpen, setEmailRegOpen] = useState(false);
 
+  // DBからユーザーの所属ルームを復元または検証
+  const restoreUserRoom = useCallback(async (userId: string) => {
+    try {
+      // 現在のストアのルームが有効か確認
+      const currentRoom = useMapStore.getState().room;
+      let targetRoomId: string | null = null;
+
+      if (currentRoom) {
+        const { data: check } = await supabase
+          .from("room_members")
+          .select("room_id")
+          .eq("user_id", userId)
+          .eq("room_id", currentRoom.id)
+          .maybeSingle();
+        if (check) targetRoomId = currentRoom.id;
+      }
+
+      // 無効な場合は最新の所属ルームを取得
+      if (!targetRoomId) {
+        const { data: latest } = await supabase
+          .from("room_members")
+          .select("room_id, rooms(*)")
+          .eq("user_id", userId)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (latest && latest.rooms) {
+          // Supabaseの型定義によっては配列になる場合があるための安全策
+          const roomObj = Array.isArray(latest.rooms) ? latest.rooms[0] : latest.rooms;
+          useMapStore.getState().setRoom(roomObj as unknown as Room);
+          targetRoomId = latest.room_id;
+        } else {
+          // 所属ルームなし
+          useMapStore.getState().clearRoom();
+          setRoomDialogOpen(true);
+        }
+      }
+    } catch (e) {
+      console.error("Failed to restore room:", e);
+    }
+  }, []);
+
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       const user = session?.user ?? null;
@@ -149,6 +192,7 @@ export default function Home() {
       if (user) {
         const userName = user.user_metadata?.username ?? user.email?.split("@")[0] ?? "";
         setCurrentUser({ id: user.id, name: userName });
+        restoreUserRoom(user.id);
       }
       setAuthLoading(false);
     });
@@ -158,11 +202,12 @@ export default function Home() {
       if (user) {
         const userName = user.user_metadata?.username ?? user.email?.split("@")[0] ?? "";
         setCurrentUser({ id: user.id, name: userName });
+        restoreUserRoom(user.id);
       }
     });
     return () => subscription.unsubscribe();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [restoreUserRoom]);
 
   // URL の ?code= パラメータを検出してダイアログに渡す（room hydration より先に実行）
   useEffect(() => {
@@ -761,8 +806,21 @@ export default function Home() {
   }
 
   async function handleRoomJoined(joinedRoom: Room, userName: string, isCreator: boolean) {
-    const role = isCreator ? "leader" : "member";
+    let role: "leader" | "member" = isCreator ? "leader" : "member";
     const updatedUser = { ...currentUser, name: userName };
+
+    // 既存の権限があればそれを優先（リーダーからの降格を防ぐ）
+    const { data: existing } = await supabase
+      .from("room_members")
+      .select("role")
+      .eq("room_id", joinedRoom.id)
+      .eq("user_id", updatedUser.id)
+      .maybeSingle();
+
+    if (existing && existing.role) {
+      role = existing.role as "leader" | "member";
+    }
+
     setRoom(joinedRoom);
     setCurrentUser(updatedUser);
     setMyRole(role);

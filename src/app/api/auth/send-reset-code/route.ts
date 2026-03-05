@@ -70,7 +70,7 @@ export async function POST(req: Request) {
                 Authorization: `Bearer ${resendKey}`,
             },
             body: JSON.stringify({
-                from: "KokoMap <noreply@kokomap.app>",
+                from: "KokoMap <onboarding@resend.dev>",
                 to: [recoveryEmail],
                 subject: "【KokoMap】パスワードリセットコード",
                 html: `
@@ -88,6 +88,8 @@ export async function POST(req: Request) {
         });
 
         if (!emailRes.ok) {
+            const errorText = await emailRes.text();
+            console.error("Resend API Error:", errorText);
             return NextResponse.json({ error: "メール送信に失敗しました" }, { status: 500 });
         }
 
