@@ -301,7 +301,7 @@ export function AuthScreen({ onAuth }: AuthScreenProps) {
 
   // ── 通常のログイン/新規登録画面 ──
   return (
-    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-white px-6">
+    <div className="fixed inset-0 z-[60] flex flex-col items-center justify-center bg-white px-6">
       {/* ロゴ */}
       <div className="flex flex-col items-center gap-3 mb-8">
         <div className="w-20 h-20 rounded-3xl bg-primary/10 flex items-center justify-center shadow-inner">

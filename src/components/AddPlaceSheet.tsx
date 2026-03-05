@@ -4,8 +4,9 @@ import { useEffect, useRef, useState } from "react";
 import { useForm, Controller, useFieldArray, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { MapPin, Plus, Search, X, Loader2, Sparkles, Clock } from "lucide-react";
+import { MapPin, Plus, Search, X, Loader2, Clock } from "lucide-react";
 import { forwardGeocode } from "@/lib/geocoding";
+import { toast } from "sonner";
 import {
   Sheet,
   SheetContent,
@@ -99,11 +100,6 @@ export function AddPlaceSheet({
 
   const [customCatInput, setCustomCatInput] = useState("");
   const [isSearching, setIsSearching] = useState(false);
-
-  // ── AI 自動入力 ──────────────────────────────────────
-  const [aiUrl, setAiUrl] = useState("");
-  const [isAiExtracting, setIsAiExtracting] = useState(false);
-  const [aiError, setAiError] = useState("");
 
   // ── Autocomplete 用 state ────────────────────────────
   const [suggestions, setSuggestions] = useState<PlacePrediction[]>([]);
@@ -208,8 +204,11 @@ export function AddPlaceSheet({
 
       suppressAutocompleteRef.current = true;
 
-      // 施設名 → 名前フィールドへ
-      setValue("name", details.name ?? prediction.structured_formatting.main_text);
+      // 施設名 → 名前フィールドへ (既に手入力されている場合は上書きしない)
+      const currentName = getValues("name");
+      if (!currentName || currentName.trim() === "") {
+        setValue("name", details.name ?? prediction.structured_formatting.main_text);
+      }
       // フル住所 → 住所フィールドへ（"日本" 等の国名サフィックスを除去）
       const cleanAddress = (details.address ?? "")
         .replace(/,?\s*(日本|Japan)$/i, "")
@@ -252,6 +251,8 @@ export function AddPlaceSheet({
       if (details.lat !== null && details.lng !== null) {
         onCoordsChange({ lat: details.lat, lng: details.lng });
       }
+
+      toast.success("店舗情報を自動取得しました✨");
     } catch {
       // サイレント失敗
     } finally {
@@ -290,59 +291,7 @@ export function AddPlaceSheet({
     }
   }
 
-  // ── AI URL 自動入力 ──────────────────────────────────
-  async function handleAiExtract() {
-    const url = aiUrl.trim();
-    if (!url) return;
-    setIsAiExtracting(true);
-    setAiError("");
 
-    try {
-      const res = await fetch("/api/extract", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url }),
-      });
-      const result: AiExtractResult = await res.json();
-
-      if (!res.ok || result.error) {
-        setAiError(result.error ?? "抽出に失敗しました");
-        return;
-      }
-
-      // オートコンプリートが誤爆しないよう抑制してから setValue
-      suppressAutocompleteRef.current = true;
-
-      if (result.name) setValue("name", result.name);
-      if (result.address) setValue("address", result.address);
-      if (result.budget_min != null)
-        setValue("budget_min", String(result.budget_min));
-      if (result.budget_max != null)
-        setValue("budget_max", String(result.budget_max));
-      if (result.opening_hours_text)
-        setValue("opening_hours_text", result.opening_hours_text);
-      if (result.note) {
-        const existing = getValues("note") ?? "";
-        setValue("note", existing ? `${existing}\n${result.note}` : result.note);
-      }
-      if (result.categories?.length) {
-        const existing = getValues("categories") ?? [];
-        const merged = Array.from(new Set([...existing, ...result.categories]));
-        setValue("categories", merged);
-      }
-
-      // 住所が入ったらピンを移動（既存ロジックを自然に発火）
-      if (result.address) {
-        suppressAutocompleteRef.current = true;
-        const geocoded = await forwardGeocode(result.address);
-        if (geocoded) onCoordsChange(geocoded);
-      }
-    } catch {
-      setAiError("通信エラーが発生しました");
-    } finally {
-      setIsAiExtracting(false);
-    }
-  }
 
   // ── フォームの開閉リセット ──────────────────────────
   useEffect(() => {
@@ -378,8 +327,6 @@ export function AddPlaceSheet({
       setCustomCatInput("");
       setSuggestions([]);
       setShowSuggestions(false);
-      setAiUrl("");
-      setAiError("");
     }
   }, [open, editPlace, reset]);
 
@@ -479,13 +426,11 @@ export function AddPlaceSheet({
       <SheetContent side="right" className="flex flex-col p-0">
         <SheetHeader className="px-6 pt-6 pb-2">
           <SheetTitle>
-            {isAiExtracting
-              ? "✨ AI が情報を抽出中..."
-              : isFillingDetails
-                ? "情報を取得中..."
-                : isEdit
-                  ? "スポットを編集"
-                  : "場所を追加"}
+            {isFillingDetails
+              ? "情報を取得中..."
+              : isEdit
+                ? "スポットを編集"
+                : "場所を追加"}
           </SheetTitle>
         </SheetHeader>
 
@@ -494,49 +439,6 @@ export function AddPlaceSheet({
           className="flex flex-col flex-1 overflow-y-auto"
         >
           <div className="flex flex-col gap-5 px-6 py-4 flex-1">
-
-            {/* ✨ AI 自動入力セクション */}
-            <div className="flex flex-col gap-2 rounded-xl border border-dashed border-violet-300 bg-violet-50/60 dark:bg-violet-950/20 dark:border-violet-700 p-3">
-              <p className="text-xs font-semibold text-violet-700 dark:text-violet-400 flex items-center gap-1.5">
-                <Sparkles className="size-3.5" />
-                AIで自動入力（任意）
-              </p>
-              <div className="flex gap-2">
-                <Input
-                  value={aiUrl}
-                  onChange={(e) => {
-                    setAiUrl(e.target.value);
-                    setAiError("");
-                  }}
-                  placeholder="食べログ・公式サイト・GoogleマップのURLを貼り付け"
-                  className="flex-1 text-sm bg-white dark:bg-background"
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      handleAiExtract();
-                    }
-                  }}
-                  disabled={isAiExtracting}
-                />
-                <Button
-                  type="button"
-                  onClick={handleAiExtract}
-                  disabled={isAiExtracting || !aiUrl.trim()}
-                  className="gap-1.5 shrink-0 bg-violet-600 hover:bg-violet-700 text-white"
-                  size="sm"
-                >
-                  {isAiExtracting ? (
-                    <Loader2 className="size-3.5 animate-spin" />
-                  ) : (
-                    <Sparkles className="size-3.5" />
-                  )}
-                  {isAiExtracting ? "解析中..." : "自動入力"}
-                </Button>
-              </div>
-              {aiError && (
-                <p className="text-xs text-destructive">{aiError}</p>
-              )}
-            </div>
 
             {/* 名前 */}
             <div className="flex flex-col gap-1.5">
@@ -865,7 +767,7 @@ export function AddPlaceSheet({
           <SheetFooter className="px-6 pb-6">
             <Button
               type="submit"
-              disabled={isSubmitting || isFillingDetails || isAiExtracting}
+              disabled={isSubmitting || isFillingDetails}
               className="w-full"
             >
               {isSubmitting

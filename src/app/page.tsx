@@ -1161,12 +1161,12 @@ export default function Home() {
             <span className="text-xs text-muted-foreground shrink-0 font-mono font-bold tracking-wider">{room.share_code}</span>
           </div>
           {/* 右: アイコンのみボタン群 */}
-          <div className="flex items-center shrink-0">
+          <div className="flex items-center shrink-0 gap-0">
             {canManageRoom && (
               <button
                 onClick={toggleRoomOpen}
                 title={room.is_open ? "参加を締め切る" : "参加を再開する"}
-                className={`p-2.5 rounded-md transition-colors cursor-pointer ${room.is_open ? "text-green-600 hover:bg-green-50" : "text-red-500 hover:bg-red-50"}`}
+                className={`p-2 rounded-md transition-colors cursor-pointer ${room.is_open ? "text-green-600 hover:bg-green-50" : "text-red-500 hover:bg-red-50"}`}
               >
                 {room.is_open ? <Unlock className="size-4" /> : <Lock className="size-4" />}
               </button>
@@ -1175,7 +1175,7 @@ export default function Home() {
               <button
                 onClick={() => setMemberManageOpen(true)}
                 title="メンバー管理"
-                className="p-2.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+                className="p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
               >
                 <Users className="size-4" />
               </button>
@@ -1183,30 +1183,23 @@ export default function Home() {
             <button
               onClick={copyRoomCode}
               title="コードをコピー"
-              className="p-2.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+              className="p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
             >
               {codeCopied ? <Check className="size-4 text-green-600" /> : <Copy className="size-4" />}
             </button>
             <button
               onClick={shareRoomUrl}
               title="シェア"
-              className="p-2.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+              className="p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
             >
               <Share2 className="size-4" />
             </button>
             <button
               onClick={handleLeaveRoom}
               title="ルームを変更"
-              className="p-2.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+              className="p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
             >
               <LogOut className="size-4" />
-            </button>
-            <button
-              onClick={() => setEmailRegOpen(true)}
-              title="メールアドレス登録"
-              className="p-2.5 rounded-md text-muted-foreground hover:text-primary hover:bg-primary/5 transition-colors cursor-pointer"
-            >
-              <Mail className="size-4" />
             </button>
           </div>
         </div>
