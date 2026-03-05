@@ -205,7 +205,7 @@ export function PlaceDetailSheet({
       <div className="flex flex-col gap-4 p-5 flex-1">
         {/* タイトル + アクションボタン */}
         <div className="flex items-start justify-between gap-3">
-          <h2 className="text-xl font-bold leading-tight">{place.name}</h2>
+          <h2 className="text-xl font-bold leading-tight break-all">{place.name}</h2>
           <div className="flex gap-1 shrink-0">
             {canEdit && (
               <Button
@@ -290,7 +290,7 @@ export function PlaceDetailSheet({
           return displayText ? (
             <div className="flex items-start gap-2.5 text-sm">
               <Clock className="size-4 shrink-0 mt-0.5 text-muted-foreground" />
-              <p className="whitespace-pre-wrap leading-relaxed">
+              <p className="whitespace-pre-wrap leading-relaxed break-words">
                 {displayText}
               </p>
             </div>
@@ -312,7 +312,7 @@ export function PlaceDetailSheet({
         {place.address && (
           <div className="flex items-start gap-2.5 text-sm">
             <MapPin className="size-4 shrink-0 mt-0.5 text-muted-foreground" />
-            <span>{place.address}</span>
+            <span className="break-all">{place.address}</span>
           </div>
         )}
 
@@ -336,7 +336,7 @@ export function PlaceDetailSheet({
         {place.note && (
           <div className="flex items-start gap-2.5 text-sm">
             <FileText className="size-4 shrink-0 mt-0.5 text-muted-foreground" />
-            <p className="whitespace-pre-wrap leading-relaxed">{place.note}</p>
+            <p className="whitespace-pre-wrap leading-relaxed break-all">{place.note}</p>
           </div>
         )}
 
