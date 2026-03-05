@@ -473,6 +473,21 @@ export default function Home() {
       .setPopup(popup)
       .addTo(map.current);
 
+    // マーカクリック時のUX改善：ドロワーを最小化し、マップを中央へパンする
+    marker.getElement().addEventListener("click", () => {
+      // モバイルの場合はドロワーを35%（最小）にスナップし、マップの下部に余白(約300px)を持たせてパン
+      const isMobile = window.innerWidth < 768;
+      if (isMobile) {
+        setDrawerSnap(0.35);
+      }
+      map.current?.flyTo({
+        center: [place.lng, place.lat],
+        zoom: 15,
+        padding: { bottom: isMobile ? window.innerHeight * 0.35 : 0 },
+        duration: 800,
+      });
+    });
+
     markerInstance = marker;
     markers.current.set(place.id, marker);
   }, []);
@@ -1493,7 +1508,12 @@ export default function Home() {
       <PlaceDetailSheet
         place={detailPlace}
         open={detailOpen}
-        onOpenChange={setDetailOpen}
+        onOpenChange={(open) => {
+          setDetailOpen(open);
+          if (!open) {
+            setDrawerOpen(true);
+          }
+        }}
         onEdit={handleEdit}
         onDeleted={handleDeleted}
       />

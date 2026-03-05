@@ -132,6 +132,17 @@ export function PlaceDetailSheet({
                   alt={place.name}
                   className="w-full h-full object-cover"
                 />
+
+                {/* 閉じるボタン */}
+                <button
+                  onClick={() => onOpenChange(false)}
+                  className="absolute top-2 right-2 z-10 bg-black/40 text-white rounded-full p-2 hover:bg-black/60 transition-colors"
+                  title="閉じる"
+                >
+                  <span className="sr-only">閉じる</span>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg>
+                </button>
+
                 {images.length > 1 && (
                   <>
                     <button
@@ -166,8 +177,17 @@ export function PlaceDetailSheet({
                 )}
               </>
             ) : (
-              <div className="w-full h-full flex items-center justify-center">
+              <div className="w-full h-full flex items-center justify-center relative">
                 <MapPin className="size-12 text-muted-foreground/20" />
+                {/* 閉じるボタン (画像無し時) */}
+                <button
+                  onClick={() => onOpenChange(false)}
+                  className="absolute top-2 right-2 z-10 bg-black/10 text-black/50 dark:bg-white/10 dark:text-white/50 rounded-full p-2 hover:bg-black/20 dark:hover:bg-white/20 transition-colors"
+                  title="閉じる"
+                >
+                  <span className="sr-only">閉じる</span>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg>
+                </button>
               </div>
             )}
           </div>
@@ -179,18 +199,18 @@ export function PlaceDetailSheet({
               <h2 className="text-xl font-bold leading-tight">{place.name}</h2>
               <div className="flex gap-1 shrink-0">
                 {canEdit && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="size-8"
-                  onClick={() => {
-                    onOpenChange(false);
-                    onEdit(place);
-                  }}
-                  title="編集"
-                >
-                  <Pencil className="size-4" />
-                </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-8"
+                    onClick={() => {
+                      onOpenChange(false);
+                      onEdit(place);
+                    }}
+                    title="編集"
+                  >
+                    <Pencil className="size-4" />
+                  </Button>
                 )}
                 {canDelete && (
                   <Button
