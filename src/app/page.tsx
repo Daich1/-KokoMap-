@@ -131,7 +131,7 @@ export default function Home() {
   const [geocodedAddress, setGeocodedAddress] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(true);
-  const [drawerSnap, setDrawerSnap] = useState<number | string | null>(0.12);
+  const [drawerSnap, setDrawerSnap] = useState<number | string | null>(0.35);
   const [mapLoaded, setMapLoaded] = useState(false);
   const [roomDialogOpen, setRoomDialogOpen] = useState(!room);
   const [memberManageOpen, setMemberManageOpen] = useState(false);
@@ -523,7 +523,7 @@ export default function Home() {
       // モバイルの場合はドロワーを35%（最小）にスナップし、マップの下部に余白(約300px)を持たせてパン
       const isMobile = window.innerWidth < 768;
       if (isMobile) {
-        setDrawerSnap(0.12);
+        setDrawerSnap(0.35);
       }
       map.current?.flyTo({
         center: [place.lng, place.lat],
@@ -1433,7 +1433,7 @@ export default function Home() {
         onOpenChange={(v) => {
           if (!v) {
             // 閉じようとしたら最小スナップに戻す
-            setDrawerSnap(0.12);
+            setDrawerSnap(0.35);
             setDrawerOpen(true);
           }
         }}
