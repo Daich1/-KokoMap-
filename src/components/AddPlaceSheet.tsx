@@ -475,17 +475,17 @@ export function AddPlaceSheet({
   }
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
+    <Sheet open={open} onOpenChange={onOpenChange} modal={false}>
       <SheetContent side="right" className="flex flex-col p-0">
         <SheetHeader className="px-6 pt-6 pb-2">
           <SheetTitle>
             {isAiExtracting
               ? "✨ AI が情報を抽出中..."
               : isFillingDetails
-              ? "情報を取得中..."
-              : isEdit
-              ? "スポットを編集"
-              : "場所を追加"}
+                ? "情報を取得中..."
+                : isEdit
+                  ? "スポットを編集"
+                  : "場所を追加"}
           </SheetTitle>
         </SheetHeader>
 

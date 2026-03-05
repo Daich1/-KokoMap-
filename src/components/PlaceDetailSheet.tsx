@@ -115,7 +115,7 @@ export function PlaceDetailSheet({
 
   return (
     <>
-      <Sheet open={open} onOpenChange={onOpenChange}>
+      <Sheet open={open} onOpenChange={onOpenChange} modal={false}>
         <SheetContent
           side="right"
           className="flex flex-col p-0 sm:max-w-md overflow-y-auto"

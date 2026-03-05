@@ -27,9 +27,9 @@ interface MemberManageSheetProps {
 
 const ROLE_CONFIG: Record<RoomRole, { label: string; icon: React.ReactNode; color: string }> = {
   leader: { label: "リーダー", icon: <Crown className="size-3.5" />, color: "text-yellow-600" },
-  admin:  { label: "管理者",   icon: <Shield className="size-3.5" />, color: "text-blue-600" },
+  admin: { label: "管理者", icon: <Shield className="size-3.5" />, color: "text-blue-600" },
   member: { label: "メンバー", icon: <Pencil className="size-3.5" />, color: "text-green-600" },
-  viewer: { label: "閲覧者",   icon: <Eye className="size-3.5" />,    color: "text-gray-500" },
+  viewer: { label: "閲覧者", icon: <Eye className="size-3.5" />, color: "text-gray-500" },
 };
 
 function RoleBadge({ role }: { role: RoomRole }) {
@@ -79,7 +79,7 @@ export function MemberManageSheet({
   });
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
+    <Sheet open={open} onOpenChange={onOpenChange} modal={false}>
       <SheetContent side="bottom" className="rounded-t-2xl max-h-[80vh] overflow-y-auto">
         <SheetHeader className="mb-4">
           <SheetTitle className="flex items-center gap-2">
