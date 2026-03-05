@@ -3,12 +3,12 @@
 import { useState } from "react";
 import { Loader2, Mail, Check } from "lucide-react";
 import {
-    Drawer,
-    DrawerContent,
-    DrawerHeader,
-    DrawerTitle,
-    DrawerFooter,
-} from "@/components/ui/drawer";
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogFooter,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 
 interface EmailRegistrationProps {
@@ -60,17 +60,17 @@ export function EmailRegistration({ open, onOpenChange, userId, currentEmail }: 
     }
 
     return (
-        <Drawer open={open} onOpenChange={onOpenChange}>
-            <DrawerContent>
-                <DrawerHeader className="text-left">
-                    <DrawerTitle className="flex items-center gap-2 text-base">
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent className="sm:max-w-md">
+                <DialogHeader className="text-left">
+                    <DialogTitle className="flex items-center gap-2 text-base">
                         <Mail className="size-4" />
                         メールアドレス登録
-                    </DrawerTitle>
+                    </DialogTitle>
                     <p className="text-xs text-muted-foreground mt-1">
                         パスワードを忘れた時のリセットに使います。任意ですが登録をおすすめします。
                     </p>
-                </DrawerHeader>
+                </DialogHeader>
 
                 <div className="px-4 flex flex-col gap-3">
                     <div className="flex flex-col gap-1">
@@ -103,7 +103,7 @@ export function EmailRegistration({ open, onOpenChange, userId, currentEmail }: 
                     )}
                 </div>
 
-                <DrawerFooter>
+                <DialogFooter className="flex-col gap-2 sm:flex-col sm:space-x-0 mt-2">
                     <Button
                         onClick={handleSubmit}
                         disabled={isLoading || !email.trim()}
@@ -116,12 +116,12 @@ export function EmailRegistration({ open, onOpenChange, userId, currentEmail }: 
                     <Button
                         variant="outline"
                         onClick={() => onOpenChange(false)}
-                        className="w-full rounded-full"
+                        className="w-full rounded-full mt-0"
                     >
                         キャンセル
                     </Button>
-                </DrawerFooter>
-            </DrawerContent>
-        </Drawer>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
     );
 }

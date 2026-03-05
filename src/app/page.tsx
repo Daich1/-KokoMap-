@@ -10,13 +10,6 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import {
-  Drawer,
-  DrawerContent,
-  DrawerHeader,
-  DrawerTitle,
-  DrawerFooter,
-} from "@/components/ui/drawer";
 import { AddPlaceSheet } from "@/components/AddPlaceSheet";
 import { PlaceDetailSheet } from "@/components/PlaceDetailSheet";
 import { PlaceCard } from "@/components/PlaceCard";
@@ -91,7 +84,6 @@ export default function Home() {
     Map<string, { wantBtn: HTMLButtonElement; visitedBtn: HTMLButtonElement }>
   >(new Map());
   const geoWatchRef = useRef<number | null>(null);
-  const peekTouchStartY = useRef<number | null>(null);
 
   // ── Zustand ストア ────────────────────────────────────
   const {
@@ -130,8 +122,7 @@ export default function Home() {
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [geocodedAddress, setGeocodedAddress] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
-  const [drawerOpen, setDrawerOpen] = useState(true);
-  const [drawerSnap, setDrawerSnap] = useState<number | string | null>(0.35);
+  const [isListExpanded, setIsListExpanded] = useState(false);
   const [mapLoaded, setMapLoaded] = useState(false);
   const [roomDialogOpen, setRoomDialogOpen] = useState(!room);
   const [memberManageOpen, setMemberManageOpen] = useState(false);
@@ -520,10 +511,10 @@ export default function Home() {
 
     // マーカクリック時のUX改善：ドロワーを最小化し、マップを中央へパンする
     marker.getElement().addEventListener("click", () => {
-      // モバイルの場合はドロワーを35%（最小）にスナップし、マップの下部に余白(約300px)を持たせてパン
+      // モバイルの場合はリストを閉じてマップ下部に余白(約300px)を持たせてパン
       const isMobile = window.innerWidth < 768;
       if (isMobile) {
-        setDrawerSnap(0.35);
+        setIsListExpanded(false);
       }
       map.current?.flyTo({
         center: [place.lng, place.lat],
@@ -749,7 +740,7 @@ export default function Home() {
 
   function handleSelectPlace(place: Place) {
     map.current?.flyTo({ center: [place.lng, place.lat], zoom: 15, duration: 1200 });
-    setDrawerOpen(false);
+    setIsListExpanded(false);
     setDetailPlace(place);
     setDetailOpen(true);
   }
@@ -1258,11 +1249,13 @@ export default function Home() {
           {/* 現在地ボタン */}
           <button
             onClick={handleLocateMe}
+            // PWAのSafe Areaを考慮（peek時は140px、展開時は85dvh）
             className="absolute z-10 bg-white rounded-full shadow-lg p-2.5 hover:bg-gray-50 hover:shadow-xl active:scale-95 transition-all cursor-pointer right-3 md:bottom-6"
             style={{
-              bottom: drawerSnap === "72px"
-                ? 'calc(72px + env(safe-area-inset-bottom, 0px) + 3.5rem)'
-                : 'calc(34dvh + env(safe-area-inset-bottom, 0px) + 3.5rem)'
+              bottom: isListExpanded
+                ? 'calc(85dvh + env(safe-area-inset-bottom, 0px) + 0.75rem)'
+                : 'calc(140px + env(safe-area-inset-bottom, 0px) + 0.75rem)',
+              transition: 'bottom 0.3s cubic-bezier(0.32, 0.72, 0, 1)'
             }}
             title="現在地へ移動"
           >
@@ -1274,11 +1267,12 @@ export default function Home() {
             <button
               onClick={() => { setEditPlace(undefined); setSheetOpen(true); }}
               disabled={!room}
-              className="md:hidden absolute right-3 z-10 bg-primary text-primary-foreground rounded-full shadow-lg p-3 hover:opacity-90 active:scale-95 transition-all disabled:opacity-40 cursor-pointer"
+              className="md:hidden absolute right-3 z-[15] bg-primary text-primary-foreground rounded-full shadow-lg p-3 hover:opacity-90 active:scale-95 transition-all disabled:opacity-40 cursor-pointer"
               style={{
-                bottom: drawerSnap === "72px"
-                  ? 'calc(72px + env(safe-area-inset-bottom, 0px) + 0.75rem)'
-                  : 'calc(34dvh + env(safe-area-inset-bottom, 0px) + 0.75rem)'
+                bottom: isListExpanded
+                  ? 'calc(85dvh + env(safe-area-inset-bottom, 0px) - 3rem)' // 展開時はリストに隠れない位置
+                  : 'calc(140px + env(safe-area-inset-bottom, 0px) + 4rem)', // peek時は現在地ボタンの上
+                transition: 'bottom 0.3s cubic-bezier(0.32, 0.72, 0, 1)'
               }}
               title="場所を追加"
             >
@@ -1427,50 +1421,77 @@ export default function Home() {
 
       </div>
 
-      {/* ── モバイル Drawer（常時ペーク表示） ── */}
-      <Drawer
-        open={drawerOpen}
-        onOpenChange={(v) => {
-          if (!v) {
-            // 閉じようとしたら最小スナップに戻す
-            setDrawerSnap(0.35);
-            setDrawerOpen(true);
-          }
+      {/* ── モバイル カスタム BottomSheet（固定2段階） ── */}
+      <div
+        className={cn(
+          "md:hidden fixed inset-x-0 bottom-0 z-40 bg-background rounded-t-2xl shadow-[0_-4px_24px_rgba(0,0,0,0.1)] flex flex-col overflow-hidden will-change-transform",
+          // 高さ: 全体は85dvh。peek時(isListExpanded=false)は、下へtranslateして上部140px(+safe-area)だけ見せる
+        )}
+        style={{
+          height: 'calc(85dvh + env(safe-area-inset-bottom, 0px))',
+          transform: isListExpanded
+            ? 'translateY(0)'
+            : 'translateY(calc(85dvh - 140px))',
+          transition: 'transform 0.3s cubic-bezier(0.32, 0.72, 0, 1)'
         }}
-        snapPoints={["72px", 0.35, 0.65, 1]}
-        activeSnapPoint={drawerSnap}
-        setActiveSnapPoint={(snap) => { if (snap !== undefined) setDrawerSnap(snap); }}
-        modal={false}
-        dismissible={false}
       >
-        <DrawerContent className="flex flex-col md:hidden fixed">
-          <DrawerHeader className="pb-0 text-left">
-            <div className="flex items-center justify-between">
-              <DrawerTitle className="text-base font-bold tracking-tight">
-                スポット一覧
-                <span className="ml-2 text-muted-foreground font-normal text-sm">
-                  {countLabel}
-                </span>
-              </DrawerTitle>
-              {activeFilterCount > 0 && (
-                <button
-                  onClick={clearAllFilters}
-                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer bg-muted rounded-full px-2 py-0.5"
-                >
-                  <X className="size-3" />
-                  フィルター({activeFilterCount})クリア
-                </button>
-              )}
-            </div>
-          </DrawerHeader>
+        {/* ハンドル＆ヘッダー部分（ここをタップ・スワイプして開閉） */}
+        <div
+          className="shrink-0 cursor-pointer touch-pan-y"
+          onClick={() => setIsListExpanded(!isListExpanded)}
+          // 簡易スワイプ検知
+          onTouchStart={(e) => {
+            const touch = e.touches[0];
+            const startY = touch.clientY;
+            let currentY = startY;
 
-          {/* モバイル: カテゴリバー（snap スクロール対応） */}
-          <div className="overflow-x-auto scrollbar-hide border-b snap-x snap-mandatory">
-            <div className="flex gap-1.5 px-3 py-2 min-w-max">
+            const handleTouchMove = (e: TouchEvent) => {
+              currentY = e.touches[0].clientY;
+            };
+
+            const handleTouchEnd = () => {
+              const diff = currentY - startY;
+              if (diff > 30) {
+                // 下スワイプ：閉じる
+                setIsListExpanded(false);
+              } else if (diff < -30) {
+                // 上スワイプ：開く
+                setIsListExpanded(true);
+              }
+              document.removeEventListener('touchmove', handleTouchMove);
+              document.removeEventListener('touchend', handleTouchEnd);
+            };
+
+            document.addEventListener('touchmove', handleTouchMove, { passive: true });
+            document.addEventListener('touchend', handleTouchEnd);
+          }}
+        >
+          <div className="mx-auto mt-3 h-1.5 w-12 rounded-full bg-muted-foreground/20" />
+          <div className="flex items-center justify-between px-4 pb-2 pt-3">
+            <h2 className="text-base font-bold tracking-tight">
+              スポット一覧
+              <span className="ml-2 text-muted-foreground font-normal text-sm">
+                {countLabel}
+              </span>
+            </h2>
+            {activeFilterCount > 0 && (
               <button
-                onClick={() => setFilterCategories([])}
+                onClick={(e) => { e.stopPropagation(); clearAllFilters(); }}
+                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer bg-muted rounded-full px-2 py-0.5"
+              >
+                <X className="size-3" />
+                クリア
+              </button>
+            )}
+          </div>
+
+          {/* カテゴリバー */}
+          <div className="overflow-x-auto scrollbar-hide border-b snap-x snap-mandatory px-2 pb-2">
+            <div className="flex gap-1.5 min-w-max">
+              <button
+                onClick={(e) => { e.stopPropagation(); setFilterCategories([]); }}
                 className={cn(
-                  "flex items-center gap-1.5 px-3 min-h-[44px] rounded-full text-xs font-medium border transition-all shrink-0 cursor-pointer snap-center",
+                  "flex items-center gap-1.5 px-3 min-h-[40px] rounded-full text-xs font-medium border transition-all shrink-0 cursor-pointer snap-center",
                   filterCategories.length === 0
                     ? "bg-foreground text-background border-foreground hover:opacity-80"
                     : "text-muted-foreground border-transparent hover:border-border hover:text-foreground hover:bg-muted/50"
@@ -1484,9 +1505,9 @@ export default function Home() {
                 return (
                   <button
                     key={cat}
-                    onClick={() => toggleFilterCategory(cat)}
+                    onClick={(e) => { e.stopPropagation(); toggleFilterCategory(cat); }}
                     className={cn(
-                      "flex items-center gap-1.5 px-3 min-h-[44px] rounded-full text-xs font-medium border transition-all shrink-0 cursor-pointer snap-center",
+                      "flex items-center gap-1.5 px-3 min-h-[40px] rounded-full text-xs font-medium border transition-all shrink-0 cursor-pointer snap-center",
                       isActive
                         ? "bg-foreground text-background border-foreground hover:opacity-80"
                         : "text-muted-foreground border-transparent hover:border-border hover:text-foreground hover:bg-muted/50"
@@ -1499,57 +1520,52 @@ export default function Home() {
               })}
             </div>
           </div>
+        </div>
 
-          {filterUI}
+        {filterUI}
 
-          <div
-            className="overflow-y-auto flex flex-col gap-3 p-4"
-            onClick={() => { if (drawerSnap === "72px") setDrawerSnap(0.35); else if (drawerSnap === 0.35) setDrawerSnap(0.65); }}
-            style={{
-              flex: 1,
-              overflowY: (drawerSnap === "72px" || drawerSnap === 0.35) ? "hidden" : "auto",
-              maskImage: (drawerSnap === "72px" || drawerSnap === 0.35) ? "linear-gradient(to bottom, black 40%, transparent 100%)" : undefined,
-              WebkitMaskImage: (drawerSnap === "72px" || drawerSnap === 0.35) ? "linear-gradient(to bottom, black 40%, transparent 100%)" : undefined,
-            }}
-          >
-            {filteredPlaces.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-32 text-muted-foreground text-sm gap-2">
-                <p>
-                  {places.length === 0
-                    ? "まだスポットがありません"
-                    : "条件に合うスポットがありません"}
-                </p>
-              </div>
-            ) : (
-              filteredPlaces.map((place) => (
-                <PlaceCard
-                  key={place.id}
-                  place={place}
-                  onSelect={handleSelectPlace}
-                  distanceText={distanceMap.get(place.id)}
-                />
-              ))
-            )}
-          </div>
-
-          {canAdd && (
-            <DrawerFooter className="pt-0" style={{ paddingBottom: 'max(1rem, calc(env(safe-area-inset-bottom, 0px) + 0.5rem))' }}>
-              <Button
-                className="w-full rounded-full font-medium gap-2"
-                onClick={() => {
-                  setEditPlace(undefined);
-                  setSheetOpen(true);
-                  setDrawerOpen(false);
-                }}
-                disabled={!room}
-              >
-                <Plus className="size-4" />
-                スポットを追加する
-              </Button>
-            </DrawerFooter>
+        {/* リスト本体 */}
+        <div
+          className="flex-1 overflow-y-auto flex flex-col gap-3 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] custom-scrollbar"
+        >
+          {filteredPlaces.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-32 text-muted-foreground text-sm gap-2">
+              <p>
+                {places.length === 0
+                  ? "まだスポットがありません"
+                  : "条件に合うスポットがありません"}
+              </p>
+            </div>
+          ) : (
+            filteredPlaces.map((place) => (
+              <PlaceCard
+                key={place.id}
+                place={place}
+                onSelect={handleSelectPlace}
+                distanceText={distanceMap.get(place.id)}
+              />
+            ))
           )}
-        </DrawerContent>
-      </Drawer>
+        </div>
+
+        {/* ボトム追加ボタン */}
+        {canAdd && (
+          <div className="shrink-0 p-4 border-t bg-background" style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom, 0px))' }}>
+            <Button
+              className="w-full rounded-full font-medium gap-2"
+              onClick={() => {
+                setEditPlace(undefined);
+                setSheetOpen(true);
+                setIsListExpanded(false);
+              }}
+              disabled={!room}
+            >
+              <Plus className="size-4" />
+              スポットを追加する
+            </Button>
+          </div>
+        )}
+      </div>
 
       {/* 追加・編集フォーム */}
       <AddPlaceSheet
@@ -1570,7 +1586,7 @@ export default function Home() {
         onOpenChange={(open) => {
           setDetailOpen(open);
           if (!open) {
-            setDrawerOpen(true);
+            // detailsheet閉じたときの特別な処理は不要
           }
         }}
         onEdit={handleEdit}
