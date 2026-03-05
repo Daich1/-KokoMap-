@@ -1250,7 +1250,7 @@ export default function Home() {
           <button
             onClick={handleLocateMe}
             // PWAのSafe Areaを考慮（peek時は140px、展開時は85dvh）
-            className="absolute z-10 bg-white rounded-full shadow-lg p-2.5 hover:bg-gray-50 hover:shadow-xl active:scale-95 transition-all cursor-pointer right-3 md:bottom-6"
+            className="absolute z-50 bg-white rounded-full shadow-lg p-2.5 hover:bg-gray-50 hover:shadow-xl active:scale-95 transition-all cursor-pointer right-3 md:bottom-6"
             style={{
               bottom: isListExpanded
                 ? 'calc(85dvh + env(safe-area-inset-bottom, 0px) + 0.75rem)'
@@ -1267,7 +1267,7 @@ export default function Home() {
             <button
               onClick={() => { setEditPlace(undefined); setSheetOpen(true); }}
               disabled={!room}
-              className="md:hidden absolute right-3 z-[15] bg-primary text-primary-foreground rounded-full shadow-lg p-3 hover:opacity-90 active:scale-95 transition-all disabled:opacity-40 cursor-pointer"
+              className="md:hidden absolute right-3 z-50 bg-primary text-primary-foreground rounded-full shadow-lg p-3 hover:opacity-90 active:scale-95 transition-all disabled:opacity-40 cursor-pointer"
               style={{
                 bottom: isListExpanded
                   ? 'calc(85dvh + env(safe-area-inset-bottom, 0px) - 3rem)' // 展開時はリストに隠れない位置
