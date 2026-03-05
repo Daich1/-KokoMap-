@@ -369,13 +369,22 @@ export function PlaceDetailSheet({
         <SheetContent
           side={isDesktop ? "right" : "bottom"}
           className={cn(
-            "flex flex-col p-0 overflow-y-auto",
+            "flex flex-col p-0 overflow-y-auto overscroll-y-none",
             isDesktop ? "sm:max-w-md" : "h-[85dvh] rounded-t-2xl"
           )}
           style={{ touchAction: "pan-y" }}
           showCloseButton={false}
-          onTouchMove={(e) => {
-            // 横スワイプをブロックしてマップがパンしないようにする
+          onPointerDownCapture={(e) => {
+            // スワイプ判定の起点でマップイベント等への伝播を防ぐ
+            e.stopPropagation();
+          }}
+          onPointerMoveCapture={(e) => {
+            e.stopPropagation();
+          }}
+          onTouchMoveCapture={(e) => {
+            e.stopPropagation();
+          }}
+          onWheelCapture={(e) => {
             e.stopPropagation();
           }}
         >
