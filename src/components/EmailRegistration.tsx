@@ -62,8 +62,9 @@ export function EmailRegistration({ open, onOpenChange, userId, currentEmail }: 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-md">
-                <DialogHeader className="text-left">
-                    <DialogTitle className="flex items-center gap-2 text-base">
+                <form onSubmit={(e) => { e.preventDefault(); handleSubmit(); }}>
+                    <DialogHeader className="text-left">
+                        <DialogTitle className="flex items-center gap-2 text-base">
                         <Mail className="size-4" />
                         メールアドレス登録
                     </DialogTitle>
@@ -84,7 +85,6 @@ export function EmailRegistration({ open, onOpenChange, userId, currentEmail }: 
                             placeholder="example@gmail.com"
                             autoCapitalize="none"
                             autoCorrect="off"
-                            onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
                             className="w-full border rounded-xl px-4 py-3 text-base outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition"
                         />
                     </div>
@@ -105,7 +105,7 @@ export function EmailRegistration({ open, onOpenChange, userId, currentEmail }: 
 
                 <DialogFooter className="flex-col gap-2 sm:flex-col sm:space-x-0 mt-2">
                     <Button
-                        onClick={handleSubmit}
+                        type="submit"
                         disabled={isLoading || !email.trim()}
                         className="w-full rounded-full font-medium"
                     >
@@ -121,6 +121,7 @@ export function EmailRegistration({ open, onOpenChange, userId, currentEmail }: 
                         キャンセル
                     </Button>
                 </DialogFooter>
+                </form>
             </DialogContent>
         </Dialog>
     );

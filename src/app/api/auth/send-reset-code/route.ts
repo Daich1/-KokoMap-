@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { randomInt } from "crypto";
 
 // ── リセットコードを回復用メールに送信 ──
 export async function POST(req: Request) {
@@ -40,8 +41,8 @@ export async function POST(req: Request) {
             );
         }
 
-        // 6桁のリセットコードを生成
-        const code = String(Math.floor(100000 + Math.random() * 900000));
+        // 6桁のセキュアなリセットコードを生成
+        const code = String(randomInt(100000, 1000000));
         const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString(); // 10分後
 
         // user_metadata にコードと有効期限を保存

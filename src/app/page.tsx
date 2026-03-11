@@ -85,16 +85,6 @@ export default function Home() {
   >(new Map());
   const geoWatchRef = useRef<number | null>(null);
 
-  // ── PC / Mobile 判定 ───────────────────────────────────
-  const [isMobile, setIsMobile] = useState(false);
-  useEffect(() => {
-    const mq = window.matchMedia("(max-width: 767px)");
-    setIsMobile(mq.matches);
-    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
-    mq.addEventListener("change", handler);
-    return () => mq.removeEventListener("change", handler);
-  }, []);
-
   // ── Zustand ストア ────────────────────────────────────
   const {
     places,
@@ -213,20 +203,13 @@ export default function Home() {
   // URL の ?code= パラメータを検出してダイアログに渡す（room hydration より先に実行）
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const urlCode = params.get("code");
-    const sessionCode = sessionStorage.getItem("kokoMapInviteCode");
-    const code = urlCode || sessionCode;
-
+    const code = params.get("code");
     if (code) {
       const normalized = code.trim().toUpperCase().slice(0, 8);
       setUrlCode(normalized);
       setRoomDialogOpen(true);
-
-      if (urlCode) {
-        sessionStorage.setItem("kokoMapInviteCode", normalized);
-        const clean = window.location.pathname;
-        window.history.replaceState({}, "", clean);
-      }
+      const clean = window.location.pathname;
+      window.history.replaceState({}, "", clean);
     }
   }, []);
 
@@ -834,7 +817,6 @@ export default function Home() {
     setMyRole(role);
     setRoomDialogOpen(false);
     setUrlCode(undefined);
-    sessionStorage.removeItem("kokoMapInviteCode");
 
     await supabase.from("room_members").upsert(
       { room_id: joinedRoom.id, user_id: updatedUser.id, user_name: userName, role },
@@ -1139,12 +1121,10 @@ export default function Home() {
         </div>
 
         {/* 右: サイドバーと同幅スペーサー（マップ右端をヘッダーと揃える） */}
-        {!isMobile && (
-          <div className={cn(
-            "shrink-0 border-l transition-[width] duration-300 ease-in-out hidden md:block",
-            expanded ? "w-0" : "w-[420px]"
-          )} />
-        )}
+        <div className={cn(
+          "shrink-0 border-l transition-[width] duration-300 ease-in-out hidden md:block",
+          expanded ? "w-0" : "w-[420px]"
+        )} />
 
       </div>
 
@@ -1287,7 +1267,7 @@ export default function Home() {
             <button
               onClick={() => { setEditPlace(undefined); setSheetOpen(true); }}
               disabled={!room}
-              className="md:hidden absolute right-3 z-50 bg-primary text-primary-foreground rounded-full shadow-lg p-3 hover:opacity-90 active:scale-95 transition-all disabled:opacity-40 cursor-pointer"
+              className="md:hidden absolute right-3 z-[15] bg-primary text-primary-foreground rounded-full shadow-lg p-3 hover:opacity-90 active:scale-95 transition-all disabled:opacity-40 cursor-pointer"
               style={{
                 bottom: isListExpanded
                   ? 'calc(85dvh + env(safe-area-inset-bottom, 0px) - 3rem)' // 展開時はリストに隠れない位置
@@ -1302,209 +1282,191 @@ export default function Home() {
         </div>
 
         {/* ── PC: 右リストパネル ── */}
-        {!isMobile && (
-          <div
-            className={cn(
-              "hidden md:flex flex-col bg-background border-l shrink-0 transition-[width] duration-300 ease-in-out overflow-hidden",
-              expanded ? "w-0" : "w-[420px]"
-            )}
-          >
-            <div className="shrink-0 bg-background">
-              {/* タイトルバー */}
-              <div className="flex items-center justify-between px-5 py-3.5 border-b">
-                <h2 className="font-bold text-base tracking-tight">
-                  スポット一覧
-                  <span className="ml-2 text-muted-foreground font-normal text-sm">{countLabel}</span>
-                </h2>
-                <Button
-                  size="sm"
-                  className="rounded-full font-medium gap-1 hover:scale-105 hover:shadow-md transition-all cursor-pointer"
-                  onClick={() => { setEditPlace(undefined); setSheetOpen(true); }}
-                  disabled={!room || !canAdd}
-                >
-                  ＋ 追加する
-                </Button>
-              </div>
-
-              {/* ルーム情報バー */}
-              {room && (
-                <div className="flex items-center justify-between px-5 py-2 bg-muted/40 border-b">
-                  <div className="flex flex-col min-w-0 gap-0.5">
-                    <div className="flex items-center gap-1.5">
-                      {myRole && (
-                        <span className={`flex items-center gap-0.5 text-[11px] font-bold rounded-full px-1.5 py-0.5 shrink-0 border
-                          ${myRole === "leader" ? "text-yellow-700 bg-yellow-50 border-yellow-200" :
-                            myRole === "admin" ? "text-blue-700 bg-blue-50 border-blue-200" :
-                              myRole === "viewer" ? "text-gray-500 bg-gray-50 border-gray-200" :
-                                "text-green-700 bg-green-50 border-green-200"}`}>
-                          {myRole === "leader" ? <Crown className="size-2.5" /> :
-                            myRole === "admin" ? <Shield className="size-2.5" /> :
-                              myRole === "viewer" ? <Eye className="size-2.5" /> :
-                                <Users className="size-2.5" />}
-                          {ROLE_LABELS[myRole]}
-                        </span>
-                      )}
-                      {room.name && (
-                        <span className="text-xs font-medium truncate">{room.name}</span>
-                      )}
-                    </div>
-                    <span className="text-xs text-muted-foreground">
-                      コード:{" "}
-                      <span className="font-mono font-bold text-foreground">{room.share_code}</span>
-                    </span>
-                  </div>
-                  <div className="flex gap-1.5 shrink-0">
-                    {canManageRoom && (
-                      <button
-                        onClick={toggleRoomOpen}
-                        title={room.is_open ? "参加を締め切る" : "参�      {/* ── モバイル カスタム BottomSheet（固定2段階） ── */}
-      {isMobile && (
         <div
           className={cn(
-            "md:hidden fixed inset-x-0 bottom-0 z-40 bg-background rounded-t-2xl shadow-[0_-4px_24px_rgba(0,0,0,0.1)] flex flex-col overflow-hidden will-change-transform",
-            // 高さ: 全体は85dvh。peek時(isListExpanded=false)は、下へtranslateして上部140px(+safe-area)だけ見せる
+            "hidden md:flex flex-col bg-background border-l shrink-0 transition-[width] duration-300 ease-in-out overflow-hidden",
+            expanded ? "w-0" : "w-[420px]"
           )}
-          style={{
-            height: 'calc(85dvh + env(safe-area-inset-bottom, 0px))',
-            transform: isListExpanded
-              ? 'translateY(0)'
-              : 'translateY(calc(85dvh - 140px))',
-            transition: 'transform 0.3s cubic-bezier(0.32, 0.72, 0, 1)'
-          }}
         >
-          {/* ハンドル＆ヘッダー部分（ここをタップ・スワイプして開閉） */}
-          <div
-            className="shrink-0 cursor-pointer touch-pan-y"
-            onClick={() => setIsListExpanded(!isListExpanded)}
-            // 簡易スワイプ検知
-            onTouchStart={(e) => {
-              const touch = e.touches[0];
-              const startY = touch.clientY;
-              let currentY = startY;
-
-              const handleTouchMove = (e: TouchEvent) => {
-                currentY = e.touches[0].clientY;
-              };
-
-              const handleTouchEnd = () => {
-                const diff = currentY - startY;
-                if (diff > 30) {
-                  // 下スワイプ：閉じる
-                  setIsListExpanded(false);
-                } else if (diff < -30) {
-                  // 上スワイプ：開く
-                  setIsListExpanded(true);
-                }
-                document.removeEventListener('touchmove', handleTouchMove);
-                document.removeEventListener('touchend', handleTouchEnd);
-              };
-
-              document.addEventListener('touchmove', handleTouchMove, { passive: true });
-              document.addEventListener('touchend', handleTouchEnd);
-            }}
-          >
-            <div className="mx-auto mt-3 h-1.5 w-12 rounded-full bg-muted-foreground/20" />
-            <div className="flex items-center justify-between px-4 pb-2 pt-3">
-              <h2 className="text-base font-bold tracking-tight">
+          <div className="shrink-0 bg-background">
+            {/* タイトルバー */}
+            <div className="flex items-center justify-between px-5 py-3.5 border-b">
+              <h2 className="font-bold text-base tracking-tight">
                 スポット一覧
-                <span className="ml-2 text-muted-foreground font-normal text-sm">
-                  {countLabel}
-                </span>
+                <span className="ml-2 text-muted-foreground font-normal text-sm">{countLabel}</span>
               </h2>
-              {activeFilterCount > 0 && (
-                <button
-                  onClick={(e) => { e.stopPropagation(); clearAllFilters(); }}
-                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer bg-muted rounded-full px-2 py-0.5"
-                >
-                  <X className="size-3" />
-                  クリア
-                </button>
-              )}
+              <Button
+                size="sm"
+                className="rounded-full font-medium gap-1 hover:scale-105 hover:shadow-md transition-all cursor-pointer"
+                onClick={() => { setEditPlace(undefined); setSheetOpen(true); }}
+                disabled={!room || !canAdd}
+              >
+                ＋ 追加する
+              </Button>
             </div>
 
-            {/* カテゴリバー */}
-            <div className="overflow-x-auto scrollbar-hide border-b snap-x snap-mandatory px-2 pb-2">
-              <div className="flex gap-1.5 min-w-max">
-                <button
-                  onClick={(e) => { e.stopPropagation(); setFilterCategories([]); }}
-                  className={cn(
-                    "flex items-center gap-1.5 px-3 min-h-[40px] rounded-full text-xs font-medium border transition-all shrink-0 cursor-pointer snap-center",
-                    filterCategories.length === 0
-                      ? "bg-foreground text-background border-foreground hover:opacity-80"
-                      : "text-muted-foreground border-transparent hover:border-border hover:text-foreground hover:bg-muted/50"
-                  )}
-                >
-                  すべて
-                </button>
-                {PRESET_CATEGORIES.map((cat) => {
-                  const Icon = CATEGORY_ICONS[cat as keyof typeof CATEGORY_ICONS];
-                  const isActive = filterCategories.includes(cat);
-                  return (
+            {/* ルーム情報バー */}
+            {room && (
+              <div className="flex items-center justify-between px-5 py-2 bg-muted/40 border-b">
+                <div className="flex flex-col min-w-0 gap-0.5">
+                  <div className="flex items-center gap-1.5">
+                    {myRole && (
+                      <span className={`flex items-center gap-0.5 text-[11px] font-bold rounded-full px-1.5 py-0.5 shrink-0 border
+                        ${myRole === "leader" ? "text-yellow-700 bg-yellow-50 border-yellow-200" :
+                          myRole === "admin" ? "text-blue-700 bg-blue-50 border-blue-200" :
+                            myRole === "viewer" ? "text-gray-500 bg-gray-50 border-gray-200" :
+                              "text-green-700 bg-green-50 border-green-200"}`}>
+                        {myRole === "leader" ? <Crown className="size-2.5" /> :
+                          myRole === "admin" ? <Shield className="size-2.5" /> :
+                            myRole === "viewer" ? <Eye className="size-2.5" /> :
+                              <Users className="size-2.5" />}
+                        {ROLE_LABELS[myRole]}
+                      </span>
+                    )}
+                    {room.name && (
+                      <span className="text-xs font-medium truncate">{room.name}</span>
+                    )}
+                  </div>
+                  <span className="text-xs text-muted-foreground">
+                    コード:{" "}
+                    <span className="font-mono font-bold text-foreground">{room.share_code}</span>
+                  </span>
+                </div>
+                <div className="flex gap-1.5 shrink-0">
+                  {canManageRoom && (
                     <button
-                      key={cat}
-                      onClick={(e) => { e.stopPropagation(); toggleFilterCategory(cat); }}
-                      className={cn(
-                        "flex items-center gap-1.5 px-3 min-h-[40px] rounded-full text-xs font-medium border transition-all shrink-0 cursor-pointer snap-center",
-                        isActive
-                          ? "bg-foreground text-background border-foreground hover:opacity-80"
-                          : "text-muted-foreground border-transparent hover:border-border hover:text-foreground hover:bg-muted/50"
-                      )}
+                      onClick={toggleRoomOpen}
+                      title={room.is_open ? "参加を締め切る" : "参加を再開する"}
+                      className={`p-1.5 rounded transition-colors cursor-pointer ${room.is_open ? "text-green-700 hover:bg-green-50" : "text-red-600 hover:bg-red-50"}`}
                     >
-                      <Icon className="size-3.5" />
-                      {cat}
+                      {room.is_open ? <Unlock className="size-3.5" /> : <Lock className="size-3.5" />}
                     </button>
-                  );
-                })}
+                  )}
+                  {canManageMembers && (
+                    <button
+                      onClick={() => setMemberManageOpen(true)}
+                      title="メンバー管理"
+                      className="p-1.5 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground cursor-pointer"
+                    >
+                      <Users className="size-3.5" />
+                    </button>
+                  )}
+                  <button
+                    onClick={copyRoomCode}
+                    title="コードをコピー"
+                    className="p-1.5 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground cursor-pointer"
+                  >
+                    {codeCopied ? <Check className="size-3.5 text-green-600" /> : <Copy className="size-3.5" />}
+                  </button>
+                  <button
+                    onClick={shareRoomUrl}
+                    title="シェア"
+                    className="p-1.5 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground cursor-pointer"
+                  >
+                    <Share2 className="size-3.5" />
+                  </button>
+                  <button
+                    onClick={handleLeaveRoom}
+                    title="ルームを変更"
+                    className="p-1.5 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground cursor-pointer"
+                  >
+                    <LogOut className="size-3.5" />
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* 検索バー */}
+            <div className="flex items-center px-4 py-2.5 border-b">
+              <div className="relative flex-1">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground pointer-events-none" />
+                <Input
+                  value={filterText}
+                  onChange={(e) => setFilterText(e.target.value)}
+                  placeholder="名前やメモで検索..."
+                  className="h-8 pl-8 text-xs"
+                />
               </div>
             </div>
           </div>
 
-          {filterUI}
-
-          {/* リスト本体 */}
-          <div
-            className="flex-1 overflow-y-auto flex flex-col gap-3 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] custom-scrollbar"
-          >
+          {/* スクロール可能なリスト */}
+          <div className="flex-1 overflow-y-auto p-4">
             {filteredPlaces.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-32 text-muted-foreground text-sm gap-2">
+              <div className="flex flex-col items-center justify-center h-60 text-muted-foreground text-sm gap-2">
                 <p>
                   {places.length === 0
                     ? "まだスポットがありません"
                     : "条件に合うスポットがありません"}
                 </p>
+                {places.length === 0 && (
+                  <p className="text-xs">「＋ 追加する」で登録してみましょう</p>
+                )}
               </div>
             ) : (
-              filteredPlaces.map((place) => (
-                <PlaceCard
-                  key={place.id}
-                  place={place}
-                  onSelect={handleSelectPlace}
-                  distanceText={distanceMap.get(place.id)}
-                />
-              ))
+              <div className="flex flex-col gap-3" role="list">
+                {filteredPlaces.map((place) => (
+                  <PlaceCard
+                    key={place.id}
+                    place={place}
+                    onSelect={handleSelectPlace}
+                    distanceText={distanceMap.get(place.id)}
+                    compact={true}
+                  />
+                ))}
+              </div>
             )}
           </div>
-
-          {/* ボトム追加ボタン */}
-          {canAdd && (
-            <div className="shrink-0 p-4 border-t bg-background" style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom, 0px))' }}>
-              <Button
-                className="w-full rounded-full font-medium gap-2"
-                onClick={() => {
-                  setEditPlace(undefined);
-                  setSheetOpen(true);
-                  setIsListExpanded(false);
-                }}
-                disabled={!room}
-              >
-                <Plus className="size-4" />
-                スポットを追加する
-              </Button>
-            </div>
-          )}
         </div>
-      )}
-l bg-muted-foreground/20" />
+
+      </div>
+
+      {/* ── モバイル カスタム BottomSheet（固定2段階） ── */}
+      <div
+        className={cn(
+          "md:hidden fixed inset-x-0 bottom-0 z-40 bg-background rounded-t-2xl shadow-[0_-4px_24px_rgba(0,0,0,0.1)] flex flex-col overflow-hidden will-change-transform",
+          // 高さ: 全体は85dvh。peek時(isListExpanded=false)は、下へtranslateして上部140px(+safe-area)だけ見せる
+        )}
+        style={{
+          height: 'calc(85dvh + env(safe-area-inset-bottom, 0px))',
+          transform: isListExpanded
+            ? 'translateY(0)'
+            : 'translateY(calc(85dvh - 140px))',
+          transition: 'transform 0.3s cubic-bezier(0.32, 0.72, 0, 1)'
+        }}
+      >
+        {/* ハンドル＆ヘッダー部分（ここをタップ・スワイプして開閉） */}
+        <div
+          className="shrink-0 cursor-pointer touch-pan-y"
+          onClick={() => setIsListExpanded(!isListExpanded)}
+          // 簡易スワイプ検知
+          onTouchStart={(e) => {
+            const touch = e.touches[0];
+            const startY = touch.clientY;
+            let currentY = startY;
+
+            const handleTouchMove = (e: TouchEvent) => {
+              currentY = e.touches[0].clientY;
+            };
+
+            const handleTouchEnd = () => {
+              const diff = currentY - startY;
+              if (diff > 30) {
+                // 下スワイプ：閉じる
+                setIsListExpanded(false);
+              } else if (diff < -30) {
+                // 上スワイプ：開く
+                setIsListExpanded(true);
+              }
+              document.removeEventListener('touchmove', handleTouchMove);
+              document.removeEventListener('touchend', handleTouchEnd);
+            };
+
+            document.addEventListener('touchmove', handleTouchMove, { passive: true });
+            document.addEventListener('touchend', handleTouchEnd);
+          }}
+        >
+          <div className="mx-auto mt-3 h-1.5 w-12 rounded-full bg-muted-foreground/20" />
           <div className="flex items-center justify-between px-4 pb-2 pt-3">
             <h2 className="text-base font-bold tracking-tight">
               スポット一覧

@@ -15,7 +15,8 @@ export function LinkifiedText({ text, className }: LinkifiedTextProps) {
     return (
         <span className={className}>
             {parts.map((part, i) => {
-                if (part.match(urlRegex)) {
+                // Since the regex uses a capturing group, every odd index in the split result is a match.
+                if (i % 2 === 1) {
                     return (
                         <a
                             key={i}
