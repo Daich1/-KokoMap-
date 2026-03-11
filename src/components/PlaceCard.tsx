@@ -130,7 +130,7 @@ function ImageArea({
   return (
     <div className={containerClass}>
       {hasImage ? (
-        hasMultiple ? (
+        hasMultiple && !compact ? (
           <Carousel className="w-full h-full" opts={{ loop: true }} setApi={onApiInit}>
             <CarouselContent className="ml-0 h-full">
               {images.map((url, i) => (
@@ -140,6 +140,7 @@ function ImageArea({
                     alt={`${name} ${i + 1}`}
                     className="w-full h-full object-cover"
                     draggable={false}
+                    loading="lazy"
                   />
                 </CarouselItem>
               ))}
@@ -167,6 +168,7 @@ function ImageArea({
             src={images[0]}
             alt={name}
             className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+            loading="lazy"
           />
         )
       ) : (

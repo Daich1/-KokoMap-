@@ -33,6 +33,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { supabase, type Place, type SpotStatus } from "@/lib/supabase";
 import { DURATION_LABELS } from "@/lib/constants";
 import { BusinessHoursBadge } from "@/components/BusinessHoursBadge";
+import { LinkifiedText } from "@/components/LinkifiedText";
 import { useMapStore } from "@/store/useMapStore";
 import { cn } from "@/lib/utils";
 
@@ -290,9 +291,9 @@ export function PlaceDetailSheet({
           return displayText ? (
             <div className="flex items-start gap-2.5 text-sm">
               <Clock className="size-4 shrink-0 mt-0.5 text-muted-foreground" />
-              <p className="whitespace-pre-wrap leading-relaxed break-words">
-                {displayText}
-              </p>
+              <div className="whitespace-pre-wrap leading-relaxed break-words">
+                <LinkifiedText text={displayText} />
+              </div>
             </div>
           ) : null;
         })()}
@@ -336,7 +337,9 @@ export function PlaceDetailSheet({
         {place.note && (
           <div className="flex items-start gap-2.5 text-sm">
             <FileText className="size-4 shrink-0 mt-0.5 text-muted-foreground" />
-            <p className="whitespace-pre-wrap leading-relaxed break-all">{place.note}</p>
+            <div className="whitespace-pre-wrap leading-relaxed break-all">
+              <LinkifiedText text={place.note} />
+            </div>
           </div>
         )}
 

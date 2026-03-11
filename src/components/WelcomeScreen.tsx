@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Loader2, MapPin, Plus, LogIn, Copy, Check, Shield, ArrowLeft } from "lucide-react";
 import { supabase, type Room } from "@/lib/supabase";
 
@@ -23,6 +23,13 @@ export function WelcomeScreen({ initialCode, userName, onComplete }: WelcomeScre
   const [useCustomCode, setUseCustomCode] = useState(false);
   const [customCode, setCustomCode] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    if (initialCode) {
+      setStep("join");
+      setShareCode(initialCode);
+    }
+  }, [initialCode]);
   const [error, setError] = useState("");
   const [createdCode, setCreatedCode] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
