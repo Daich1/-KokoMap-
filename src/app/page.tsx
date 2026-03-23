@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import MapboxLanguage from "@mapbox/mapbox-gl-language";
-import { LocateFixed, List, Search, Copy, Check, LogOut, SlidersHorizontal, X, Star, CheckCircle2, Utensils, Wine, Gamepad2, Landmark, Coffee, ShoppingBag, Camera, BedDouble, Waves, Plus, Shield, Lock, Unlock, Share2, Users, Crown, Eye, ChevronUp, Mail, User as UserIcon } from "lucide-react";
+import { LocateFixed, List, Search, Copy, Check, LogOut, SlidersHorizontal, X, Star, CheckCircle2, Utensils, Wine, Gamepad2, Landmark, Coffee, ShoppingBag, Camera, BedDouble, Waves, Plus, Shield, Lock, Unlock, Share2, Users, Crown, Eye, ChevronUp, Mail, User as UserIcon, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -18,7 +18,6 @@ import { RoomJoinDialog } from "@/components/RoomJoinDialog";
 import { WelcomeScreen } from "@/components/WelcomeScreen";
 import { AuthScreen } from "@/components/AuthScreen";
 import { MemberManageSheet } from "@/components/MemberManageSheet";
-import { EmailRegistration } from "@/components/EmailRegistration";
 import { ProfileSettings } from "@/components/ProfileSettings";
 import { supabase, type Place, type Room, type SpotStatus, type RoomMember } from "@/lib/supabase";
 import type { User } from "@supabase/supabase-js";
@@ -134,7 +133,6 @@ export default function Home() {
   // ── Supabase Auth セッション管理 ──────────────────────────────
   const [authUser, setAuthUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
-  const [emailRegOpen, setEmailRegOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
 
   // DBからユーザーの所属ルームを復元または検証
@@ -1130,24 +1128,16 @@ export default function Home() {
                 </PopoverContent>
               </Popover>
 
-              {/* PC: アカウント＆メール設定（常に右上に表示） */}
+              {/* PC: アカウント＆設定 */}
               {authUser && (
                 <div className="hidden md:flex items-center gap-1 border-l pl-2">
                   <button
                     onClick={() => setProfileOpen(true)}
-                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors cursor-pointer mr-1"
-                    title="プロフィール設定"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-gray-700 hover:text-gray-900 hover:bg-gray-100 transition-colors cursor-pointer"
+                    title="設定"
                   >
-                    <UserIcon className="size-3.5" />
-                    <span className="hidden lg:inline font-medium">{currentUser.name}</span>
-                  </button>
-                  <button
-                    onClick={() => setEmailRegOpen(true)}
-                    title="メールアドレス設定"
-                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs text-muted-foreground hover:text-primary hover:bg-primary/5 transition-colors cursor-pointer"
-                  >
-                    <Mail className="size-3.5" />
-                    <span className="hidden xl:inline">メール設定</span>
+                    <Settings className="size-4 text-gray-500" />
+                    <span className="hidden lg:inline">{currentUser.name}</span>
                   </button>
                 </div>
               )}
@@ -1220,13 +1210,6 @@ export default function Home() {
             >
               <Share2 className="size-4" />
             </button>
-            <button
-              onClick={handleLeaveRoom}
-              title="ルームを変更"
-              className="p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
-            >
-              <LogOut className="size-4" />
-            </button>
           </div>
         </div>
       )}
@@ -1263,20 +1246,13 @@ export default function Home() {
 
           {/* モバイル: 右上ボタン群（マップ上） */}
           {authUser && (
-            <div className="md:hidden absolute top-3 right-3 z-20 flex items-center gap-2">
-              <button
-                onClick={() => setEmailRegOpen(true)}
-                title="メールアドレス設定"
-                className="bg-white rounded-full shadow-md p-2.5 text-muted-foreground hover:text-primary transition-colors cursor-pointer"
-              >
-                <Mail className="size-4" />
-              </button>
+            <div className="md:hidden absolute top-3 right-3 z-20">
               <button
                 onClick={() => setProfileOpen(true)}
-                title="プロフィール設定"
-                className="bg-white rounded-full shadow-md p-2.5 text-muted-foreground hover:text-primary hover:bg-muted/50 transition-colors cursor-pointer"
+                title="設定"
+                className="bg-white rounded-full shadow-md p-2.5 text-gray-600 hover:text-gray-900 active:scale-95 transition-all cursor-pointer border border-gray-100"
               >
-                <UserIcon className="size-4" />
+                <Settings className="size-5" />
               </button>
             </div>
           )}
@@ -1399,13 +1375,6 @@ export default function Home() {
                     className="p-1.5 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground cursor-pointer"
                   >
                     <Share2 className="size-3.5" />
-                  </button>
-                  <button
-                    onClick={handleLeaveRoom}
-                    title="ルームを変更"
-                    className="p-1.5 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground cursor-pointer"
-                  >
-                    <LogOut className="size-3.5" />
                   </button>
                 </div>
               </div>
@@ -1664,15 +1633,7 @@ export default function Home() {
         />
       )}
 
-      {/* メールアドレス登録 */}
-      {authUser && (
-        <EmailRegistration
-          open={emailRegOpen}
-          onOpenChange={setEmailRegOpen}
-          userId={authUser.id}
-          currentEmail={authUser.user_metadata?.recovery_email}
-        />
-      )}
+
 
       {/* ── 認証オーバーレイ（マップは背後で初期化し続ける） ── */}
       {authLoading && (
@@ -1699,6 +1660,9 @@ export default function Home() {
         open={profileOpen}
         onOpenChange={setProfileOpen}
         onLogout={handleLogout}
+        onLeaveRoom={handleLeaveRoom}
+        userId={authUser?.id}
+        currentEmail={authUser?.user_metadata?.recovery_email}
       />
     </div>
   );
