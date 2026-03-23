@@ -4,12 +4,13 @@ import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import MapboxLanguage from "@mapbox/mapbox-gl-language";
-import { LocateFixed, List, Search, Copy, Check, LogOut, SlidersHorizontal, X, Star, CheckCircle2, Utensils, Wine, Gamepad2, Landmark, Coffee, ShoppingBag, Camera, BedDouble, Waves, Plus, Shield, Lock, Unlock, Share2, Users, Crown, Eye, ChevronUp, Mail } from "lucide-react";
+import { LocateFixed, List, Search, Copy, Check, LogOut, SlidersHorizontal, X, Star, CheckCircle2, Utensils, Wine, Gamepad2, Landmark, Coffee, ShoppingBag, Camera, BedDouble, Waves, Plus, Shield, Lock, Unlock, Share2, Users, Crown, Eye, ChevronUp, Mail, User as UserIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AddPlaceSheet } from "@/components/AddPlaceSheet";
 import { PlaceDetailSheet } from "@/components/PlaceDetailSheet";
 import { PlaceCard } from "@/components/PlaceCard";
@@ -18,6 +19,7 @@ import { WelcomeScreen } from "@/components/WelcomeScreen";
 import { AuthScreen } from "@/components/AuthScreen";
 import { MemberManageSheet } from "@/components/MemberManageSheet";
 import { EmailRegistration } from "@/components/EmailRegistration";
+import { ProfileSettings } from "@/components/ProfileSettings";
 import { supabase, type Place, type Room, type SpotStatus, type RoomMember } from "@/lib/supabase";
 import type { User } from "@supabase/supabase-js";
 import { useMapStore } from "@/store/useMapStore";
@@ -27,6 +29,7 @@ import { PRESET_CATEGORIES } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { calcDistance, formatDistance } from "@/lib/geo";
 import { isPlaceOpenNow } from "@/lib/openNow";
+import { PRESET_MARKER_COLORS, getCreatorColor } from "@/lib/constants";
 
 const ROLE_LABELS: Record<string, string> = {
   leader: "リーダー",
@@ -132,6 +135,7 @@ export default function Home() {
   const [authUser, setAuthUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [emailRegOpen, setEmailRegOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
 
   // DBからユーザーの所属ルームを復元または検証
   const restoreUserRoom = useCallback(async (userId: string) => {
@@ -227,6 +231,7 @@ export default function Home() {
   const [filterBudgetMax, setFilterBudgetMax] = useState("");
   const [filterOpenNow, setFilterOpenNow] = useState(false);
   const [filterStatus, setFilterStatus] = useState<SpotStatus | null>(null);
+  const [filterCreatorId, setFilterCreatorId] = useState<string | null>(null);
   const [sortOrder, setSortOrder] = useState<"default" | "distance">("default");
 
   // ── 初期化: スポットステータスを読み込む ─────────────────
@@ -312,6 +317,10 @@ export default function Home() {
       if (filterStatus !== null) {
         if (spotStatuses[place.id] !== filterStatus) return false;
       }
+      // 登録者フィルター
+      if (filterCreatorId !== null) {
+        if (place.created_by_id !== filterCreatorId) return false;
+      }
       return true;
     });
 
@@ -325,7 +334,7 @@ export default function Home() {
     }
 
     return result;
-  }, [places, filterText, filterCategories, filterBudgetMin, filterBudgetMax, filterOpenNow, filterStatus, spotStatuses, sortOrder, userLocation]);
+  }, [places, filterText, filterCategories, filterBudgetMin, filterBudgetMax, filterOpenNow, filterStatus, filterCreatorId, spotStatuses, sortOrder, userLocation]);
 
   // 距離テキストのマップ（再レンダリングの最適化）
   const distanceMap = useMemo(() => {
@@ -504,7 +513,10 @@ export default function Home() {
       className: "custom-popup",
     }).setDOMContent(popupEl);
 
-    const marker = new mapboxgl.Marker()
+    const store = useMapStore.getState();
+    const markerColor = getCreatorColor(place.created_by_id, store.roomMembers);
+
+    const marker = new mapboxgl.Marker({ color: markerColor })
       .setLngLat([place.lng, place.lat])
       .setPopup(popup)
       .addTo(map.current);
@@ -829,13 +841,7 @@ export default function Home() {
     await handleRoomJoined(joinedRoom, name, isCreator);
   }
 
-  async function handleLeaveRoom() {
-    if (room) {
-      await supabase.from("room_members")
-        .delete()
-        .eq("room_id", room.id)
-        .eq("user_id", currentUser.id);
-    }
+  function handleLeaveRoom() {
     clearRoom();
     markers.current.forEach((m) => m.remove());
     markers.current.clear();
@@ -843,12 +849,6 @@ export default function Home() {
   }
 
   async function handleLogout() {
-    if (room) {
-      await supabase.from("room_members")
-        .delete()
-        .eq("room_id", room.id)
-        .eq("user_id", currentUser.id);
-    }
     clearRoom();
     markers.current.forEach((m) => m.remove());
     markers.current.clear();
@@ -909,6 +909,7 @@ export default function Home() {
     !!filterBudgetMax,
     filterOpenNow,
     !!filterStatus,
+    !!filterCreatorId,
   ].filter(Boolean).length;
 
   function clearAllFilters() {
@@ -917,6 +918,7 @@ export default function Home() {
     setFilterBudgetMax("");
     setFilterOpenNow(false);
     setFilterStatus(null);
+    setFilterCreatorId(null);
   }
 
   // ── 認証前はローディングor認証画面を返す ──────────────────────
@@ -971,6 +973,34 @@ export default function Home() {
           <Switch checked={filterOpenNow} onCheckedChange={setFilterOpenNow} className="scale-90" />
           <span className="text-xs">🟢 営業中のみ</span>
         </label>
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <span className="text-xs font-medium text-muted-foreground">登録した人</span>
+        <Select
+          value={filterCreatorId ?? "all"}
+          onValueChange={(val) => setFilterCreatorId(val === "all" ? null : val)}
+        >
+          <SelectTrigger className="w-full h-9 text-xs">
+            <SelectValue placeholder="登録した人で絞り込む" />
+          </SelectTrigger>
+          <SelectContent className="max-h-[300px]">
+            <SelectItem value="all" className="text-xs">すべて</SelectItem>
+            {roomMembers
+              .filter(m => Array.from(new Set(places.map(p => p.created_by_id))).includes(m.user_id))
+              .map((member) => {
+                const color = getCreatorColor(member.user_id, roomMembers);
+                return (
+                  <SelectItem key={member.user_id} value={member.user_id} className="text-xs">
+                    <div className="flex items-center gap-2">
+                      <span className="size-2 rounded-full shrink-0" style={{ backgroundColor: color }} />
+                      <span className="truncate">{member.user_name}</span>
+                    </div>
+                  </SelectItem>
+                );
+              })}
+          </SelectContent>
+        </Select>
       </div>
 
       <div className="flex flex-col gap-1.5">
@@ -1097,7 +1127,14 @@ export default function Home() {
               {/* PC: アカウント＆メール設定（常に右上に表示） */}
               {authUser && (
                 <div className="hidden md:flex items-center gap-1 border-l pl-2">
-                  <span className="text-xs text-muted-foreground mr-1 hidden lg:inline">{currentUser.name}</span>
+                  <button
+                    onClick={() => setProfileOpen(true)}
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors cursor-pointer mr-1"
+                    title="プロフィール設定"
+                  >
+                    <UserIcon className="size-3.5" />
+                    <span className="hidden lg:inline font-medium">{currentUser.name}</span>
+                  </button>
                   <button
                     onClick={() => setEmailRegOpen(true)}
                     title="メールアドレス設定"
@@ -1105,14 +1142,6 @@ export default function Home() {
                   >
                     <Mail className="size-3.5" />
                     <span className="hidden xl:inline">メール設定</span>
-                  </button>
-                  <button
-                    onClick={handleLogout}
-                    title="ログアウト"
-                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs text-muted-foreground hover:text-red-500 hover:bg-red-50 transition-colors cursor-pointer"
-                  >
-                    <LogOut className="size-3.5" />
-                    <span className="hidden xl:inline">ログアウト</span>
                   </button>
                 </div>
               )}
@@ -1237,11 +1266,11 @@ export default function Home() {
                 <Mail className="size-4" />
               </button>
               <button
-                onClick={handleLogout}
-                title="ログアウト"
-                className="bg-white rounded-full shadow-md p-2.5 text-muted-foreground hover:text-red-500 hover:bg-red-50 transition-colors cursor-pointer"
+                onClick={() => setProfileOpen(true)}
+                title="プロフィール設定"
+                className="bg-white rounded-full shadow-md p-2.5 text-muted-foreground hover:text-primary hover:bg-muted/50 transition-colors cursor-pointer"
               >
-                <LogOut className="size-4" />
+                <UserIcon className="size-4" />
               </button>
             </div>
           )}
@@ -1591,6 +1620,11 @@ export default function Home() {
         }}
         onEdit={handleEdit}
         onDeleted={handleDeleted}
+        onCreatorFilter={(creatorId) => {
+          setFilterCreatorId(creatorId);
+          setDetailOpen(false);
+          setIsListExpanded(true); // Close map detail, open filtered list
+        }}
       />
 
       {/* ルーム未参加時: グループ作成/参加 */}
@@ -1653,6 +1687,13 @@ export default function Home() {
           }}
         />
       )}
+
+      {/* ── プロフィール設定 ── */}
+      <ProfileSettings
+        open={profileOpen}
+        onOpenChange={setProfileOpen}
+        onLogout={handleLogout}
+      />
     </div>
   );
 }

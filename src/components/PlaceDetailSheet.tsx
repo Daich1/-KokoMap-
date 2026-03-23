@@ -43,6 +43,7 @@ interface PlaceDetailSheetProps {
   onOpenChange: (open: boolean) => void;
   onEdit: (place: Place) => void;
   onDeleted: (placeId: string) => void;
+  onCreatorFilter?: (creatorId: string) => void;
 }
 
 function UserAvatar({ name }: { name: string }) {
@@ -77,6 +78,7 @@ export function PlaceDetailSheet({
   onOpenChange,
   onEdit,
   onDeleted,
+  onCreatorFilter,
 }: PlaceDetailSheetProps) {
   const [imgIdx, setImgIdx] = useState(0);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -265,7 +267,17 @@ export function PlaceDetailSheet({
 
         {/* 作成者 */}
         {place.created_by_name && (
-          <div className="flex items-center gap-2">
+          <div
+            className={cn(
+              "flex items-center gap-2 w-max",
+              onCreatorFilter && "cursor-pointer hover:bg-muted/50 p-1.5 -m-1.5 rounded-lg transition-colors"
+            )}
+            onClick={() => {
+              if (onCreatorFilter && place.created_by_id) {
+                onCreatorFilter(place.created_by_id);
+              }
+            }}
+          >
             <UserAvatar name={place.created_by_name} />
             <div className="flex flex-col">
               <span className="text-xs text-muted-foreground">登録者</span>
