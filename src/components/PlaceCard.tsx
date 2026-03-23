@@ -17,7 +17,7 @@ import { useMapStore } from "@/store/useMapStore";
 import { cn } from "@/lib/utils";
 import { useState, useCallback } from "react";
 import type { EmblaCarouselType } from "embla-carousel";
-
+import Image from "next/image";
 const CATEGORY_EMOJI: Record<string, string> = {
   "食事": "🍜",
   "飲み": "🍺",
@@ -135,12 +135,13 @@ function ImageArea({
             <CarouselContent className="ml-0 h-full">
               {images.map((url, i) => (
                 <CarouselItem key={i} className="pl-0 h-full">
-                  <img
+                  <Image
                     src={url}
                     alt={`${name} ${i + 1}`}
-                    className="w-full h-full object-cover"
+                    fill
+                    sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                    className="object-cover"
                     draggable={false}
-                    loading="lazy"
                   />
                 </CarouselItem>
               ))}
@@ -164,11 +165,12 @@ function ImageArea({
             </div>
           </Carousel>
         ) : (
-          <img
+          <Image
             src={images[0]}
             alt={name}
-            className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-            loading="lazy"
+            fill
+            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+            className="object-cover transition-transform duration-500 group-hover:scale-105"
           />
         )
       ) : (

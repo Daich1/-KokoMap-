@@ -36,6 +36,7 @@ import { BusinessHoursBadge } from "@/components/BusinessHoursBadge";
 import { LinkifiedText } from "@/components/LinkifiedText";
 import { useMapStore } from "@/store/useMapStore";
 import { cn } from "@/lib/utils";
+import Image from "next/image";
 
 interface PlaceDetailSheetProps {
   place: Place | null;
@@ -139,10 +140,13 @@ export function PlaceDetailSheet({
       <div className="relative aspect-video bg-muted shrink-0 overflow-hidden">
         {images.length > 0 ? (
           <>
-            <img
+            <Image
               src={images[imgIdx]}
               alt={place.name}
-              className="w-full h-full object-cover"
+              fill
+              sizes="(max-width: 768px) 100vw, 50vw"
+              className="object-cover"
+              priority
             />
 
             {/* 閉じるボタン */}
