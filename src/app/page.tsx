@@ -147,18 +147,22 @@ export default function Home() {
       if (currentRoom) {
         const { data: check } = await supabase
           .from("room_members")
-          .select("room_id")
+          .select("room_id, role")
           .eq("user_id", userId)
           .eq("room_id", currentRoom.id)
           .maybeSingle();
-        if (check) targetRoomId = currentRoom.id;
+        if (check) {
+          targetRoomId = currentRoom.id;
+          // ロールも復元
+          if (check.role) useMapStore.getState().setMyRole(check.role);
+        }
       }
 
       // 無効な場合は最新の所属ルームを取得
       if (!targetRoomId) {
         const { data: latest } = await supabase
           .from("room_members")
-          .select("room_id, rooms(*)")
+          .select("room_id, role, rooms(*)")
           .eq("user_id", userId)
           .order("created_at", { ascending: false })
           .limit(1)
@@ -168,6 +172,8 @@ export default function Home() {
           // Supabaseの型定義によっては配列になる場合があるための安全策
           const roomObj = Array.isArray(latest.rooms) ? latest.rooms[0] : latest.rooms;
           useMapStore.getState().setRoom(roomObj as unknown as Room);
+          // ロールも復元
+          if (latest.role) useMapStore.getState().setMyRole(latest.role);
           targetRoomId = latest.room_id;
         } else {
           // 所属ルームなし
@@ -242,7 +248,7 @@ export default function Home() {
 
   // ── 初期化: ルームのメンバー一覧とロールを取得 ──────────
   useEffect(() => {
-    if (!room) return;
+    if (!room || !currentUser.id) return;
     supabase
       .from("room_members")
       .select("*")
@@ -254,7 +260,7 @@ export default function Home() {
         if (me) setMyRole(me.role);
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [room?.id]);
+  }, [room?.id, currentUser.id]);
 
   // ── ジオロケーション（watchPosition）────────────────────
   useEffect(() => {
