@@ -1722,6 +1722,7 @@ export default function Home() {
           onInvite={shareRoomUrl}
           onManageMembers={() => setMemberManageOpen(true)}
           canManageMembers={canManageMembers}
+          onSelectPlace={(p) => { setDetailPlace(p); setDetailOpen(true); }}
         />
       )}
       {activeTab === "mypage" && (
