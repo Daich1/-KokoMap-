@@ -1,9 +1,11 @@
 "use client";
 
-import { Crown, Shield, Pencil, Eye, Share2, Users, MapPin, Heart, CheckCircle2 } from "lucide-react";
+import { useState } from "react";
+import { Crown, Shield, Pencil, Eye, Share2, Users, MapPin, Heart, CheckCircle2, ChevronDown } from "lucide-react";
 import { useMapStore } from "@/store/useMapStore";
+import { getCreatorColor } from "@/lib/constants";
 import { cn } from "@/lib/utils";
-import type { RoomRole } from "@/lib/supabase";
+import type { RoomRole, Place } from "@/lib/supabase";
 
 const ROLE_CONFIG: Record<RoomRole, { label: string; icon: React.ReactNode; badgeClass: string }> = {
   leader: {
@@ -28,27 +30,16 @@ const ROLE_CONFIG: Record<RoomRole, { label: string; icon: React.ReactNode; badg
   },
 };
 
-function UserAvatar({ name, size = "md" }: { name: string; size?: "sm" | "md" }) {
-  return (
-    <div
-      className={cn(
-        "rounded-full bg-primary text-primary-foreground flex items-center justify-center font-bold shrink-0",
-        size === "md" ? "size-10 text-sm" : "size-8 text-xs"
-      )}
-    >
-      {name.charAt(0).toUpperCase()}
-    </div>
-  );
-}
-
 interface GroupTabProps {
   onInvite: () => void;
   onManageMembers: () => void;
   canManageMembers: boolean;
+  onSelectPlace: (place: Place) => void;
 }
 
-export function GroupTab({ onInvite, onManageMembers, canManageMembers }: GroupTabProps) {
+export function GroupTab({ onInvite, onManageMembers, canManageMembers, onSelectPlace }: GroupTabProps) {
   const { room, roomMembers, places, allMemberStatuses, currentUser } = useMapStore();
+  const [expandedMemberId, setExpandedMemberId] = useState<string | null>(null);
 
   if (!room) return null;
 
@@ -64,6 +55,11 @@ export function GroupTab({ onInvite, onManageMembers, canManageMembers }: GroupT
     const order: Record<RoomRole, number> = { leader: 0, admin: 1, member: 2, viewer: 3 };
     return order[a.role] - order[b.role];
   });
+
+  // 1件以上スポットを登録したメンバーのみ表示
+  const activeMembers = sorted.filter((m) =>
+    places.some((p) => p.created_by_id === m.user_id)
+  );
 
   return (
     <div
@@ -106,7 +102,7 @@ export function GroupTab({ onInvite, onManageMembers, canManageMembers }: GroupT
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-bold flex items-center gap-1.5">
             <Users className="size-4" />
-            メンバー（{roomMembers.length}人）
+            登録者（{activeMembers.length}人）
           </h2>
           <div className="flex gap-2">
             {canManageMembers && (
@@ -127,39 +123,98 @@ export function GroupTab({ onInvite, onManageMembers, canManageMembers }: GroupT
           </div>
         </div>
 
-        <div className="flex flex-col gap-0 rounded-2xl overflow-hidden border bg-card divide-y">
-          {sorted.map((member) => {
-            const cfg = ROLE_CONFIG[member.role];
-            const isMe = member.user_id === currentUser.id;
-            return (
-              <div key={member.user_id} className="flex items-center gap-3 px-4 py-3">
-                <UserAvatar name={member.user_name} />
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-sm font-semibold truncate">{member.user_name}</span>
-                    {isMe && (
-                      <span className="text-[10px] text-muted-foreground shrink-0">（自分）</span>
-                    )}
-                  </div>
-                  <span
-                    className={cn(
-                      "inline-flex items-center gap-0.5 text-[10px] font-medium rounded-full px-1.5 py-0.5 border mt-0.5",
-                      cfg.badgeClass
-                    )}
+        {activeMembers.length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-8">
+            まだスポットを登録したメンバーがいません
+          </p>
+        ) : (
+          <div className="flex flex-col rounded-2xl overflow-hidden border bg-card divide-y">
+            {activeMembers.map((member) => {
+              const cfg = ROLE_CONFIG[member.role];
+              const isMe = member.user_id === currentUser.id;
+              const color = getCreatorColor(member.user_id, roomMembers);
+              const isExpanded = expandedMemberId === member.user_id;
+              const memberPlaces = places.filter((p) => p.created_by_id === member.user_id);
+
+              return (
+                <div key={member.user_id}>
+                  {/* メンバー行（クリックで展開） */}
+                  <button
+                    onClick={() => setExpandedMemberId(isExpanded ? null : member.user_id)}
+                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-muted/30 transition-colors text-left cursor-pointer"
                   >
-                    {cfg.icon}
-                    {cfg.label}
-                  </span>
+                    <div
+                      className="size-10 rounded-full flex items-center justify-center font-bold text-sm text-white shrink-0"
+                      style={{ backgroundColor: color }}
+                    >
+                      {member.user_name.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-sm font-semibold truncate">{member.user_name}</span>
+                        {isMe && (
+                          <span className="text-[10px] text-muted-foreground shrink-0">（自分）</span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span
+                          className={cn(
+                            "inline-flex items-center gap-0.5 text-[10px] font-medium rounded-full px-1.5 py-0.5 border",
+                            cfg.badgeClass
+                          )}
+                        >
+                          {cfg.icon}
+                          {cfg.label}
+                        </span>
+                        <span className="text-[11px] text-muted-foreground">
+                          {memberPlaces.length}件登録
+                        </span>
+                      </div>
+                    </div>
+                    <ChevronDown
+                      className={cn(
+                        "size-4 text-muted-foreground transition-transform duration-200 shrink-0",
+                        isExpanded && "rotate-180"
+                      )}
+                    />
+                  </button>
+
+                  {/* 展開: そのメンバーのスポット一覧 */}
+                  {isExpanded && (
+                    <div className="bg-muted/30 border-t divide-y">
+                      {memberPlaces.map((place) => (
+                        <button
+                          key={place.id}
+                          onClick={() => onSelectPlace(place)}
+                          className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-muted/50 transition-colors text-left cursor-pointer"
+                        >
+                          <div className="shrink-0 size-9 rounded-xl overflow-hidden bg-background border flex items-center justify-center">
+                            {place.image_urls?.[0] ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                src={place.image_urls[0]}
+                                alt={place.name}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <MapPin className="size-3.5 text-muted-foreground" />
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">{place.name}</p>
+                            {place.address && (
+                              <p className="text-xs text-muted-foreground truncate">{place.address}</p>
+                            )}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              </div>
-            );
-          })}
-          {roomMembers.length === 0 && (
-            <p className="text-sm text-muted-foreground text-center py-8">
-              まだメンバーがいません
-            </p>
-          )}
-        </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );

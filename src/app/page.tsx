@@ -1420,6 +1420,46 @@ export default function Home() {
               </div>
             )}
 
+            {/* メンバーアバターストリップ（スポット登録者のみ） */}
+            {room && (() => {
+              const activeMembers = roomMembers.filter((m) =>
+                places.some((p) => p.created_by_id === m.user_id)
+              );
+              if (activeMembers.length === 0) return null;
+              return (
+                <div className="flex items-center gap-2 px-4 py-2 border-b overflow-x-auto scrollbar-hide">
+                  <button
+                    onClick={() => setFilterCreatorId(null)}
+                    className={cn(
+                      "shrink-0 size-7 rounded-full bg-muted text-muted-foreground text-[10px] font-bold flex items-center justify-center transition-all cursor-pointer hover:opacity-80",
+                      !filterCreatorId && "ring-2 ring-primary ring-offset-1"
+                    )}
+                    title="全員"
+                  >
+                    全
+                  </button>
+                  {activeMembers.map((member) => {
+                    const color = getCreatorColor(member.user_id, roomMembers);
+                    const isActive = filterCreatorId === member.user_id;
+                    return (
+                      <button
+                        key={member.user_id}
+                        onClick={() => setFilterCreatorId(isActive ? null : member.user_id)}
+                        style={{ backgroundColor: color }}
+                        className={cn(
+                          "shrink-0 size-7 rounded-full text-white text-[11px] font-bold flex items-center justify-center transition-all cursor-pointer hover:opacity-80",
+                          isActive && "ring-2 ring-primary ring-offset-1 scale-110"
+                        )}
+                        title={member.user_name}
+                      >
+                        {member.user_name.charAt(0).toUpperCase()}
+                      </button>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+
             {/* 検索バー */}
             <div className="flex items-center px-4 py-2.5 border-b">
               <div className="relative flex-1">
@@ -1722,6 +1762,7 @@ export default function Home() {
           onInvite={shareRoomUrl}
           onManageMembers={() => setMemberManageOpen(true)}
           canManageMembers={canManageMembers}
+          onSelectPlace={(p) => { setDetailPlace(p); setDetailOpen(true); }}
         />
       )}
       {activeTab === "mypage" && (
