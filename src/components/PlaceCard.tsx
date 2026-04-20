@@ -1,8 +1,8 @@
 "use client";
 
-import { MapPin, Clock, Wallet, Navigation2, Utensils, Wine, Gamepad2, Landmark, Coffee, ShoppingBag, Camera, BedDouble, Waves } from "lucide-react";
+import { MapPin, Clock, Wallet, Navigation2 } from "lucide-react";
+import { getCategoryClass } from "@/lib/category";
 import { Badge } from "@/components/ui/badge";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
   Carousel,
   CarouselContent,
@@ -18,17 +18,67 @@ import { cn } from "@/lib/utils";
 import { useState, useCallback } from "react";
 import type { EmblaCarouselType } from "embla-carousel";
 import Image from "next/image";
-const CATEGORY_EMOJI: Record<string, string> = {
-  "食事": "🍜",
-  "飲み": "🍺",
-  "娯楽": "🎮",
-  "観光": "🏛",
-  "カフェ・休憩": "☕",
-  "買い物": "🛍",
-  "映え・絶景": "📸",
-  "宿": "🏨",
-  "風呂": "♨️",
-};
+
+/** next/image の remotePatterns で許可済みのホスト */
+const ALLOWED_HOSTS = new Set([
+  "yxrvesnqmetogkmupkls.supabase.co",
+  "maps.googleapis.com",
+  "avatars.githubusercontent.com",
+  "streetviewpixels-pa.googleapis.com",
+]);
+
+/**
+ * next/image で最適化できないURLかを判定
+ * - /api/... のような相対パス（レガシープロキシ）
+ * - remotePatterns ホワイトリスト外の外部ドメイン
+ */
+function needsNativeImg(url: string): boolean {
+  if (url.startsWith("/")) return true;
+  try {
+    const { hostname } = new URL(url);
+    // **.googleusercontent.com はワイルドカードで許可済み
+    if (hostname.endsWith(".googleusercontent.com") || hostname === "maps.googleapis.com") return false;
+    return !ALLOWED_HOSTS.has(hostname);
+  } catch {
+    return true;
+  }
+}
+
+/** 画像URLを適切なコンポーネントで表示するラッパー */
+function PlaceImage({
+  src,
+  alt,
+  className,
+}: {
+  src: string;
+  alt: string;
+  className?: string;
+}) {
+  const [hasError, setHasError] = useState(false);
+
+  if (hasError) {
+    return (
+      <div className="absolute inset-0 w-full h-full flex items-center justify-center bg-muted">
+        <span className="text-3xl opacity-20 select-none">🖼</span>
+      </div>
+    );
+  }
+
+  if (needsNativeImg(src)) {
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img src={src} alt={alt} className={`absolute inset-0 w-full h-full object-cover ${className ?? ""}`} onError={() => setHasError(true)} />;
+  }
+  return (
+    <Image
+      src={src}
+      alt={alt}
+      fill
+      sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+      className={className}
+      onError={() => setHasError(true)}
+    />
+  );
+}
 
 interface PlaceCardProps {
   place: Place;
@@ -56,45 +106,34 @@ function UserAvatar({ name, size = "sm" }: { name: string; size?: "sm" | "xs" })
 function StatusToggle({
   placeId,
   currentStatus,
-  compact,
 }: {
   placeId: string;
   currentStatus: SpotStatus | null;
   compact: boolean;
 }) {
   const { setSpotStatus, removeSpotStatus } = useMapStore();
+  const toggle = (val: SpotStatus) => {
+    if (currentStatus === val) removeSpotStatus(placeId);
+    else setSpotStatus(placeId, val);
+  };
   return (
-    <div onClick={(e) => e.stopPropagation()}>
-      <ToggleGroup
-        type="single"
-        value={currentStatus ?? ""}
-        onValueChange={(v) => {
-          if (!v) removeSpotStatus(placeId);
-          else setSpotStatus(placeId, v as SpotStatus);
-        }}
-        className={cn("w-full", compact ? "gap-1" : "gap-1.5")}
+    <div className="status-toggle-track flex gap-0.5" onClick={(e) => e.stopPropagation()}>
+      <button
+        data-active={currentStatus === "want_to_go" ? "true" : "false"}
+        data-want="true"
+        className="status-toggle-option flex-1 flex items-center justify-center gap-1.5 py-[9px] rounded-[11px] text-xs font-medium data-[active=false]:text-muted-foreground"
+        onClick={() => toggle("want_to_go")}
       >
-        <ToggleGroupItem
-          value="want_to_go"
-          className={cn(
-            "flex-1 rounded-lg border transition-colors",
-            "data-[state=on]:bg-amber-50 data-[state=on]:text-amber-700 data-[state=on]:border-amber-300",
-            compact ? "text-xs h-8" : "text-xs h-9"
-          )}
-        >
-          ⭐ 行きたい
-        </ToggleGroupItem>
-        <ToggleGroupItem
-          value="visited"
-          className={cn(
-            "flex-1 rounded-lg border transition-colors",
-            "data-[state=on]:bg-green-50 data-[state=on]:text-green-700 data-[state=on]:border-green-300",
-            compact ? "text-xs h-8" : "text-xs h-9"
-          )}
-        >
-          ✅ 行った
-        </ToggleGroupItem>
-      </ToggleGroup>
+        ⭐ 行きたい
+      </button>
+      <button
+        data-active={currentStatus === "visited" ? "true" : "false"}
+        data-been="true"
+        className="status-toggle-option flex-1 flex items-center justify-center gap-1.5 py-[9px] rounded-[11px] text-xs font-medium data-[active=false]:text-muted-foreground"
+        onClick={() => toggle("visited")}
+      >
+        ✅ 行った
+      </button>
     </div>
   );
 }
@@ -134,23 +173,20 @@ function ImageArea({
           <Carousel className="w-full h-full" opts={{ loop: true }} setApi={onApiInit}>
             <CarouselContent className="ml-0 h-full">
               {images.map((url, i) => (
-                <CarouselItem key={i} className="pl-0 h-full">
-                  <Image
+                <CarouselItem key={i} className="pl-0 h-full relative">
+                  <PlaceImage
                     src={url}
                     alt={`${name} ${i + 1}`}
-                    fill
-                    sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
                     className="object-cover"
-                    draggable={false}
                   />
                 </CarouselItem>
               ))}
             </CarouselContent>
             <div onClick={(e) => e.stopPropagation()}>
-              <CarouselPrevious className="absolute left-2 top-1/2 -translate-y-1/2 size-7 rounded-full bg-white/80 hover:bg-white border-0 shadow-md" />
+              <CarouselPrevious className="absolute left-2 top-1/2 -translate-y-1/2 size-7 rounded-full bg-background/85 hover:bg-background border-0 shadow-md" />
             </div>
             <div onClick={(e) => e.stopPropagation()}>
-              <CarouselNext className="absolute right-2 top-1/2 -translate-y-1/2 size-7 rounded-full bg-white/80 hover:bg-white border-0 shadow-md" />
+              <CarouselNext className="absolute right-2 top-1/2 -translate-y-1/2 size-7 rounded-full bg-background/85 hover:bg-background border-0 shadow-md" />
             </div>
             <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1">
               {images.map((_, i) => (
@@ -165,20 +201,15 @@ function ImageArea({
             </div>
           </Carousel>
         ) : (
-          <Image
+        <PlaceImage
             src={images[0]}
             alt={name}
-            fill
-            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
             className="object-cover transition-transform duration-500 group-hover:scale-105"
           />
         )
       ) : (
-        <div className="w-full h-full flex items-center justify-center">
-          {/* カテゴリの絵文字プレースホルダー */}
-          <span className={cn("select-none opacity-30", compact ? "text-3xl" : "text-4xl")}>
-            {place?.categories?.[0] ? (CATEGORY_EMOJI[place.categories[0]] ?? "📍") : "📍"}
-          </span>
+        <div className="w-full h-full bg-gradient-to-br from-secondary to-[var(--teal-200)] flex items-center justify-center">
+          <MapPin className="text-primary/50" size={28} />
         </div>
       )}
 
@@ -235,7 +266,7 @@ function GridCard({ place, onSelect, distanceText }: Omit<PlaceCardProps, "compa
             {place.name}
           </h3>
           {distanceText && (
-            <span className="shrink-0 flex items-center gap-0.5 text-[11px] text-blue-500 font-medium mt-0.5">
+            <span className="shrink-0 flex items-center gap-0.5 text-[11px] text-primary font-medium mt-0.5">
               <Navigation2 className="size-3" />
               {distanceText}
             </span>
@@ -246,8 +277,8 @@ function GridCard({ place, onSelect, distanceText }: Omit<PlaceCardProps, "compa
         {place.categories && place.categories.length > 0 && (
           <div className="flex flex-wrap gap-1">
             {place.categories.slice(0, 3).map((cat) => (
-              <Badge key={cat} variant="secondary" className="text-[11px] px-1.5 py-0 h-5 font-normal">
-                {cat}
+              <Badge key={cat} variant="outline" className={cn("text-[11px] px-1.5 py-0 h-5 font-medium flex items-center gap-1 border", getCategoryClass(cat))}>
+                <span className="badge-dot" />{cat}
               </Badge>
             ))}
           </div>
@@ -326,7 +357,7 @@ function CompactCard({ place, onSelect, distanceText }: Omit<PlaceCardProps, "co
         <h3 className="font-semibold text-sm leading-tight truncate">{place.name}</h3>
 
         {distanceText && (
-          <div className="flex items-center gap-1 text-xs text-blue-600">
+          <div className="flex items-center gap-1 text-xs text-primary">
             <Navigation2 className="size-3 shrink-0" />
             <span>{distanceText}</span>
           </div>
@@ -354,8 +385,8 @@ function CompactCard({ place, onSelect, distanceText }: Omit<PlaceCardProps, "co
         {place.categories && place.categories.length > 0 && (
           <div className="flex flex-wrap gap-1 mt-1">
             {place.categories.slice(0, 3).map((cat) => (
-              <Badge key={cat} variant="secondary" className="text-xs px-2 py-0.5">
-                {cat}
+              <Badge key={cat} variant="outline" className={cn("text-xs px-2 py-0.5 font-medium flex items-center gap-1 border", getCategoryClass(cat))}>
+                <span className="badge-dot" />{cat}
               </Badge>
             ))}
             {place.categories.length > 3 && (

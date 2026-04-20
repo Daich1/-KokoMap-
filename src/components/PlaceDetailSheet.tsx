@@ -29,14 +29,78 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { supabase, type Place, type SpotStatus } from "@/lib/supabase";
+import { getCategoryClass } from "@/lib/category";
 import { DURATION_LABELS } from "@/lib/constants";
 import { BusinessHoursBadge } from "@/components/BusinessHoursBadge";
 import { LinkifiedText } from "@/components/LinkifiedText";
 import { useMapStore } from "@/store/useMapStore";
 import { cn } from "@/lib/utils";
 import Image from "next/image";
+
+/** next/image の remotePatterns で許可済みのホスト */
+const ALLOWED_HOSTS = new Set([
+  "yxrvesnqmetogkmupkls.supabase.co",
+  "maps.googleapis.com",
+  "avatars.githubusercontent.com",
+  "streetviewpixels-pa.googleapis.com",
+]);
+
+/**
+ * next/image で最適化できないURLかを判定
+ * - /api/... のような相対パス（レガシープロキシ）
+ * - remotePatterns ホワイトリスト外の外部ドメイン
+ */
+function needsNativeImg(url: string): boolean {
+  if (url.startsWith("/")) return true;
+  try {
+    const { hostname } = new URL(url);
+    // **.googleusercontent.com はワイルドカードで許可済み
+    if (hostname.endsWith(".googleusercontent.com") || hostname === "maps.googleapis.com") return false;
+    return !ALLOWED_HOSTS.has(hostname);
+  } catch {
+    return true;
+  }
+}
+
+/** 画像URLを適切なコンポーネントで表示するラッパー */
+function PlaceImage({
+  src,
+  alt,
+  className,
+  priority,
+}: {
+  src: string;
+  alt: string;
+  className?: string;
+  priority?: boolean;
+}) {
+  const [hasError, setHasError] = useState(false);
+
+  if (hasError) {
+    return (
+      <div className="absolute inset-0 w-full h-full flex items-center justify-center bg-muted">
+        <span className="text-4xl opacity-20 select-none">🖼</span>
+      </div>
+    );
+  }
+
+  if (needsNativeImg(src)) {
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img src={src} alt={alt} className={`absolute inset-0 w-full h-full object-cover ${className ?? ""}`} onError={() => setHasError(true)} />;
+  }
+  return (
+    <Image
+      src={src}
+      alt={alt}
+      fill
+      sizes="(max-width: 768px) 100vw, 50vw"
+      className={className}
+      priority={priority}
+      onError={() => setHasError(true)}
+    />
+  );
+}
 
 interface PlaceDetailSheetProps {
   place: Place | null;
@@ -86,7 +150,7 @@ export function PlaceDetailSheet({
   const [deleting, setDeleting] = useState(false);
   const isDesktop = useIsDesktop();
 
-  const { spotStatuses, setSpotStatus, removeSpotStatus, currentUser, myRole } = useMapStore();
+  const { spotStatuses, setSpotStatus, removeSpotStatus, currentUser, myRole, allMemberStatuses, roomMembers } = useMapStore();
   const isPrivileged = myRole === "leader" || myRole === "admin";
   const isOwn = place?.created_by_id === currentUser.id;
   const canEdit = isPrivileged || isOwn;
@@ -140,11 +204,9 @@ export function PlaceDetailSheet({
       <div className="relative aspect-video bg-muted shrink-0 overflow-hidden">
         {images.length > 0 ? (
           <>
-            <Image
+            <PlaceImage
               src={images[imgIdx]}
               alt={place.name}
-              fill
-              sizes="(max-width: 768px) 100vw, 50vw"
               className="object-cover"
               priority
             />
@@ -193,8 +255,8 @@ export function PlaceDetailSheet({
             )}
           </>
         ) : (
-          <div className="w-full h-full flex items-center justify-center relative">
-            <MapPin className="size-12 text-muted-foreground/20" />
+          <div className="w-full h-full bg-gradient-to-br from-[var(--teal-200)] to-[var(--teal-400)] flex items-center justify-center relative">
+            <MapPin className="size-12 text-white/60" />
             {/* 閉じるボタン (画像無し時) */}
             <button
               onClick={() => onOpenChange(false)}
@@ -242,32 +304,49 @@ export function PlaceDetailSheet({
           </div>
         </div>
 
-        {/* ── ステータス 3-State ToggleGroup ── */}
-        <ToggleGroup
-          type="single"
-          value={currentStatus ?? ""}
-          onValueChange={(v) => {
-            if (!v) {
-              removeSpotStatus(place.id);
-            } else {
-              setSpotStatus(place.id, v as SpotStatus);
-            }
-          }}
-          className="w-full gap-2"
-        >
-          <ToggleGroupItem
-            value="want_to_go"
-            className="flex-1 text-sm h-10 rounded-xl border font-medium data-[state=on]:bg-amber-50 data-[state=on]:text-amber-700 data-[state=on]:border-amber-300"
+        {/* ── ステータストグル ── */}
+        <div className="status-toggle-track flex gap-0.5">
+          <button
+            data-active={currentStatus === "want_to_go" ? "true" : "false"}
+            data-want="true"
+            className="status-toggle-option flex-1 flex items-center justify-center gap-1.5 py-[10px] rounded-[11px] text-sm font-medium data-[active=false]:text-muted-foreground"
+            onClick={() => currentStatus === "want_to_go" ? removeSpotStatus(place.id) : setSpotStatus(place.id, "want_to_go")}
           >
             ⭐ 行きたい
-          </ToggleGroupItem>
-          <ToggleGroupItem
-            value="visited"
-            className="flex-1 text-sm h-10 rounded-xl border font-medium data-[state=on]:bg-green-50 data-[state=on]:text-green-700 data-[state=on]:border-green-300"
+          </button>
+          <button
+            data-active={currentStatus === "visited" ? "true" : "false"}
+            data-been="true"
+            className="status-toggle-option flex-1 flex items-center justify-center gap-1.5 py-[10px] rounded-[11px] text-sm font-medium data-[active=false]:text-muted-foreground"
+            onClick={() => currentStatus === "visited" ? removeSpotStatus(place.id) : setSpotStatus(place.id, "visited")}
           >
             ✅ 行った
-          </ToggleGroupItem>
-        </ToggleGroup>
+          </button>
+        </div>
+
+        {/* メンバーのリアクション */}
+        {(() => {
+          const reactions = roomMembers
+            .map((m) => ({ member: m, status: allMemberStatuses[m.user_id]?.[place.id] ?? null }))
+            .filter((r) => r.status !== null);
+          if (reactions.length === 0) return null;
+          return (
+            <div className="flex flex-col gap-2">
+              <span className="text-xs font-semibold text-muted-foreground">みんなのリアクション</span>
+              <div className="flex flex-col gap-2">
+                {reactions.map(({ member, status }) => (
+                  <div key={member.user_id} className="flex items-center gap-2">
+                    <UserAvatar name={member.user_name} />
+                    <span className="text-sm flex-1 truncate">{member.user_name}</span>
+                    <span className="text-xs shrink-0">
+                      {status === "want_to_go" ? "⭐ 行きたい" : "✅ 行った"}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
 
         {/* 作成者 */}
         {place.created_by_name && (
@@ -318,8 +397,8 @@ export function PlaceDetailSheet({
         {place.categories && place.categories.length > 0 && (
           <div className="flex flex-wrap gap-1.5">
             {place.categories.map((cat) => (
-              <Badge key={cat} variant="secondary">
-                {cat}
+              <Badge key={cat} variant="outline" className={cn("font-medium flex items-center gap-1 border", getCategoryClass(cat))}>
+                <span className="badge-dot" />{cat}
               </Badge>
             ))}
           </div>
@@ -364,7 +443,7 @@ export function PlaceDetailSheet({
           href={`https://www.google.com/maps/dir/?api=1&destination=${place.lat},${place.lng}`}
           target="_blank"
           rel="noopener noreferrer"
-          className="flex items-center justify-center gap-2 w-full rounded-lg bg-[#4285F4] hover:bg-[#3367D6] text-white text-sm font-medium py-2.5 px-4 transition-colors"
+          className="flex items-center justify-center gap-2 w-full bg-primary text-primary-foreground rounded-[14px] py-[13px] font-bold text-sm hover:opacity-90 active:scale-[0.98] transition-all"
         >
           <Navigation className="size-4" />
           Googleマップで経路を見る
@@ -389,9 +468,9 @@ export function PlaceDetailSheet({
           side={isDesktop ? "right" : "bottom"}
           className={cn(
             "flex flex-col p-0 overflow-y-auto overscroll-y-none",
-            isDesktop ? "sm:max-w-md" : "h-[85dvh] rounded-t-2xl"
+            isDesktop ? "sm:max-w-md" : "rounded-t-2xl"
           )}
-          style={{ touchAction: "pan-y" }}
+          style={{ touchAction: "pan-y", height: isDesktop ? undefined : "calc(85dvh - 60px)" }}
           showCloseButton={false}
           onPointerDownCapture={(e) => {
             // スワイプ判定の起点でマップイベント等への伝播を防ぐ

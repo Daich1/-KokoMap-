@@ -14,6 +14,8 @@ interface MapStore {
   myRole: RoomRole | null;
   roomMembers: RoomMember[];
   spotStatuses: Record<string, SpotStatus>;
+  // 全メンバーのステータス: userId → placeId → status
+  allMemberStatuses: Record<string, Record<string, SpotStatus>>;
   userLocation: { lat: number; lng: number } | null;
 
   setRoom: (room: Room) => void;
@@ -30,6 +32,9 @@ interface MapStore {
 
   setSpotStatus: (placeId: string, status: SpotStatus) => void;
   removeSpotStatus: (placeId: string) => void;
+  setMemberStatus: (userId: string, placeId: string, status: SpotStatus) => void;
+  removeMemberStatus: (userId: string, placeId: string) => void;
+  loadAllMemberStatuses: (placeIds: string[]) => Promise<void>;
   setUserLocation: (loc: { lat: number; lng: number } | null) => void;
   loadSpotStatuses: (userId: string) => Promise<void>;
 }
@@ -47,10 +52,11 @@ export const useMapStore = create<MapStore>()(
       myRole: null,
       roomMembers: [],
       spotStatuses: {},
+      allMemberStatuses: {},
       userLocation: null,
 
       setRoom: (room) => set({ room }),
-      clearRoom: () => set({ room: null, places: [], myRole: null, roomMembers: [] }),
+      clearRoom: () => set({ room: null, places: [], myRole: null, roomMembers: [], allMemberStatuses: {} }),
       setMyRole: (role) => set({ myRole: role }),
       setRoomMembers: (members) => set({ roomMembers: members }),
       upsertRoomMember: (member) =>
@@ -125,6 +131,39 @@ export const useMapStore = create<MapStore>()(
           .then(({ error }) => {
             if (error) console.error("Failed to remove spot status:", error);
           });
+      },
+
+      setMemberStatus: (userId, placeId, status) =>
+        set((state) => ({
+          allMemberStatuses: {
+            ...state.allMemberStatuses,
+            [userId]: { ...state.allMemberStatuses[userId], [placeId]: status },
+          },
+        })),
+
+      removeMemberStatus: (userId, placeId) =>
+        set((state) => {
+          const next = { ...state.allMemberStatuses[userId] };
+          delete next[placeId];
+          return { allMemberStatuses: { ...state.allMemberStatuses, [userId]: next } };
+        }),
+
+      loadAllMemberStatuses: async (placeIds) => {
+        if (placeIds.length === 0) return;
+        const { data, error } = await supabase
+          .from("user_spot_status")
+          .select("user_id, place_id, status")
+          .in("place_id", placeIds);
+        if (error) {
+          console.error("Failed to load all member statuses:", error);
+          return;
+        }
+        const grouped: Record<string, Record<string, SpotStatus>> = {};
+        data?.forEach((r: { user_id: string; place_id: string; status: string }) => {
+          grouped[r.user_id] ??= {};
+          grouped[r.user_id][r.place_id] = r.status as SpotStatus;
+        });
+        set({ allMemberStatuses: grouped });
       },
 
       setUserLocation: (loc) => set({ userLocation: loc }),

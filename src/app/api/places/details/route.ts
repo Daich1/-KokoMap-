@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
     if (!r) return NextResponse.json(null, { status: 404 });
 
     const photoRefs: string[] = (r.photos ?? [])
-      .slice(0, 5)
+      .slice(0, 3)
       .map((p: { photo_reference: string }) => p.photo_reference);
 
     const businessHours = r.opening_hours

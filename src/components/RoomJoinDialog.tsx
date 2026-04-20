@@ -18,6 +18,7 @@ interface RoomJoinDialogProps {
   currentUserName: string;
   initialCode?: string;
   onJoined: (room: Room, userName: string, isCreator: boolean) => void;
+  onClose?: () => void;
 }
 
 function generateShareCode(): string {
@@ -29,6 +30,7 @@ export function RoomJoinDialog({
   currentUserName,
   initialCode,
   onJoined,
+  onClose,
 }: RoomJoinDialogProps) {
   const [mode, setMode] = useState<"select" | "create" | "join">(
     initialCode ? "join" : "select"
@@ -160,14 +162,12 @@ export function RoomJoinDialog({
   return (
     <Dialog
       open={open}
-      onOpenChange={() => {
-        /* 強制表示: 閉じさせない */
-      }}
+      onOpenChange={(v) => { if (!v) onClose?.(); }}
     >
       <DialogContent
-        className="sm:max-w-sm [&>button]:hidden"
-        onInteractOutside={(e) => e.preventDefault()}
-        onEscapeKeyDown={(e) => e.preventDefault()}
+        className={onClose ? "sm:max-w-sm" : "sm:max-w-sm [&>button]:hidden"}
+        onInteractOutside={(e) => { if (!onClose) e.preventDefault(); }}
+        onEscapeKeyDown={(e) => { if (!onClose) e.preventDefault(); }}
       >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-lg">

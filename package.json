@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "screenshot": "tsx scripts/screenshot.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
@@ -33,6 +34,8 @@
     "zustand": "^5.0.11"
   },
   "devDependencies": {
+    "playwright": "^1.49.0",
+    "tsx": "^4.19.2",
     "@tailwindcss/postcss": "^4",
     "@types/mapbox__point-geometry": "^1.0.87",
     "@types/node": "^20",

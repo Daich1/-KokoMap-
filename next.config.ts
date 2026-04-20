@@ -15,13 +15,18 @@ const nextConfig: NextConfig = {
         hostname: "maps.googleapis.com",
       },
       {
+        // Google Photos / Google User Content (lh3, fife, 等すべてのサブドメイン)
         protocol: "https",
-        hostname: "lh3.googleusercontent.com",
+        hostname: "**.googleusercontent.com",
       },
       {
         protocol: "https",
         hostname: "avatars.githubusercontent.com",
-      }
+      },
+      {
+        protocol: "https",
+        hostname: "streetviewpixels-pa.googleapis.com",
+      },
     ],
   },
 };

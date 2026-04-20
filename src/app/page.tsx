@@ -19,6 +19,11 @@ import { WelcomeScreen } from "@/components/WelcomeScreen";
 import { AuthScreen } from "@/components/AuthScreen";
 import { MemberManageSheet } from "@/components/MemberManageSheet";
 import { ProfileSettings } from "@/components/ProfileSettings";
+import { BottomNav, type TabId } from "@/components/BottomNav";
+import { RoomSwitcher } from "@/components/RoomSwitcher";
+import { PlanTab } from "@/components/tabs/PlanTab";
+import { GroupTab } from "@/components/tabs/GroupTab";
+import { MyPageTab } from "@/components/tabs/MyPageTab";
 import { supabase, type Place, type Room, type SpotStatus, type RoomMember } from "@/lib/supabase";
 import type { User } from "@supabase/supabase-js";
 import { useMapStore } from "@/store/useMapStore";
@@ -109,12 +114,22 @@ export default function Home() {
     setCurrentUser,
     setUserLocation,
     loadSpotStatuses,
+    loadAllMemberStatuses,
+    setMemberStatus,
+    removeMemberStatus,
   } = useMapStore();
 
   // 権限ヘルパー
   const canAdd = myRole !== "viewer" && myRole !== null;
   const canManageRoom = myRole === "leader";
   const canManageMembers = myRole === "leader";
+
+  // ── ボトムナビタブ ─────────────────────────────────────
+  const [activeTab, setActiveTab] = useState<TabId>("map");
+  function handleTabChange(tab: TabId) {
+    if (tab === "map") setIsListExpanded(false);
+    setActiveTab(tab);
+  }
 
   const [sheetOpen, setSheetOpen] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
@@ -243,6 +258,13 @@ export default function Home() {
     loadSpotStatuses(currentUser.id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser.id]);
+
+  // ── 全メンバーのスポットステータスを読み込む ──────────────
+  useEffect(() => {
+    if (!room || places.length === 0) return;
+    loadAllMemberStatuses(places.map((p) => p.id));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [room?.id, places.length]);
 
   // ── 初期化: ルームのメンバー一覧とロールを取得 ──────────
   useEffect(() => {
@@ -683,9 +705,31 @@ export default function Home() {
       )
       .subscribe();
 
+    // ── user_spot_status チャンネル（全メンバーのリアクション同期）──
+    const statusesChannel = supabase
+      .channel(`room-statuses-${room.id}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "user_spot_status" },
+        (payload) => {
+          const store = useMapStore.getState();
+          if (payload.eventType === "DELETE") {
+            const old = payload.old as { user_id: string; place_id: string };
+            store.removeMemberStatus(old.user_id, old.place_id);
+          } else {
+            const r = payload.new as { user_id: string; place_id: string; status: string };
+            if (store.places.some((p) => p.id === r.place_id)) {
+              store.setMemberStatus(r.user_id, r.place_id, r.status as SpotStatus);
+            }
+          }
+        }
+      )
+      .subscribe();
+
     return () => {
       supabase.removeChannel(placesChannel);
       supabase.removeChannel(membersChannel);
+      supabase.removeChannel(statusesChannel);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [room?.id]);
@@ -1072,7 +1116,7 @@ export default function Home() {
                 className={cn(
                   "flex items-center gap-1.5 px-4 py-1.5 rounded-full text-sm font-medium border transition-all shrink-0 cursor-pointer",
                   filterCategories.length === 0
-                    ? "bg-foreground text-background border-foreground hover:opacity-80"
+                    ? "bg-primary text-primary-foreground border-primary hover:opacity-80"
                     : "text-muted-foreground border-transparent hover:border-border hover:text-foreground hover:bg-muted/50"
                 )}
               >
@@ -1088,7 +1132,7 @@ export default function Home() {
                     className={cn(
                       "flex items-center gap-1.5 px-4 py-1.5 rounded-full text-sm font-medium border transition-all shrink-0 cursor-pointer",
                       isActive
-                        ? "bg-foreground text-background border-foreground hover:opacity-80"
+                        ? "bg-primary text-primary-foreground border-primary hover:opacity-80"
                         : "text-muted-foreground border-transparent hover:border-border hover:text-foreground hover:bg-muted/50"
                     )}
                   >
@@ -1110,7 +1154,7 @@ export default function Home() {
                     className={cn(
                       "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition-all cursor-pointer hover:scale-105 active:scale-95",
                       activeFilterCount > 0
-                        ? "bg-foreground text-background border-foreground hover:opacity-80"
+                        ? "bg-primary text-primary-foreground border-primary hover:opacity-80"
                         : "text-muted-foreground border-border hover:bg-muted/50 hover:text-foreground hover:border-foreground/30"
                     )}
                   >
@@ -1136,7 +1180,7 @@ export default function Home() {
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-gray-700 hover:text-gray-900 hover:bg-gray-100 transition-colors cursor-pointer"
                     title="設定"
                   >
-                    <Settings className="size-4 text-gray-500" />
+                    <Settings className="size-4 text-muted-foreground" />
                     <span className="hidden lg:inline">{currentUser.name}</span>
                   </button>
                 </div>
@@ -1155,7 +1199,7 @@ export default function Home() {
 
       {/* ── モバイル: ルーム情報ヘッダーバー ── */}
       {room && (
-        <div className="md:hidden shrink-0 flex items-center justify-between px-3 bg-background border-b gap-2" style={{ minHeight: '52px' }}>
+        <div className="md:hidden relative z-[43] shrink-0 flex items-center justify-between px-3 bg-background border-b gap-2" style={{ minHeight: '52px' }}>
           {/* 左: ロール + コード */}
           <div className="flex items-center gap-2 min-w-0 flex-1">
             {myRole && (
@@ -1171,10 +1215,10 @@ export default function Home() {
                 {ROLE_LABELS[myRole]}
               </span>
             )}
-            {room.name && (
-              <span className="text-xs font-medium truncate max-w-[80px]">{room.name}</span>
-            )}
-            <span className="text-xs text-muted-foreground shrink-0 font-mono font-bold tracking-wider">{room.share_code}</span>
+            <RoomSwitcher
+              onAddRoom={() => setRoomDialogOpen(true)}
+              className="text-xs min-w-0 max-w-[160px]"
+            />
           </div>
           {/* 右: アイコンのみボタン群 */}
           <div className="flex items-center shrink-0 gap-0">
@@ -1237,7 +1281,7 @@ export default function Home() {
           {/* PC: リスト切替ボタン */}
           <button
             onClick={() => setExpanded((v) => !v)}
-            className="hidden md:flex absolute top-4 right-3 z-10 items-center gap-1.5 bg-white rounded-full shadow-md px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 hover:shadow-lg active:scale-95 transition-all border border-gray-100 cursor-pointer"
+            className="hidden md:flex absolute top-4 right-3 z-10 items-center gap-1.5 map-glass-btn px-3 py-2 text-xs font-medium rounded-[13px] cursor-pointer"
             title={expanded ? "リストを表示" : "リストを隠す"}
           >
             <List className="size-3.5" />
@@ -1250,7 +1294,7 @@ export default function Home() {
               <button
                 onClick={() => setProfileOpen(true)}
                 title="設定"
-                className="bg-white rounded-full shadow-md p-2.5 text-gray-600 hover:text-gray-900 active:scale-95 transition-all cursor-pointer border border-gray-100"
+                className="map-glass-btn w-11 h-11 flex items-center justify-center rounded-[13px] cursor-pointer"
               >
                 <Settings className="size-5" />
               </button>
@@ -1261,28 +1305,28 @@ export default function Home() {
           <button
             onClick={handleLocateMe}
             // PWAのSafe Areaを考慮（peek時は140px、展開時は85dvh）
-            className="absolute z-10 bg-white rounded-full shadow-lg p-2.5 hover:bg-gray-50 hover:shadow-xl active:scale-95 transition-all cursor-pointer right-3 md:bottom-6"
+            className="absolute z-10 map-glass-btn w-11 h-11 flex items-center justify-center rounded-[13px] cursor-pointer right-3 md:bottom-6"
             style={{
               bottom: isListExpanded
-                ? 'calc(85dvh + env(safe-area-inset-bottom, 0px) + 0.75rem)'
-                : 'calc(140px + env(safe-area-inset-bottom, 0px) + 0.75rem)',
+                ? 'calc(85dvh - 60px + env(safe-area-inset-bottom, 0px) + 0.75rem)'
+                : 'calc(200px + env(safe-area-inset-bottom, 0px) + 0.75rem)',
               transition: 'bottom 0.3s cubic-bezier(0.32, 0.72, 0, 1)'
             }}
             title="現在地へ移動"
           >
-            <LocateFixed className="size-5 text-gray-700" />
+            <LocateFixed className="size-5" />
           </button>
 
-          {/* モバイル: ＋ 追加 FAB（閲覧者には非表示） */}
-          {canAdd && (
+          {/* モバイル: ＋ 追加 FAB（閲覧者には非表示・マップタブのみ） */}
+          {canAdd && activeTab === "map" && (
             <button
               onClick={() => { setEditPlace(undefined); setSheetOpen(true); }}
               disabled={!room}
-              className="md:hidden absolute right-3 z-[15] bg-primary text-primary-foreground rounded-full shadow-lg p-3 hover:opacity-90 active:scale-95 transition-all disabled:opacity-40 cursor-pointer"
+              className="md:hidden absolute right-3 z-[15] w-14 h-14 rounded-2xl bg-accent text-accent-foreground shadow-[0_6px_20px_oklch(0.64_0.17_28/0.5)] flex items-center justify-center hover:opacity-90 active:scale-95 transition-all disabled:opacity-40 cursor-pointer"
               style={{
                 bottom: isListExpanded
-                  ? 'calc(85dvh + env(safe-area-inset-bottom, 0px) - 3rem)' // 展開時はリストに隠れない位置
-                  : 'calc(140px + env(safe-area-inset-bottom, 0px) + 4rem)', // peek時は現在地ボタンの上
+                  ? 'calc(85dvh - 60px + env(safe-area-inset-bottom, 0px) - 3rem)'
+                  : 'calc(200px + env(safe-area-inset-bottom, 0px) + 4rem)',
                 transition: 'bottom 0.3s cubic-bezier(0.32, 0.72, 0, 1)'
               }}
               title="場所を追加"
@@ -1306,14 +1350,13 @@ export default function Home() {
                 スポット一覧
                 <span className="ml-2 text-muted-foreground font-normal text-sm">{countLabel}</span>
               </h2>
-              <Button
-                size="sm"
-                className="rounded-full font-medium gap-1 hover:scale-105 hover:shadow-md transition-all cursor-pointer"
+              <button
+                className="bg-accent text-accent-foreground rounded-[11px] px-3 py-1.5 text-sm font-bold shadow-[0_3px_10px_oklch(0.64_0.17_28/0.3)] hover:opacity-90 active:scale-[0.98] transition-all disabled:opacity-50 flex items-center gap-1 cursor-pointer"
                 onClick={() => { setEditPlace(undefined); setSheetOpen(true); }}
                 disabled={!room || !canAdd}
               >
                 ＋ 追加する
-              </Button>
+              </button>
             </div>
 
             {/* ルーム情報バー */}
@@ -1334,14 +1377,11 @@ export default function Home() {
                         {ROLE_LABELS[myRole]}
                       </span>
                     )}
-                    {room.name && (
-                      <span className="text-xs font-medium truncate">{room.name}</span>
-                    )}
+                    <RoomSwitcher
+                      onAddRoom={() => setRoomDialogOpen(true)}
+                      className="text-xs min-w-0"
+                    />
                   </div>
-                  <span className="text-xs text-muted-foreground">
-                    コード:{" "}
-                    <span className="font-mono font-bold text-foreground">{room.share_code}</span>
-                  </span>
                 </div>
                 <div className="flex gap-1.5 shrink-0">
                   {canManageRoom && (
@@ -1428,14 +1468,16 @@ export default function Home() {
       {/* ── モバイル カスタム BottomSheet（固定2段階） ── */}
       <div
         className={cn(
-          "md:hidden fixed inset-x-0 bottom-0 z-40 bg-background rounded-t-2xl shadow-[0_-4px_24px_rgba(0,0,0,0.1)] flex flex-col overflow-hidden will-change-transform",
-          // 高さ: 全体は85dvh。peek時(isListExpanded=false)は、下へtranslateして上部140px(+safe-area)だけ見せる
+          "md:hidden fixed inset-x-0 z-40 bg-background rounded-t-2xl shadow-[0_-4px_24px_rgba(0,0,0,0.1)] flex flex-col overflow-hidden will-change-transform",
+          // マップタブ以外では非表示
+          activeTab !== "map" && "hidden",
         )}
         style={{
-          height: 'calc(85dvh + env(safe-area-inset-bottom, 0px))',
+          bottom: 'calc(60px + env(safe-area-inset-bottom, 0px))',
+          height: 'calc(85dvh - 60px)',
           transform: isListExpanded
             ? 'translateY(0)'
-            : 'translateY(calc(85dvh - 140px))',
+            : 'translateY(calc(85dvh - 200px))',
           transition: 'transform 0.3s cubic-bezier(0.32, 0.72, 0, 1)'
         }}
       >
@@ -1497,7 +1539,7 @@ export default function Home() {
                 className={cn(
                   "flex items-center gap-1.5 px-3 min-h-[40px] rounded-full text-xs font-medium border transition-all shrink-0 cursor-pointer snap-center",
                   filterCategories.length === 0
-                    ? "bg-foreground text-background border-foreground hover:opacity-80"
+                    ? "bg-primary text-primary-foreground border-primary hover:opacity-80"
                     : "text-muted-foreground border-transparent hover:border-border hover:text-foreground hover:bg-muted/50"
                 )}
               >
@@ -1513,7 +1555,7 @@ export default function Home() {
                     className={cn(
                       "flex items-center gap-1.5 px-3 min-h-[40px] rounded-full text-xs font-medium border transition-all shrink-0 cursor-pointer snap-center",
                       isActive
-                        ? "bg-foreground text-background border-foreground hover:opacity-80"
+                        ? "bg-primary text-primary-foreground border-primary hover:opacity-80"
                         : "text-muted-foreground border-transparent hover:border-border hover:text-foreground hover:bg-muted/50"
                     )}
                   >
@@ -1555,8 +1597,8 @@ export default function Home() {
         {/* ボトム追加ボタン */}
         {canAdd && (
           <div className="shrink-0 p-4 border-t bg-background" style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom, 0px))' }}>
-            <Button
-              className="w-full rounded-full font-medium gap-2"
+            <button
+              className="w-full bg-accent text-accent-foreground rounded-[14px] py-[14px] font-bold text-base shadow-[0_4px_16px_oklch(0.64_0.17_28/0.3)] hover:opacity-90 active:scale-[0.98] transition-all disabled:opacity-60 flex items-center justify-center gap-2"
               onClick={() => {
                 setEditPlace(undefined);
                 setSheetOpen(true);
@@ -1566,7 +1608,7 @@ export default function Home() {
             >
               <Plus className="size-4" />
               スポットを追加する
-            </Button>
+            </button>
           </div>
         )}
       </div>
@@ -1618,6 +1660,7 @@ export default function Home() {
           currentUserName={currentUser.name}
           initialCode={urlCode}
           onJoined={handleRoomJoined}
+          onClose={() => setRoomDialogOpen(false)}
         />
       )}
 
@@ -1655,7 +1698,7 @@ export default function Home() {
         />
       )}
 
-      {/* ── プロフィール設定 ── */}
+      {/* ── プロフィール設定（PC / 設定ボタン経由） ── */}
       <ProfileSettings
         open={profileOpen}
         onOpenChange={setProfileOpen}
@@ -1664,6 +1707,36 @@ export default function Home() {
         userId={authUser?.id}
         currentEmail={authUser?.user_metadata?.recovery_email}
       />
+
+      {/* ── モバイルタブオーバーレイ ── */}
+      {activeTab === "plan" && room && (
+        <PlanTab
+          onSelectPlace={(place) => {
+            setDetailPlace(place);
+            setDetailOpen(true);
+          }}
+        />
+      )}
+      {activeTab === "group" && room && (
+        <GroupTab
+          onInvite={shareRoomUrl}
+          onManageMembers={() => setMemberManageOpen(true)}
+          canManageMembers={canManageMembers}
+        />
+      )}
+      {activeTab === "mypage" && (
+        <MyPageTab
+          onLogout={handleLogout}
+          onLeaveRoom={handleLeaveRoom}
+          userId={authUser?.id}
+          currentEmail={authUser?.user_metadata?.recovery_email}
+        />
+      )}
+
+      {/* ── BottomNav（モバイルのみ・認証済み＆ルーム参加時） ── */}
+      {!authLoading && authUser && room && (
+        <BottomNav activeTab={activeTab} onTabChange={handleTabChange} />
+      )}
     </div>
   );
 }

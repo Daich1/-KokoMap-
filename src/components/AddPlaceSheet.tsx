@@ -5,6 +5,8 @@ import { useForm, Controller, useFieldArray, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { MapPin, Plus, Search, X, Loader2, Clock } from "lucide-react";
+import { getCategoryClass } from "@/lib/category";
+import { cn } from "@/lib/utils";
 import { forwardGeocode } from "@/lib/geocoding";
 import { toast } from "sonner";
 import {
@@ -27,6 +29,20 @@ import { Badge } from "@/components/ui/badge";
 import { supabase, type Place, type BusinessHours } from "@/lib/supabase";
 import { PRESET_CATEGORIES, DURATION_OPTIONS } from "@/lib/constants";
 import { useMapStore } from "@/store/useMapStore";
+
+function useIsDesktop() {
+  const [isDesktop, setIsDesktop] = useState(
+    typeof window !== "undefined" ? window.innerWidth >= 640 : true
+  );
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 640px)");
+    const handler = (e: MediaQueryListEvent) => setIsDesktop(e.matches);
+    mq.addEventListener("change", handler);
+    setIsDesktop(mq.matches);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
+  return isDesktop;
+}
 
 // ── Google Places API の型 ───────────────────────────────
 interface PlacePrediction {
@@ -58,6 +74,40 @@ interface AiExtractResult {
   opening_hours_text?: string | null;
   note?: string | null;
   error?: string;
+}
+
+// ── 画像URLプレビューサムネイル ───────────────────────────
+function ImagePreviewThumb({ url }: { url: string }) {
+  const [error, setError] = useState(false);
+
+  if (url.startsWith("/api/places/photo")) {
+    // オートコンプリートで取得したプロキシURL（保存時に自動解決）
+    return (
+      <p className="text-xs text-muted-foreground mt-1 pl-0.5">
+        📷 Google Places 写真（保存時に自動解決）
+      </p>
+    );
+  }
+
+  if (!url.startsWith("http")) return null;
+
+  return (
+    <div className="mt-1 pl-0.5">
+      {!error ? (
+        <div className="w-14 h-10 rounded overflow-hidden bg-muted border shrink-0">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={url}
+            alt=""
+            className="w-full h-full object-cover"
+            onError={() => setError(true)}
+          />
+        </div>
+      ) : (
+        <p className="text-xs text-destructive">⚠ 画像を読み込めません</p>
+      )}
+    </div>
+  );
 }
 
 // ── フォームスキーマ ─────────────────────────────────────
@@ -97,6 +147,7 @@ export function AddPlaceSheet({
   editPlace,
 }: AddPlaceSheetProps) {
   const { room, currentUser } = useMapStore();
+  const isDesktop = useIsDesktop();
 
   const [customCatInput, setCustomCatInput] = useState("");
   const [isSearching, setIsSearching] = useState(false);
@@ -113,6 +164,7 @@ export function AddPlaceSheet({
 
   // Place Details から取得した business_hours を保持（フォームスキーマ外）
   const businessHoursRef = useRef<BusinessHours | null>(null);
+
 
   const isEdit = !!editPlace;
 
@@ -146,6 +198,7 @@ export function AddPlaceSheet({
   });
 
   const addressValue = useWatch({ control, name: "address" });
+  const watchedImageUrls = useWatch({ control, name: "image_urls" });
 
   // ── リバースジオコーディング結果を反映 ──────────────
   useEffect(() => {
@@ -219,6 +272,7 @@ export function AddPlaceSheet({
       );
 
       if (details.photoRefs.length > 0) {
+        // フォームにプロキシURLをセット（保存時に実URLへ自動解決される）
         setValue(
           "image_urls",
           details.photoRefs.map((ref) => ({
@@ -363,9 +417,26 @@ export function AddPlaceSheet({
       businessHoursRef.current = null;
     }
 
-    const imageUrls = values.image_urls
-      .map(({ value }) => value.trim())
-      .filter(Boolean);
+    // フォームの各URLを処理:
+    // - /api/places/photo?ref=... のプロキシURLは保存時に1回だけ実URLへ解決（API課金は1回のみ）
+    // - 手動入力URLはそのまま使用
+    const rawUrls = values.image_urls.map(({ value }) => value.trim()).filter(Boolean);
+    const imageUrls = (
+      await Promise.all(
+        rawUrls.map(async (url) => {
+          if (url.startsWith("/api/places/photo")) {
+            try {
+              const res = await fetch(`${url}&resolveOnly=true`);
+              const json = await res.json();
+              return (json.url as string | null) ?? null;
+            } catch {
+              return null;
+            }
+          }
+          return url;
+        })
+      )
+    ).filter((u): u is string => !!u);
 
     const budgetMin = values.budget_min ? parseInt(values.budget_min, 10) : null;
     const budgetMax = values.budget_max ? parseInt(values.budget_max, 10) : null;
@@ -423,7 +494,11 @@ export function AddPlaceSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange} modal={false}>
-      <SheetContent side="right" className="flex flex-col p-0">
+      <SheetContent
+        side={isDesktop ? "right" : "bottom"}
+        className={cn("flex flex-col p-0", !isDesktop && "rounded-t-2xl")}
+        style={{ height: isDesktop ? undefined : "calc(85dvh - 60px)" }}
+      >
         <SheetHeader className="px-6 pt-6 pb-2">
           <SheetTitle>
             {isFillingDetails
@@ -572,10 +647,9 @@ export function AddPlaceSheet({
                         {PRESET_CATEGORIES.map((cat) => {
                           const selected = field.value.includes(cat);
                           return (
-                            <Badge
+                            <button
                               key={cat}
-                              variant={selected ? "default" : "outline"}
-                              className="cursor-pointer select-none transition-colors"
+                              type="button"
                               onClick={() =>
                                 field.onChange(
                                   selected
@@ -583,9 +657,17 @@ export function AddPlaceSheet({
                                     : [...field.value, cat]
                                 )
                               }
+                              className={cn(
+                                "inline-flex items-center gap-1 text-xs font-semibold border rounded-full px-2.5 py-1 transition-all active:scale-95",
+                                getCategoryClass(cat),
+                                selected
+                                  ? "ring-2 ring-offset-1 ring-primary scale-[1.02]"
+                                  : "opacity-60 hover:opacity-100"
+                              )}
                             >
+                              <span className="badge-dot" />
                               {cat}
-                            </Badge>
+                            </button>
                           );
                         })}
                       </div>
@@ -707,7 +789,7 @@ export function AddPlaceSheet({
                 {...register("opening_hours_text")}
                 placeholder={"例: 月〜金 11:00〜22:00\n土日祝 10:00〜23:00 (水曜定休)"}
                 rows={3}
-                className="border-input placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 flex w-full rounded-md border bg-transparent px-3 py-2 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50 resize-none"
+                className="textarea-field"
               />
             </div>
 
@@ -715,26 +797,32 @@ export function AddPlaceSheet({
             <div className="flex flex-col gap-2">
               <label className="text-sm font-medium">画像URL</label>
               <div className="flex flex-col gap-2">
-                {fields.map((field, index) => (
-                  <div key={field.id} className="flex gap-2">
-                    <Input
-                      {...register(`image_urls.${index}.value`)}
-                      placeholder="https://..."
-                      className="flex-1"
-                    />
-                    {fields.length > 1 && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => remove(index)}
-                        className="shrink-0 text-muted-foreground hover:text-destructive"
-                      >
-                        <X className="size-4" />
-                      </Button>
-                    )}
-                  </div>
-                ))}
+                {fields.map((field, index) => {
+                  const currentUrl = watchedImageUrls?.[index]?.value?.trim() ?? "";
+                  return (
+                    <div key={field.id}>
+                      <div className="flex gap-2">
+                        <Input
+                          {...register(`image_urls.${index}.value`)}
+                          placeholder="https://..."
+                          className="flex-1"
+                        />
+                        {fields.length > 1 && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => remove(index)}
+                            className="shrink-0 text-muted-foreground hover:text-destructive"
+                          >
+                            <X className="size-4" />
+                          </Button>
+                        )}
+                      </div>
+                      {currentUrl && <ImagePreviewThumb url={currentUrl} />}
+                    </div>
+                  );
+                })}
                 <Button
                   type="button"
                   variant="outline"
@@ -755,25 +843,25 @@ export function AddPlaceSheet({
                 {...register("note")}
                 placeholder="メモを入力"
                 rows={3}
-                className="border-input placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 flex w-full rounded-md border bg-transparent px-3 py-2 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50 resize-none"
+                className="textarea-field"
               />
             </div>
 
             {errors.root && (
-              <p className="text-sm text-destructive">{errors.root.message}</p>
+              <p className="text-xs text-destructive text-center bg-destructive/5 rounded-lg px-3 py-2">{errors.root.message}</p>
             )}
           </div>
 
           <SheetFooter className="px-6 pb-6">
-            <Button
+            <button
               type="submit"
               disabled={isSubmitting || isFillingDetails}
-              className="w-full"
+              className="w-full bg-accent text-accent-foreground rounded-[14px] py-[14px] font-bold text-base shadow-[0_4px_16px_oklch(0.64_0.17_28/0.3)] hover:opacity-90 active:scale-[0.98] transition-all disabled:opacity-60 flex items-center justify-center gap-2"
             >
               {isSubmitting
                 ? isEdit ? "更新中..." : "保存中..."
                 : isEdit ? "更新する" : "保存する"}
-            </Button>
+            </button>
           </SheetFooter>
         </form>
       </SheetContent>
