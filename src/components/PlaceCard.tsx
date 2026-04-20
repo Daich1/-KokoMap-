@@ -1,6 +1,6 @@
 "use client";
 
-import { MapPin, Clock, Wallet, Navigation2, Heart, CheckCircle2 } from "lucide-react";
+import { MapPin, Clock, Wallet, Navigation2 } from "lucide-react";
 import { getCategoryClass } from "@/lib/category";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -229,10 +229,8 @@ function ImageArea({
 
 // ── グリッドカード（拡大時）────────────────────────────────────────
 function GridCard({ place, onSelect, distanceText }: Omit<PlaceCardProps, "compact">) {
-  const { spotStatuses, allMemberStatuses } = useMapStore();
+  const { spotStatuses } = useMapStore();
   const currentStatus: SpotStatus | null = spotStatuses[place.id] ?? null;
-  const wantCount = Object.values(allMemberStatuses).filter((s) => s[place.id] === "want_to_go").length;
-  const visitedCount = Object.values(allMemberStatuses).filter((s) => s[place.id] === "visited").length;
   const images = place.image_urls ?? [];
 
   const budgetText =
@@ -307,24 +305,6 @@ function GridCard({ place, onSelect, distanceText }: Omit<PlaceCardProps, "compa
         {/* ステータス */}
         <StatusToggle placeId={place.id} currentStatus={currentStatus} compact={false} />
 
-        {/* みんなのリアクション */}
-        {(wantCount > 0 || visitedCount > 0) && (
-          <div className="flex items-center gap-3 text-xs">
-            {wantCount > 0 && (
-              <span className="flex items-center gap-0.5 text-amber-600 font-semibold">
-                <Heart className="size-3 fill-amber-500 stroke-amber-500" />
-                {wantCount}
-              </span>
-            )}
-            {visitedCount > 0 && (
-              <span className="flex items-center gap-0.5 text-emerald-600 font-semibold">
-                <CheckCircle2 className="size-3" />
-                {visitedCount}
-              </span>
-            )}
-          </div>
-        )}
-
         {/* 作成者 */}
         {place.created_by_name && (
           <div className="flex items-center gap-1.5 pt-1.5 border-t border-border/50">
@@ -339,10 +319,8 @@ function GridCard({ place, onSelect, distanceText }: Omit<PlaceCardProps, "compa
 
 // ── コンパクトカード（通常サイドバー）────────────────────────────
 function CompactCard({ place, onSelect, distanceText }: Omit<PlaceCardProps, "compact">) {
-  const { spotStatuses, allMemberStatuses } = useMapStore();
+  const { spotStatuses } = useMapStore();
   const currentStatus: SpotStatus | null = spotStatuses[place.id] ?? null;
-  const wantCount = Object.values(allMemberStatuses).filter((s) => s[place.id] === "want_to_go").length;
-  const visitedCount = Object.values(allMemberStatuses).filter((s) => s[place.id] === "visited").length;
   const images = place.image_urls ?? [];
 
   const budgetText =
@@ -420,23 +398,6 @@ function CompactCard({ place, onSelect, distanceText }: Omit<PlaceCardProps, "co
         )}
 
         <StatusToggle placeId={place.id} currentStatus={currentStatus} compact={true} />
-
-        {(wantCount > 0 || visitedCount > 0) && (
-          <div className="flex items-center gap-3 text-xs">
-            {wantCount > 0 && (
-              <span className="flex items-center gap-0.5 text-amber-600 font-semibold">
-                <Heart className="size-3 fill-amber-500 stroke-amber-500" />
-                {wantCount}
-              </span>
-            )}
-            {visitedCount > 0 && (
-              <span className="flex items-center gap-0.5 text-emerald-600 font-semibold">
-                <CheckCircle2 className="size-3" />
-                {visitedCount}
-              </span>
-            )}
-          </div>
-        )}
 
         {place.created_by_name && (
           <div className="flex items-center gap-1.5 mt-1 pt-2 border-t">

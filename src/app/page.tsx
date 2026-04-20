@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import MapboxLanguage from "@mapbox/mapbox-gl-language";
-import { LocateFixed, List, Search, Copy, Check, LogOut, SlidersHorizontal, X, Star, CheckCircle2, Heart, Utensils, Wine, Gamepad2, Landmark, Coffee, ShoppingBag, Camera, BedDouble, Waves, Plus, Shield, Lock, Unlock, Share2, Users, Crown, Eye, ChevronUp, Mail, User as UserIcon, Settings } from "lucide-react";
+import { LocateFixed, List, Search, Copy, Check, LogOut, SlidersHorizontal, X, Star, CheckCircle2, Utensils, Wine, Gamepad2, Landmark, Coffee, ShoppingBag, Camera, BedDouble, Waves, Plus, Shield, Lock, Unlock, Share2, Users, Crown, Eye, ChevronUp, Mail, User as UserIcon, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -1420,46 +1420,6 @@ export default function Home() {
               </div>
             )}
 
-            {/* メンバーアバターストリップ（スポット登録者のみ） */}
-            {room && (() => {
-              const activeMembers = roomMembers.filter((m) =>
-                places.some((p) => p.created_by_id === m.user_id)
-              );
-              if (activeMembers.length === 0) return null;
-              return (
-                <div className="flex items-center gap-2 px-4 py-2 border-b overflow-x-auto scrollbar-hide">
-                  <button
-                    onClick={() => setFilterCreatorId(null)}
-                    className={cn(
-                      "shrink-0 size-7 rounded-full bg-muted text-muted-foreground text-[10px] font-bold flex items-center justify-center transition-all cursor-pointer hover:opacity-80",
-                      !filterCreatorId && "ring-2 ring-primary ring-offset-1"
-                    )}
-                    title="全員"
-                  >
-                    全
-                  </button>
-                  {activeMembers.map((member) => {
-                    const color = getCreatorColor(member.user_id, roomMembers);
-                    const isActive = filterCreatorId === member.user_id;
-                    return (
-                      <button
-                        key={member.user_id}
-                        onClick={() => setFilterCreatorId(isActive ? null : member.user_id)}
-                        style={{ backgroundColor: color }}
-                        className={cn(
-                          "shrink-0 size-7 rounded-full text-white text-[11px] font-bold flex items-center justify-center transition-all cursor-pointer hover:opacity-80",
-                          isActive && "ring-2 ring-primary ring-offset-1 scale-110"
-                        )}
-                        title={member.user_name}
-                      >
-                        {member.user_name.charAt(0).toUpperCase()}
-                      </button>
-                    );
-                  })}
-                </div>
-              );
-            })()}
-
             {/* 検索バー */}
             <div className="flex items-center px-4 py-2.5 border-b">
               <div className="relative flex-1">
@@ -1472,35 +1432,6 @@ export default function Home() {
                 />
               </div>
             </div>
-          </div>
-
-          {/* ステータスフィルタータブ */}
-          <div className="flex items-center gap-1 px-4 py-2 border-b">
-            {([
-              { id: null, label: "すべて" },
-              { id: "want_to_go" as const, label: "行きたい", icon: <Heart className="size-3" /> },
-              { id: "visited" as const, label: "行った", icon: <CheckCircle2 className="size-3" /> },
-            ] as const).map((tab) => (
-              <button
-                key={String(tab.id)}
-                onClick={() => setFilterStatus((prev) => prev === tab.id ? null : tab.id)}
-                className={cn(
-                  "flex items-center gap-1 px-3 py-1 text-xs font-medium rounded-full transition-colors cursor-pointer",
-                  filterStatus === tab.id
-                    ? tab.id === "want_to_go"
-                      ? "bg-amber-100 text-amber-700"
-                      : tab.id === "visited"
-                        ? "bg-emerald-100 text-emerald-700"
-                        : "bg-primary text-primary-foreground"
-                    : tab.id === null && !filterStatus
-                      ? "bg-primary text-primary-foreground"
-                      : "text-muted-foreground hover:bg-muted"
-                )}
-              >
-                {"icon" in tab && tab.icon}
-                {tab.label}
-              </button>
-            ))}
           </div>
 
           {/* スクロール可能なリスト */}
@@ -1791,7 +1722,6 @@ export default function Home() {
           onInvite={shareRoomUrl}
           onManageMembers={() => setMemberManageOpen(true)}
           canManageMembers={canManageMembers}
-          onSelectPlace={(p) => { setDetailPlace(p); setDetailOpen(true); }}
         />
       )}
       {activeTab === "mypage" && (
