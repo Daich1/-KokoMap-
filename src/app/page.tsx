@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import MapboxLanguage from "@mapbox/mapbox-gl-language";
-import { LocateFixed, List, Search, Copy, Check, LogOut, SlidersHorizontal, X, Star, CheckCircle2, Utensils, Wine, Gamepad2, Landmark, Coffee, ShoppingBag, Camera, BedDouble, Waves, Plus, Shield, Lock, Unlock, Share2, Users, Crown, Eye, ChevronUp, Mail, User as UserIcon, Settings } from "lucide-react";
+import { LocateFixed, List, Search, Copy, Check, LogOut, SlidersHorizontal, X, Star, CheckCircle2, Heart, Utensils, Wine, Gamepad2, Landmark, Coffee, ShoppingBag, Camera, BedDouble, Waves, Plus, Shield, Lock, Unlock, Share2, Users, Crown, Eye, ChevronUp, Mail, User as UserIcon, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -1472,6 +1472,35 @@ export default function Home() {
                 />
               </div>
             </div>
+          </div>
+
+          {/* ステータスフィルタータブ */}
+          <div className="flex items-center gap-1 px-4 py-2 border-b">
+            {([
+              { id: null, label: "すべて" },
+              { id: "want_to_go" as const, label: "行きたい", icon: <Heart className="size-3" /> },
+              { id: "visited" as const, label: "行った", icon: <CheckCircle2 className="size-3" /> },
+            ] as const).map((tab) => (
+              <button
+                key={String(tab.id)}
+                onClick={() => setFilterStatus((prev) => prev === tab.id ? null : tab.id)}
+                className={cn(
+                  "flex items-center gap-1 px-3 py-1 text-xs font-medium rounded-full transition-colors cursor-pointer",
+                  filterStatus === tab.id
+                    ? tab.id === "want_to_go"
+                      ? "bg-amber-100 text-amber-700"
+                      : tab.id === "visited"
+                        ? "bg-emerald-100 text-emerald-700"
+                        : "bg-primary text-primary-foreground"
+                    : tab.id === null && !filterStatus
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover:bg-muted"
+                )}
+              >
+                {"icon" in tab && tab.icon}
+                {tab.label}
+              </button>
+            ))}
           </div>
 
           {/* スクロール可能なリスト */}
