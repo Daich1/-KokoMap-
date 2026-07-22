@@ -337,6 +337,65 @@
   @apply disabled:cursor-not-allowed disabled:opacity-50 resize-none;
 }
 
+/* ─── 現在地マーカー（Googleマップ風） ──────────────────────────────────────── */
+.user-location-marker {
+  position: relative;
+  width: 18px;
+  height: 18px;
+}
+
+.user-location-dot {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: var(--primary);
+  border: 2.5px solid white;
+  box-shadow: 0 1px 4px oklch(0 0 0 / 0.35);
+  z-index: 2;
+}
+
+.user-location-pulse {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--primary);
+  opacity: 0.35;
+  transform: translate(-50%, -50%) scale(1);
+  animation: user-location-pulse 2.2s ease-out infinite;
+  z-index: 1;
+}
+
+@keyframes user-location-pulse {
+  0%   { transform: translate(-50%, -50%) scale(1);   opacity: 0.45; }
+  100% { transform: translate(-50%, -50%) scale(5.5); opacity: 0; }
+}
+
+/* 方角ビーム（デバイスの向きが取得できた場合のみ表示） */
+.user-location-beam {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 90px;
+  height: 90px;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  transform: translate(-50%, -50%) rotate(0deg);
+  transform-origin: 50% 50%;
+  background: conic-gradient(
+    from -32deg,
+    oklch(0.57 0.13 185 / 0.4) 0deg,
+    oklch(0.57 0.13 185 / 0.05) 64deg,
+    transparent 64deg,
+    transparent 360deg
+  );
+  mask-image: radial-gradient(circle at 50% 50%, black 22%, black 60%, transparent 100%);
+  pointer-events: none;
+  z-index: 0;
+}
+
 /* ─── Radix UI pointer-events リセット ──────────────────────────────────────── */
 body[style*="pointer-events: none"] {
   pointer-events: auto !important;

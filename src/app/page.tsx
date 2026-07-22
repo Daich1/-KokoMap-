@@ -4,7 +4,8 @@ import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import MapboxLanguage from "@mapbox/mapbox-gl-language";
-import { LocateFixed, List, Search, Copy, Check, LogOut, SlidersHorizontal, X, Star, CheckCircle2, Utensils, Wine, Gamepad2, Landmark, Coffee, ShoppingBag, Camera, BedDouble, Waves, Plus, Shield, Lock, Unlock, Share2, Users, Crown, Eye, ChevronUp, Mail, User as UserIcon, Settings } from "lucide-react";
+import { LocateFixed, List, Search, Copy, Check, LogOut, SlidersHorizontal, X, Star, CheckCircle2, Utensils, Wine, Gamepad2, Landmark, Coffee, ShoppingBag, Camera, BedDouble, Waves, Plus, Shield, Lock, Unlock, Share2, Users, Crown, Eye, ChevronUp, Mail, User as UserIcon, Settings, Route as RouteIcon } from "lucide-react";
+import { DirectionsPanel, type RouteResult } from "@/components/DirectionsPanel";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -85,6 +86,10 @@ export default function Home() {
   const pickingModeRef = useRef(false);
   const markers = useRef<Map<string, mapboxgl.Marker>>(new Map());
   const previewMarkerRef = useRef<mapboxgl.Marker | null>(null);
+  const userMarkerRef = useRef<mapboxgl.Marker | null>(null);
+  const userBeamElRef = useRef<HTMLDivElement | null>(null);
+  const routeOriginMarkerRef = useRef<mapboxgl.Marker | null>(null);
+  const routeDestMarkerRef = useRef<mapboxgl.Marker | null>(null);
   const popupClickRef = useRef<(place: Place) => void>(() => { });
   // ポップアップ内のステータスボタン要素を保持（spotStatuses 変化時に DOM 更新用）
   const popupStatusEls = useRef<
@@ -140,6 +145,7 @@ export default function Home() {
   const [geocodedAddress, setGeocodedAddress] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
   const [isListExpanded, setIsListExpanded] = useState(false);
+  const [directionsOpen, setDirectionsOpen] = useState(false);
   const [mapLoaded, setMapLoaded] = useState(false);
   const [roomDialogOpen, setRoomDialogOpen] = useState(!room);
   const [memberManageOpen, setMemberManageOpen] = useState(false);
@@ -300,6 +306,53 @@ export default function Home() {
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ── 現在地マーカー（Googleマップ風の青点）の作成・更新 ──────
+  useEffect(() => {
+    if (!map.current || !mapLoaded || !userLocation) return;
+
+    if (!userMarkerRef.current) {
+      const el = document.createElement("div");
+      el.className = "user-location-marker";
+      el.innerHTML =
+        '<div class="user-location-beam"></div>' +
+        '<div class="user-location-pulse"></div>' +
+        '<div class="user-location-dot"></div>';
+      userBeamElRef.current = el.querySelector(".user-location-beam");
+      userMarkerRef.current = new mapboxgl.Marker({ element: el, anchor: "center" })
+        .setLngLat([userLocation.lng, userLocation.lat])
+        .addTo(map.current);
+    } else {
+      userMarkerRef.current.setLngLat([userLocation.lng, userLocation.lat]);
+    }
+  }, [userLocation, mapLoaded]);
+
+  // ── 端末の向き（コンパス）を現在地マーカーの方角ビームに反映 ──
+  useEffect(() => {
+    function handleOrientation(e: DeviceOrientationEvent) {
+      const webkitHeading = (e as unknown as { webkitCompassHeading?: number })
+        .webkitCompassHeading;
+      let heading: number | null = null;
+      if (typeof webkitHeading === "number") {
+        heading = webkitHeading;
+      } else if (e.absolute && e.alpha !== null) {
+        heading = 360 - e.alpha;
+      }
+      if (heading === null || Number.isNaN(heading)) return;
+
+      const el = userBeamElRef.current;
+      if (!el) return;
+      el.style.opacity = "1";
+      el.style.transform = `translate(-50%, -50%) rotate(${heading}deg)`;
+    }
+
+    window.addEventListener("deviceorientationabsolute", handleOrientation);
+    window.addEventListener("deviceorientation", handleOrientation);
+    return () => {
+      window.removeEventListener("deviceorientationabsolute", handleOrientation);
+      window.removeEventListener("deviceorientation", handleOrientation);
+    };
   }, []);
 
   // ── spotStatuses 変化時にポップアップ DOM を更新 ─────────
@@ -594,6 +647,24 @@ export default function Home() {
     map.current.addControl(new MapboxLanguage({ defaultLanguage: "ja" }));
 
     map.current.on("load", () => {
+      map.current!.addSource("route", {
+        type: "geojson",
+        data: { type: "FeatureCollection", features: [] },
+      });
+      map.current!.addLayer({
+        id: "route-halo",
+        type: "line",
+        source: "route",
+        layout: { "line-cap": "round", "line-join": "round" },
+        paint: { "line-color": "#ffffff", "line-width": 8, "line-opacity": 0.9 },
+      });
+      map.current!.addLayer({
+        id: "route-line",
+        type: "line",
+        source: "route",
+        layout: { "line-cap": "round", "line-join": "round" },
+        paint: { "line-color": "#008f81", "line-width": 5 },
+      });
       setMapLoaded(true);
     });
 
@@ -772,8 +843,67 @@ export default function Home() {
     }
   }, [sheetOpen, coords]);
 
+  // ── 経路検索結果をマップに反映 ───────────────────────
+  const handleRouteChange = useCallback((route: RouteResult | null) => {
+    const src = map.current?.getSource("route") as mapboxgl.GeoJSONSource | undefined;
+
+    if (!route) {
+      src?.setData({ type: "FeatureCollection", features: [] });
+      routeOriginMarkerRef.current?.remove();
+      routeOriginMarkerRef.current = null;
+      routeDestMarkerRef.current?.remove();
+      routeDestMarkerRef.current = null;
+      return;
+    }
+
+    src?.setData({
+      type: "FeatureCollection",
+      features: [
+        {
+          type: "Feature",
+          properties: {},
+          geometry: { type: "LineString", coordinates: route.coordinates },
+        },
+      ],
+    });
+
+    if (routeOriginMarkerRef.current) {
+      routeOriginMarkerRef.current.setLngLat([route.origin.lng, route.origin.lat]);
+    } else if (map.current) {
+      routeOriginMarkerRef.current = new mapboxgl.Marker({ color: "#16a34a" })
+        .setLngLat([route.origin.lng, route.origin.lat])
+        .addTo(map.current);
+    }
+
+    if (routeDestMarkerRef.current) {
+      routeDestMarkerRef.current.setLngLat([route.destination.lng, route.destination.lat]);
+    } else if (map.current) {
+      routeDestMarkerRef.current = new mapboxgl.Marker({ color: "#dc2626" })
+        .setLngLat([route.destination.lng, route.destination.lat])
+        .addTo(map.current);
+    }
+
+    if (map.current) {
+      const bounds = new mapboxgl.LngLatBounds(
+        [route.origin.lng, route.origin.lat],
+        [route.origin.lng, route.origin.lat]
+      );
+      bounds.extend([route.destination.lng, route.destination.lat]);
+      route.coordinates.forEach((c) => bounds.extend(c));
+      map.current.fitBounds(bounds, { padding: 80, duration: 1000, maxZoom: 16 });
+    }
+  }, []);
+
   // ── ハンドラー ───────────────────────────────────────
   function handleLocateMe() {
+    // iOS Safari は DeviceOrientationEvent の利用にユーザー操作起点の許可が必要
+    const DOE = window.DeviceOrientationEvent as unknown as {
+      requestPermission?: () => Promise<"granted" | "denied">;
+    };
+    if (typeof DOE?.requestPermission === "function") {
+      DOE.requestPermission().catch(() => {});
+    }
+
     // watchPosition で取得済みの座標があれば即座に使う
     if (userLocation) {
       map.current?.flyTo({
@@ -1278,19 +1408,42 @@ export default function Home() {
           )}
 
 
-          {/* PC: リスト切替ボタン */}
-          <button
-            onClick={() => setExpanded((v) => !v)}
-            className="hidden md:flex absolute top-4 right-3 z-10 items-center gap-1.5 map-glass-btn px-3 py-2 text-xs font-medium rounded-[13px] cursor-pointer"
-            title={expanded ? "リストを表示" : "リストを隠す"}
-          >
-            <List className="size-3.5" />
-            {expanded ? "リスト表示" : "リストを隠す"}
-          </button>
+          {/* PC: リスト切替・経路検索ボタン群 */}
+          <div className="hidden md:flex absolute top-4 right-3 z-10 items-center gap-2">
+            <button
+              onClick={() => setDirectionsOpen((v) => !v)}
+              className={cn(
+                "flex items-center gap-1.5 map-glass-btn px-3 py-2 text-xs font-medium rounded-[13px] cursor-pointer",
+                directionsOpen && "text-primary"
+              )}
+              title="経路を検索"
+            >
+              <RouteIcon className="size-3.5" />
+              経路
+            </button>
+            <button
+              onClick={() => setExpanded((v) => !v)}
+              className="flex items-center gap-1.5 map-glass-btn px-3 py-2 text-xs font-medium rounded-[13px] cursor-pointer"
+              title={expanded ? "リストを表示" : "リストを隠す"}
+            >
+              <List className="size-3.5" />
+              {expanded ? "リスト表示" : "リストを隠す"}
+            </button>
+          </div>
 
           {/* モバイル: 右上ボタン群（マップ上） */}
           {authUser && (
-            <div className="md:hidden absolute top-3 right-3 z-20">
+            <div className="md:hidden absolute top-3 right-3 z-20 flex items-center gap-2">
+              <button
+                onClick={() => setDirectionsOpen((v) => !v)}
+                title="経路を検索"
+                className={cn(
+                  "map-glass-btn w-11 h-11 flex items-center justify-center rounded-[13px] cursor-pointer",
+                  directionsOpen && "text-primary"
+                )}
+              >
+                <RouteIcon className="size-5" />
+              </button>
               <button
                 onClick={() => setProfileOpen(true)}
                 title="設定"
@@ -1316,6 +1469,16 @@ export default function Home() {
           >
             <LocateFixed className="size-5" />
           </button>
+
+          {/* 経路検索パネル */}
+          {directionsOpen && (
+            <DirectionsPanel
+              onClose={() => setDirectionsOpen(false)}
+              userLocation={userLocation}
+              onRouteChange={handleRouteChange}
+              places={places}
+            />
+          )}
 
           {/* モバイル: ＋ 追加 FAB（閲覧者には非表示・マップタブのみ） */}
           {canAdd && activeTab === "map" && (
