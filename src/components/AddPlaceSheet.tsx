@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useMemo } from "react";
 import { useForm, Controller, useFieldArray, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { MapPin, Plus, Search, X, Loader2, Clock, AlertTriangle } from "lucide-react";
+import { MapPin, Plus, Search, X, Loader2, Clock, AlertTriangle, ImagePlus } from "lucide-react";
 import { getCategoryClass } from "@/lib/category";
 import { cn } from "@/lib/utils";
 import { calcDistance } from "@/lib/geo";
@@ -144,6 +144,10 @@ export function AddPlaceSheet({
   // ── URL から取り込み ──────────────────────────────────
   const [importUrl, setImportUrl] = useState("");
   const [isImporting, setIsImporting] = useState(false);
+
+  // ── 写真アップロード ──────────────────────────────────
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // ── Autocomplete 用 state ────────────────────────────
   const [suggestions, setSuggestions] = useState<PlacePrediction[]>([]);
@@ -372,6 +376,39 @@ export function AddPlaceSheet({
     }
   }
 
+  // ── 写真アップロード：Supabase Storage に保存し公開URLを画像欄へ追加 ──
+  async function handleFileUpload(files: FileList | null) {
+    if (!files || files.length === 0) return;
+    setIsUploading(true);
+    let uploaded = 0;
+    try {
+      for (const file of Array.from(files)) {
+        if (!file.type.startsWith("image/")) continue;
+        if (file.size > 10 * 1024 * 1024) {
+          toast.error(`${file.name} は10MBを超えています`);
+          continue;
+        }
+        const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
+        const path = `${room?.id ?? "misc"}/${crypto.randomUUID()}.${ext}`;
+        const { error } = await supabase.storage
+          .from("place-images")
+          .upload(path, file, { cacheControl: "3600", upsert: false, contentType: file.type });
+        if (error) {
+          console.error("upload failed:", error);
+          toast.error("画像のアップロードに失敗しました");
+          continue;
+        }
+        const { data } = supabase.storage.from("place-images").getPublicUrl(path);
+        append({ value: data.publicUrl });
+        uploaded++;
+      }
+      if (uploaded > 0) toast.success(`写真を${uploaded}枚アップロードしました`);
+    } finally {
+      setIsUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }
+
   // ── 検索ボタン：Place Details 取得 → 名前・住所・ピン自動入力 ──
   async function handleAddressSearch() {
     const query = getValues("address")?.trim();
@@ -544,6 +581,21 @@ export function AddPlaceSheet({
     if (error) {
       setError("root", { message: error.message });
       return;
+    }
+
+    // 新規追加時、ルームメンバーへプッシュ通知（本人は除外・失敗は無視）
+    if (!isEdit && room?.id) {
+      fetch("/api/notify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          roomId: room.id,
+          title: "新しいスポットが追加されました",
+          body: `${currentUser.name || "メンバー"}さんが「${values.name}」を追加しました`,
+          url: "/",
+          excludeUserId: currentUser.id,
+        }),
+      }).catch(() => {});
     }
 
     onSaved(data as Place);
@@ -899,9 +951,9 @@ export function AddPlaceSheet({
               />
             </div>
 
-            {/* 画像URL */}
+            {/* 画像（アップロード or URL） */}
             <div className="flex flex-col gap-2">
-              <label className="text-sm font-medium">画像URL</label>
+              <label className="text-sm font-medium">写真</label>
               <div className="flex flex-col gap-2">
                 {fields.map((field, index) => {
                   const currentUrl = watchedImageUrls?.[index]?.value?.trim() ?? "";
@@ -929,16 +981,41 @@ export function AddPlaceSheet({
                     </div>
                   );
                 })}
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => append({ value: "" })}
-                  className="w-fit"
-                >
-                  <Plus className="size-3.5" />
-                  追加
-                </Button>
+                <div className="flex gap-2">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    className="hidden"
+                    onChange={(e) => handleFileUpload(e.target.files)}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isUploading}
+                    className="w-fit"
+                  >
+                    {isUploading ? (
+                      <Loader2 className="size-3.5 animate-spin" />
+                    ) : (
+                      <ImagePlus className="size-3.5" />
+                    )}
+                    写真をアップロード
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => append({ value: "" })}
+                    className="w-fit"
+                  >
+                    <Plus className="size-3.5" />
+                    URLで追加
+                  </Button>
+                </div>
               </div>
             </div>
 

@@ -12,6 +12,9 @@ import {
   Clock,
   FileText,
   Navigation,
+  MessageCircle,
+  Send,
+  Loader2,
 } from "lucide-react";
 import {
   Sheet,
@@ -30,7 +33,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { supabase, type Place, type SpotStatus } from "@/lib/supabase";
+import { supabase, type Place, type SpotStatus, type PlaceComment } from "@/lib/supabase";
 import { getCategoryClass } from "@/lib/category";
 import { DURATION_LABELS } from "@/lib/constants";
 import { BusinessHoursBadge } from "@/components/BusinessHoursBadge";
@@ -162,9 +165,110 @@ export function PlaceDetailSheet({
 
   const images = place?.image_urls ?? [];
 
+  // ── コメント ───────────────────────────────────────
+  const [comments, setComments] = useState<PlaceComment[]>([]);
+  const [commentText, setCommentText] = useState("");
+  const [sendingComment, setSendingComment] = useState(false);
+
   useEffect(() => {
     setImgIdx(0);
   }, [place?.id]);
+
+  // コメント読み込み + Realtime 購読（スポット単位）
+  useEffect(() => {
+    const placeId = place?.id;
+    if (!placeId || !open) {
+      setComments([]);
+      return;
+    }
+    let active = true;
+    supabase
+      .from("place_comments")
+      .select("*")
+      .eq("place_id", placeId)
+      .order("created_at", { ascending: true })
+      .then(({ data, error }) => {
+        if (!active) return;
+        if (error) {
+          console.error("Failed to load comments:", error);
+          return;
+        }
+        setComments((data ?? []) as PlaceComment[]);
+      });
+
+    const ch = supabase
+      .channel(`comments-${placeId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "place_comments", filter: `place_id=eq.${placeId}` },
+        (payload) => {
+          if (payload.eventType === "INSERT") {
+            const c = payload.new as PlaceComment;
+            setComments((prev) => (prev.some((x) => x.id === c.id) ? prev : [...prev, c]));
+          } else if (payload.eventType === "DELETE") {
+            const old = payload.old as { id: string };
+            setComments((prev) => prev.filter((x) => x.id !== old.id));
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      active = false;
+      supabase.removeChannel(ch);
+    };
+  }, [place?.id, open]);
+
+  async function postComment() {
+    const body = commentText.trim();
+    if (!body || !place) return;
+    setSendingComment(true);
+    const optimistic: PlaceComment = {
+      id: `tmp-${Date.now()}`,
+      place_id: place.id,
+      user_id: currentUser.id,
+      user_name: currentUser.name || "名無し",
+      body,
+      created_at: new Date().toISOString(),
+    };
+    setComments((prev) => [...prev, optimistic]);
+    setCommentText("");
+    const { data, error } = await supabase
+      .from("place_comments")
+      .insert({
+        place_id: place.id,
+        user_id: currentUser.id,
+        user_name: currentUser.name || "名無し",
+        body,
+      })
+      .select()
+      .single();
+    setSendingComment(false);
+    if (error) {
+      console.error("Failed to post comment:", error);
+      toast.error("コメントの投稿に失敗しました");
+      setComments((prev) => prev.filter((c) => c.id !== optimistic.id));
+      setCommentText(body);
+      return;
+    }
+    // 楽観行を実データに置き換え（Realtime で来ていれば重複を避ける）
+    setComments((prev) => {
+      const withoutTmp = prev.filter((c) => c.id !== optimistic.id);
+      const real = data as PlaceComment;
+      return withoutTmp.some((c) => c.id === real.id) ? withoutTmp : [...withoutTmp, real];
+    });
+  }
+
+  async function deleteComment(id: string) {
+    const prev = comments;
+    setComments((c) => c.filter((x) => x.id !== id));
+    const { error } = await supabase.from("place_comments").delete().eq("id", id);
+    if (error) {
+      console.error("Failed to delete comment:", error);
+      toast.error("コメントの削除に失敗しました");
+      setComments(prev);
+    }
+  }
 
   // ── 論理削除（soft delete）──────────────────────────
   async function handleDelete() {
@@ -452,6 +556,68 @@ export function PlaceDetailSheet({
           <Navigation className="size-4" />
           Googleマップで経路を見る
         </a>
+
+        {/* コメント */}
+        <div className="flex flex-col gap-2 pt-4 border-t">
+          <span className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
+            <MessageCircle className="size-3.5" />
+            コメント{comments.length > 0 && `（${comments.length}）`}
+          </span>
+
+          {comments.length > 0 && (
+            <div className="flex flex-col gap-2.5">
+              {comments.map((c) => (
+                <div key={c.id} className="flex items-start gap-2">
+                  <UserAvatar name={c.user_name} />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs font-semibold truncate">{c.user_name}</span>
+                      <span className="text-[10px] text-muted-foreground shrink-0">
+                        {new Date(c.created_at).toLocaleDateString("ja-JP", { month: "numeric", day: "numeric" })}
+                      </span>
+                      {c.user_id === currentUser.id && !c.id.startsWith("tmp-") && (
+                        <button
+                          onClick={() => deleteComment(c.id)}
+                          className="ml-auto shrink-0 text-muted-foreground hover:text-destructive transition-colors cursor-pointer"
+                          title="削除"
+                        >
+                          <Trash2 className="size-3" />
+                        </button>
+                      )}
+                    </div>
+                    <p className="text-sm whitespace-pre-wrap break-words leading-snug">
+                      <LinkifiedText text={c.body} />
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="flex items-end gap-2 mt-1">
+            <textarea
+              value={commentText}
+              onChange={(e) => setCommentText(e.target.value)}
+              placeholder="コメントを追加..."
+              rows={1}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                  e.preventDefault();
+                  postComment();
+                }
+              }}
+              className="flex-1 resize-none border border-border rounded-xl px-3 py-2 text-sm bg-background outline-none focus:ring-2 focus:ring-primary/40 max-h-24"
+            />
+            <button
+              onClick={postComment}
+              disabled={sendingComment || !commentText.trim()}
+              className="shrink-0 size-9 rounded-xl bg-primary text-primary-foreground flex items-center justify-center disabled:opacity-40 hover:opacity-90 transition-opacity cursor-pointer"
+              title="送信"
+            >
+              {sendingComment ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
+            </button>
+          </div>
+        </div>
 
         {/* フッター */}
         <div className="mt-auto pt-4 border-t flex items-center justify-between text-xs text-muted-foreground">

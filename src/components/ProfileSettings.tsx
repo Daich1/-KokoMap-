@@ -11,8 +11,10 @@ import { Button } from "@/components/ui/button";
 import { useMapStore } from "@/store/useMapStore";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
-import { LogOut, Mail, Settings, UserCircle, MapPinOff, Loader2, Check, Palette, DoorOpen, Trash2 } from "lucide-react";
+import { LogOut, Mail, Settings, UserCircle, MapPinOff, Loader2, Check, Palette, DoorOpen, Trash2, Bell } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { pushSupported, isPushEnabled, enablePush, disablePush } from "@/lib/push";
+import { cn } from "@/lib/utils";
 
 interface ProfileSettingsContentProps {
   onLogout: () => void;
@@ -37,6 +39,35 @@ export function ProfileSettingsContent({
 }: ProfileSettingsContentProps) {
   const [confirmLeave, setConfirmLeave] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+
+  // 通知
+  const [pushOn, setPushOn] = useState(false);
+  const [pushBusy, setPushBusy] = useState(false);
+  const canPush = pushSupported();
+
+  useEffect(() => {
+    if (canPush) isPushEnabled().then(setPushOn);
+  }, [canPush]);
+
+  async function togglePush() {
+    if (!userId) return;
+    setPushBusy(true);
+    try {
+      if (pushOn) {
+        await disablePush();
+        setPushOn(false);
+        toast.success("通知をオフにしました");
+      } else {
+        const ok = await enablePush(userId);
+        setPushOn(ok);
+        toast[ok ? "success" : "error"](
+          ok ? "通知をオンにしました" : "通知を有効にできませんでした（ブラウザの許可を確認してください）"
+        );
+      }
+    } finally {
+      setPushBusy(false);
+    }
+  }
   const { currentUser, setCurrentUser, room } = useMapStore();
 
   const [name, setName] = useState(currentUser?.name || "");
@@ -198,6 +229,45 @@ export function ProfileSettingsContent({
         </div>
         <ThemeToggle />
       </section>
+
+      {/* ── 通知設定 ── */}
+      {canPush && (
+        <section className="flex flex-col gap-3">
+          <div className="flex items-center gap-2 text-sm font-bold text-foreground">
+            <Bell className="size-4" />
+            <h3>通知</h3>
+          </div>
+          <button
+            onClick={togglePush}
+            disabled={pushBusy}
+            className="flex items-center justify-between gap-2 bg-muted/40 border border-border rounded-xl p-3 text-left disabled:opacity-60 cursor-pointer"
+          >
+            <span className="min-w-0">
+              <span className="block text-sm font-medium">メンバーの新着スポットを通知</span>
+              <span className="block text-[11px] text-muted-foreground">
+                アプリを閉じていてもプッシュ通知を受け取ります
+              </span>
+            </span>
+            <span
+              className={cn(
+                "shrink-0 w-11 h-6 rounded-full transition-colors relative",
+                pushOn ? "bg-primary" : "bg-muted-foreground/30"
+              )}
+            >
+              {pushBusy ? (
+                <Loader2 className="size-4 animate-spin absolute top-1 left-3.5" />
+              ) : (
+                <span
+                  className={cn(
+                    "absolute top-0.5 size-5 rounded-full bg-white transition-all",
+                    pushOn ? "left-[22px]" : "left-0.5"
+                  )}
+                />
+              )}
+            </span>
+          </button>
+        </section>
+      )}
 
       {/* ── ルーム＆アカウント操作 ── */}
       <section className="flex flex-col gap-2 mt-2 pt-6 border-t">

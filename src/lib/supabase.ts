@@ -16,6 +16,15 @@ export type RoomMember = {
   joined_at: string;
 };
 
+export type PlaceComment = {
+  id: string;
+  place_id: string;
+  user_id: string;
+  user_name: string;
+  body: string;
+  created_at: string;
+};
+
 export type UserSpotStatus = {
   id: string;
   user_id: string;
@@ -63,4 +72,6 @@ export type Place = {
   created_by_id: string | null;
   business_hours: BusinessHours | null;
   opening_hours_text: string | null;
+  plan_day: number | null;
+  plan_order: number | null;
 };
