@@ -214,7 +214,7 @@ function LocationField({
       </div>
 
       {open && (
-        <div className="absolute z-10 top-full mt-1 left-0 right-0 bg-background border rounded-[12px] shadow-lg overflow-hidden max-h-64 overflow-y-auto">
+        <div className="absolute z-10 top-full mt-1 left-0 right-0 bg-background border rounded-[12px] shadow-lg overflow-hidden max-h-[min(70dvh,32rem)] overflow-y-auto">
           {view === "spots" ? (
             <>
               <div className="flex items-center gap-2 px-2 py-1.5 border-b">
@@ -420,7 +420,7 @@ export function DirectionsPanel({
   const canSearch = bothSelected && !loading;
 
   return (
-    <div className="map-glass-btn absolute z-30 top-3 left-3 right-3 md:left-4 md:right-auto md:w-[360px] p-3 flex flex-col gap-2.5 max-h-[calc(100dvh-1.5rem)] overflow-y-auto">
+    <div className="map-glass-btn absolute z-30 top-3 left-3 right-3 md:left-4 md:right-auto md:w-[360px] p-3 flex flex-col gap-2.5">
       <div className="flex items-center justify-between">
         <span className="text-sm font-bold">経路を検索</span>
         <button
