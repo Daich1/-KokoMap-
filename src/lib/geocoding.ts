@@ -1,19 +1,15 @@
-const TOKEN = () => process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ?? "";
+// Google Geocoding はサーバープロキシ（/api/geocode）経由で呼ぶ
+// （API キーをブラウザに露出させないため）
 
 /** 住所 → 座標（Forward Geocoding） */
 export async function forwardGeocode(
   query: string
 ): Promise<{ lat: number; lng: number } | null> {
   try {
-    const url =
-      `https://maps.googleapis.com/maps/api/geocode/json` +
-      `?address=${encodeURIComponent(query)}&key=${TOKEN()}&language=ja&region=jp`;
-    const res = await fetch(url);
+    const res = await fetch(`/api/geocode?q=${encodeURIComponent(query)}`);
     if (!res.ok) return null;
-    const data = await res.json();
-    if (data.status !== "OK" || !data.results?.length) return null;
-    const { lat, lng } = data.results[0].geometry.location;
-    return { lat, lng };
+    const data: { lat: number; lng: number } | null = await res.json();
+    return data;
   } catch {
     return null;
   }
@@ -25,14 +21,12 @@ export async function reverseGeocode(
   lng: number
 ): Promise<string | null> {
   try {
-    const url =
-      `https://maps.googleapis.com/maps/api/geocode/json` +
-      `?latlng=${lat},${lng}&key=${TOKEN()}&language=ja&region=jp`;
-    const res = await fetch(url);
+    const res = await fetch(
+      `/api/geocode?lat=${encodeURIComponent(lat)}&lng=${encodeURIComponent(lng)}`
+    );
     if (!res.ok) return null;
-    const data = await res.json();
-    if (data.status !== "OK" || !data.results?.length) return null;
-    return data.results[0].formatted_address as string;
+    const data: { address: string } | null = await res.json();
+    return data?.address ?? null;
   } catch {
     return null;
   }

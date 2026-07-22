@@ -11,11 +11,15 @@ import { Button } from "@/components/ui/button";
 import { useMapStore } from "@/store/useMapStore";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
-import { LogOut, Mail, Settings, UserCircle, MapPinOff, Loader2, Check } from "lucide-react";
+import { LogOut, Mail, Settings, UserCircle, MapPinOff, Loader2, Check, Palette, DoorOpen, Trash2 } from "lucide-react";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 interface ProfileSettingsContentProps {
   onLogout: () => void;
   onLeaveRoom: () => void;
+  onLeaveMap?: () => void;
+  onDeleteMap?: () => void;
+  canDeleteMap?: boolean;
   onClose?: () => void;
   userId?: string;
   currentEmail?: string;
@@ -24,10 +28,15 @@ interface ProfileSettingsContentProps {
 export function ProfileSettingsContent({
   onLogout,
   onLeaveRoom,
+  onLeaveMap,
+  onDeleteMap,
+  canDeleteMap,
   onClose,
   userId,
   currentEmail,
 }: ProfileSettingsContentProps) {
+  const [confirmLeave, setConfirmLeave] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const { currentUser, setCurrentUser, room } = useMapStore();
 
   const [name, setName] = useState(currentUser?.name || "");
@@ -109,19 +118,19 @@ export function ProfileSettingsContent({
 
       {/* ── プロフィール設定 ── */}
       <section className="flex flex-col gap-3">
-        <div className="flex items-center gap-2 text-sm font-bold text-gray-800">
+        <div className="flex items-center gap-2 text-sm font-bold text-foreground">
           <UserCircle className="size-4" />
           <h3>プロフィール設定</h3>
         </div>
-        <div className="bg-gray-50 rounded-xl p-4 flex flex-col gap-3 border border-gray-100">
+        <div className="bg-muted/40 rounded-xl p-4 flex flex-col gap-3 border border-border">
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-semibold text-gray-600">表示名</label>
+            <label className="text-xs font-semibold text-muted-foreground">表示名</label>
             <div className="flex gap-2">
               <Input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="あなたの名前"
-                className="flex-1 bg-white"
+                className="flex-1 bg-background"
               />
               <Button
                 onClick={handleSaveProfile}
@@ -140,11 +149,11 @@ export function ProfileSettingsContent({
 
       {/* ── メールアドレス設定 ── */}
       <section className="flex flex-col gap-3">
-        <div className="flex items-center gap-2 text-sm font-bold text-gray-800">
+        <div className="flex items-center gap-2 text-sm font-bold text-foreground">
           <Mail className="size-4" />
           <h3>メールアドレス設定（パスワード復旧用）</h3>
         </div>
-        <div className="bg-gray-50 rounded-xl p-4 flex flex-col gap-3 border border-gray-100">
+        <div className="bg-muted/40 rounded-xl p-4 flex flex-col gap-3 border border-border">
           <p className="text-xs text-muted-foreground leading-relaxed">
             パスワードを忘れた時のリセットに使います。任意ですが登録をおすすめします。
           </p>
@@ -157,7 +166,7 @@ export function ProfileSettingsContent({
                 placeholder="example@gmail.com"
                 autoCapitalize="none"
                 autoCorrect="off"
-                className="flex-1 bg-white"
+                className="flex-1 bg-background"
               />
               <Button
                 onClick={handleSaveEmail}
@@ -181,22 +190,95 @@ export function ProfileSettingsContent({
         </div>
       </section>
 
+      {/* ── テーマ設定 ── */}
+      <section className="flex flex-col gap-3">
+        <div className="flex items-center gap-2 text-sm font-bold text-foreground">
+          <Palette className="size-4" />
+          <h3>テーマ</h3>
+        </div>
+        <ThemeToggle />
+      </section>
+
       {/* ── ルーム＆アカウント操作 ── */}
       <section className="flex flex-col gap-2 mt-2 pt-6 border-t">
         {room && (
           <Button
             variant="outline"
-            className="w-full justify-between items-center text-gray-700 hover:text-gray-900 border-gray-200 h-12 rounded-xl"
+            className="w-full justify-between items-center text-foreground hover:text-foreground border-border h-12 rounded-xl"
             onClick={() => {
               onLeaveRoom();
               onClose?.();
             }}
           >
             <span className="flex items-center gap-2 font-semibold">
-              <MapPinOff className="size-4 text-gray-500" />
+              <MapPinOff className="size-4 text-muted-foreground" />
               別のマップを開く
             </span>
           </Button>
+        )}
+
+        {/* このマップから抜ける */}
+        {room && onLeaveMap && (
+          confirmLeave ? (
+            <div className="flex flex-col gap-2 bg-muted/40 border border-border rounded-xl p-3">
+              <p className="text-xs text-foreground">このマップから抜けますか？（再度参加するには招待コードが必要です）</p>
+              <div className="flex gap-2">
+                <Button
+                  className="flex-1 h-10 rounded-lg bg-amber-500 hover:bg-amber-600 text-white font-bold"
+                  onClick={() => { setConfirmLeave(false); onLeaveMap(); onClose?.(); }}
+                >
+                  抜ける
+                </Button>
+                <Button variant="outline" className="flex-1 h-10 rounded-lg border-border" onClick={() => setConfirmLeave(false)}>
+                  キャンセル
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <Button
+              variant="outline"
+              className="w-full justify-start items-center text-amber-600 hover:text-amber-700 border-border h-12 rounded-xl"
+              onClick={() => setConfirmLeave(true)}
+            >
+              <span className="flex items-center gap-2 font-semibold">
+                <DoorOpen className="size-4" />
+                このマップから抜ける
+              </span>
+            </Button>
+          )
+        )}
+
+        {/* このマップを削除（リーダーのみ） */}
+        {room && canDeleteMap && onDeleteMap && (
+          confirmDelete ? (
+            <div className="flex flex-col gap-2 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-xl p-3">
+              <p className="text-xs text-red-700 dark:text-red-300 font-medium">
+                このマップと全スポット・メンバー情報を完全に削除します。取り消せません。本当に削除しますか？
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  className="flex-1 h-10 rounded-lg bg-red-600 hover:bg-red-700 text-white font-bold"
+                  onClick={() => { setConfirmDelete(false); onDeleteMap(); onClose?.(); }}
+                >
+                  完全に削除
+                </Button>
+                <Button variant="outline" className="flex-1 h-10 rounded-lg border-border" onClick={() => setConfirmDelete(false)}>
+                  キャンセル
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <Button
+              variant="outline"
+              className="w-full justify-start items-center text-red-600 hover:text-red-700 border-border h-12 rounded-xl"
+              onClick={() => setConfirmDelete(true)}
+            >
+              <span className="flex items-center gap-2 font-semibold">
+                <Trash2 className="size-4" />
+                このマップを削除
+              </span>
+            </Button>
+          )
         )}
 
         <Button
@@ -212,7 +294,7 @@ export function ProfileSettingsContent({
             ログアウト
           </span>
         </Button>
-        <p className="text-[10px] text-gray-400 text-center mt-1">
+        <p className="text-[10px] text-muted-foreground text-center mt-1">
           端末からログアウトし、現在のマップから一時的に出ます。
         </p>
       </section>
@@ -225,15 +307,18 @@ interface ProfileSettingsProps {
   onOpenChange: (open: boolean) => void;
   onLogout: () => void;
   onLeaveRoom: () => void;
+  onLeaveMap?: () => void;
+  onDeleteMap?: () => void;
+  canDeleteMap?: boolean;
   userId?: string;
   currentEmail?: string;
 }
 
-export function ProfileSettings({ open, onOpenChange, onLogout, onLeaveRoom, userId, currentEmail }: ProfileSettingsProps) {
+export function ProfileSettings({ open, onOpenChange, onLogout, onLeaveRoom, onLeaveMap, onDeleteMap, canDeleteMap, userId, currentEmail }: ProfileSettingsProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto w-[95%] rounded-2xl p-0">
-        <div className="sticky top-0 bg-white z-10 p-5 pb-4 border-b">
+        <div className="sticky top-0 bg-background z-10 p-5 pb-4 border-b">
           <DialogTitle className="flex items-center gap-2 text-lg">
             <Settings className="size-5" />
             設定
@@ -242,6 +327,9 @@ export function ProfileSettings({ open, onOpenChange, onLogout, onLeaveRoom, use
         <ProfileSettingsContent
           onLogout={onLogout}
           onLeaveRoom={onLeaveRoom}
+          onLeaveMap={onLeaveMap}
+          onDeleteMap={onDeleteMap}
+          canDeleteMap={canDeleteMap}
           onClose={() => onOpenChange(false)}
           userId={userId}
           currentEmail={currentEmail}

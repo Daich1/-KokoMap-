@@ -5,11 +5,14 @@ import { ProfileSettingsContent } from "@/components/ProfileSettings";
 interface MyPageTabProps {
   onLogout: () => void;
   onLeaveRoom: () => void;
+  onLeaveMap: () => void;
+  onDeleteMap: () => void;
+  canDeleteMap: boolean;
   userId?: string;
   currentEmail?: string;
 }
 
-export function MyPageTab({ onLogout, onLeaveRoom, userId, currentEmail }: MyPageTabProps) {
+export function MyPageTab({ onLogout, onLeaveRoom, onLeaveMap, onDeleteMap, canDeleteMap, userId, currentEmail }: MyPageTabProps) {
   return (
     <div
       className="md:hidden fixed inset-x-0 top-0 z-[42] bg-background flex flex-col overflow-hidden"
@@ -28,6 +31,9 @@ export function MyPageTab({ onLogout, onLeaveRoom, userId, currentEmail }: MyPag
         <ProfileSettingsContent
           onLogout={onLogout}
           onLeaveRoom={onLeaveRoom}
+          onLeaveMap={onLeaveMap}
+          onDeleteMap={onDeleteMap}
+          canDeleteMap={canDeleteMap}
           userId={userId}
           currentEmail={currentEmail}
         />

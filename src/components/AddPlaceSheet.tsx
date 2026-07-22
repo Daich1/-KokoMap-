@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import { useForm, Controller, useFieldArray, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { MapPin, Plus, Search, X, Loader2, Clock } from "lucide-react";
+import { MapPin, Plus, Search, X, Loader2, Clock, AlertTriangle } from "lucide-react";
 import { getCategoryClass } from "@/lib/category";
 import { cn } from "@/lib/utils";
+import { calcDistance } from "@/lib/geo";
 import { forwardGeocode } from "@/lib/geocoding";
 import { toast } from "sonner";
 import {
@@ -62,18 +63,6 @@ interface PlaceDetails {
   photoRefs: string[];
   website: string | null;
   businessHours: BusinessHours | null;
-}
-
-// AI 抽出結果の型
-interface AiExtractResult {
-  name?: string | null;
-  address?: string | null;
-  budget_min?: number | null;
-  budget_max?: number | null;
-  categories?: string[];
-  opening_hours_text?: string | null;
-  note?: string | null;
-  error?: string;
 }
 
 // ── 画像URLプレビューサムネイル ───────────────────────────
@@ -146,11 +135,15 @@ export function AddPlaceSheet({
   onSaved,
   editPlace,
 }: AddPlaceSheetProps) {
-  const { room, currentUser } = useMapStore();
+  const { room, currentUser, places } = useMapStore();
   const isDesktop = useIsDesktop();
 
   const [customCatInput, setCustomCatInput] = useState("");
   const [isSearching, setIsSearching] = useState(false);
+
+  // ── URL から取り込み ──────────────────────────────────
+  const [importUrl, setImportUrl] = useState("");
+  const [isImporting, setIsImporting] = useState(false);
 
   // ── Autocomplete 用 state ────────────────────────────
   const [suggestions, setSuggestions] = useState<PlacePrediction[]>([]);
@@ -198,7 +191,25 @@ export function AddPlaceSheet({
   });
 
   const addressValue = useWatch({ control, name: "address" });
+  const nameValue = useWatch({ control, name: "name" });
   const watchedImageUrls = useWatch({ control, name: "image_urls" });
+
+  // ── 重複スポット検出（近接 or 同名。編集中は自分を除外）──────────
+  const possibleDuplicate = useMemo(() => {
+    const name = (nameValue ?? "").trim().toLowerCase();
+    if (!coords && !name) return null;
+    return (
+      places.find((p) => {
+        if (editPlace && p.id === editPlace.id) return false;
+        const near =
+          coords != null &&
+          calcDistance(coords.lat, coords.lng, p.lat, p.lng) < 80; // 80m 以内
+        const sameName =
+          name.length >= 2 && (p.name ?? "").trim().toLowerCase() === name;
+        return near || sameName;
+      }) ?? null
+    );
+  }, [places, coords, nameValue, editPlace]);
 
   // ── リバースジオコーディング結果を反映 ──────────────
   useEffect(() => {
@@ -311,6 +322,53 @@ export function AddPlaceSheet({
       // サイレント失敗
     } finally {
       setIsFillingDetails(false);
+    }
+  }
+
+  // ── URL取り込み：/api/extract で店舗情報を抽出しフォームへ反映 ──
+  async function handleImportFromUrl() {
+    const url = importUrl.trim();
+    if (!url) return;
+    setIsImporting(true);
+    try {
+      const res = await fetch("/api/extract", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) {
+        toast.error(data.error ?? "取り込みに失敗しました");
+        return;
+      }
+
+      if (data.name) setValue("name", data.name);
+      if (data.address) setValue("address", data.address);
+      if (Array.isArray(data.categories) && data.categories.length > 0) {
+        setValue("categories", data.categories);
+      }
+      if (data.budget_min != null) setValue("budget_min", String(data.budget_min));
+      if (data.budget_max != null) setValue("budget_max", String(data.budget_max));
+      if (data.opening_hours_text) {
+        setValue("opening_hours_text", data.opening_hours_text);
+      }
+      if (data.note) {
+        const existing = getValues("note") ?? "";
+        setValue("note", existing ? `${existing}\n${data.note}` : data.note);
+      }
+
+      // 住所からピン位置を取得
+      if (data.address) {
+        const coords = await forwardGeocode(data.address);
+        if (coords) onCoordsChange(coords);
+      }
+
+      toast.success("URLから情報を取り込みました✨");
+      setImportUrl("");
+    } catch {
+      toast.error("取り込みに失敗しました");
+    } finally {
+      setIsImporting(false);
     }
   }
 
@@ -514,6 +572,54 @@ export function AddPlaceSheet({
           className="flex flex-col flex-1 overflow-y-auto"
         >
           <div className="flex flex-col gap-5 px-6 py-4 flex-1">
+
+            {/* URL から取り込み（食べログ / 公式サイト等） */}
+            {!editPlace && (
+              <div className="flex flex-col gap-1.5 bg-secondary/40 border border-secondary rounded-xl p-3">
+                <label className="text-sm font-medium flex items-center gap-1.5">
+                  <Search className="size-3.5 text-primary" />
+                  URLから取り込み
+                </label>
+                <div className="flex gap-2">
+                  <Input
+                    value={importUrl}
+                    onChange={(e) => setImportUrl(e.target.value)}
+                    placeholder="食べログ・公式サイト等のURLを貼り付け"
+                    inputMode="url"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    className="flex-1 bg-background"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        handleImportFromUrl();
+                      }
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    onClick={handleImportFromUrl}
+                    disabled={isImporting || !importUrl.trim()}
+                    className="shrink-0 font-bold"
+                  >
+                    {isImporting ? <Loader2 className="size-4 animate-spin" /> : "取込"}
+                  </Button>
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  ページから名前・住所・営業時間などを自動入力します（内容は保存前に確認・編集できます）。
+                </p>
+              </div>
+            )}
+
+            {/* 重複の可能性を警告（保存はブロックしない） */}
+            {!editPlace && possibleDuplicate && (
+              <div className="flex items-start gap-2 text-xs bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-200 border border-amber-200 dark:border-amber-900 rounded-lg px-3 py-2">
+                <AlertTriangle className="size-4 shrink-0 mt-0.5" />
+                <span>
+                  近くに「{possibleDuplicate.name}」が既に登録されています。重複でないか確認してください。
+                </span>
+              </div>
+            )}
 
             {/* 名前 */}
             <div className="flex flex-col gap-1.5">

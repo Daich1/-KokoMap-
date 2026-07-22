@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { randomInt } from "crypto";
+import { findUserByEmail, hashCode } from "../_lib/find-user";
 
 // ── リセットコードを回復用メールに送信 ──
 export async function POST(req: Request) {
@@ -23,12 +24,12 @@ export async function POST(req: Request) {
         );
 
         const authEmail = `${username.trim().toLowerCase()}@kokomap.app`;
-        const { data: users, error: listError } = await supabaseAdmin.auth.admin.listUsers();
-        if (listError) {
+        let user;
+        try {
+            user = await findUserByEmail(supabaseAdmin, authEmail);
+        } catch {
             return NextResponse.json({ error: "ユーザー検索に失敗しました" }, { status: 500 });
         }
-
-        const user = users.users.find((u) => u.email === authEmail);
         if (!user) {
             return NextResponse.json({ error: "このユーザー名は登録されていません" }, { status: 404 });
         }
@@ -45,11 +46,13 @@ export async function POST(req: Request) {
         const code = String(randomInt(100000, 1000000));
         const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString(); // 10分後
 
-        // user_metadata にコードと有効期限を保存
+        // user_metadata にコードのハッシュと有効期限を保存（平文は保存しない）
+        const meta = { ...user.user_metadata };
+        delete meta.reset_code; // 旧形式の平文コードが残っていたら破棄
         const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(user.id, {
             user_metadata: {
-                ...user.user_metadata,
-                reset_code: code,
+                ...meta,
+                reset_code_hash: hashCode(code),
                 reset_code_expires: expiresAt,
             },
         });

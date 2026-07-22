@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { findUserByEmail, hashCode } from "../_lib/find-user";
 
 // ── リセットコード検証 + パスワード更新 ──
 export async function POST(req: Request) {
@@ -32,35 +33,36 @@ export async function POST(req: Request) {
         );
 
         const authEmail = `${username.trim().toLowerCase()}@kokomap.app`;
-        const { data: users, error: listError } = await supabaseAdmin.auth.admin.listUsers();
-        if (listError) {
+        let user;
+        try {
+            user = await findUserByEmail(supabaseAdmin, authEmail);
+        } catch {
             return NextResponse.json({ error: "ユーザー検索に失敗しました" }, { status: 500 });
         }
-
-        const user = users.users.find((u) => u.email === authEmail);
         if (!user) {
             return NextResponse.json({ error: "このユーザー名は登録されていません" }, { status: 404 });
         }
 
-        // コードの検証
-        const storedCode = user.user_metadata?.reset_code;
+        // コードの検証（sha256 ハッシュ比較。旧形式の平文コードは無効扱い）
+        const storedHash = user.user_metadata?.reset_code_hash;
         const expiresAt = user.user_metadata?.reset_code_expires;
 
-        if (!storedCode || !expiresAt) {
-            return NextResponse.json({ error: "リセットコードが発行されていません" }, { status: 403 });
+        if (!storedHash || !expiresAt) {
+            return NextResponse.json({ error: "リセットコードが発行されていません。再度コードを送信してください。" }, { status: 403 });
         }
 
         if (new Date(expiresAt) < new Date()) {
             return NextResponse.json({ error: "リセットコードの有効期限が切れています。再度コードを送信してください。" }, { status: 403 });
         }
 
-        if (storedCode !== code.trim()) {
+        if (storedHash !== hashCode(code)) {
             return NextResponse.json({ error: "リセットコードが正しくありません" }, { status: 403 });
         }
 
         // パスワードを更新 & コードをクリア
         const meta = { ...user.user_metadata };
         delete meta.reset_code;
+        delete meta.reset_code_hash;
         delete meta.reset_code_expires;
 
         const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(user.id, {

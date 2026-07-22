@@ -48,6 +48,14 @@ const MODES: { id: TravelMode; label: string; icon: typeof Car }[] = [
   { id: "TRANSIT", label: "電車", icon: Train },
 ];
 
+// アプリの移動手段 → Googleマップ deep link の travelmode
+const GMAP_TRAVELMODE: Record<TravelMode, string> = {
+  DRIVE: "driving",
+  WALK: "walking",
+  BICYCLE: "bicycling",
+  TRANSIT: "transit",
+};
+
 export interface RouteResult {
   origin: LatLng;
   destination: LatLng;
@@ -392,14 +400,14 @@ export function DirectionsPanel({
     }
   }
 
-  // ── 電車：Googleマップの乗換案内を開く（日本の公共交通は外部連携） ──
-  function openTransitInGoogleMaps() {
+  // ── Googleマップで経路を開く（移動手段に応じて travelmode を切替） ──
+  function openInGoogleMaps() {
     if (!originCoords || !destCoords) return;
     const url =
       `https://www.google.com/maps/dir/?api=1` +
       `&origin=${originCoords.lat},${originCoords.lng}` +
       `&destination=${destCoords.lat},${destCoords.lng}` +
-      `&travelmode=transit`;
+      `&travelmode=${GMAP_TRAVELMODE[mode]}`;
     window.open(url, "_blank", "noopener,noreferrer");
   }
 
@@ -480,7 +488,7 @@ export function DirectionsPanel({
       {mode === "TRANSIT" ? (
         <>
           <button
-            onClick={openTransitInGoogleMaps}
+            onClick={openInGoogleMaps}
             disabled={!bothSelected}
             className={cn(
               "flex items-center justify-center gap-1.5 py-2 rounded-[12px] text-sm font-semibold transition-all cursor-pointer",
@@ -525,14 +533,23 @@ export function DirectionsPanel({
               ルートが見つかりませんでした
             </span>
           ) : result ? (
-            <div className="text-center text-sm">
-              <span className="font-semibold">
-                {formatDuration(result.durationSeconds)}
-              </span>
-              <span className="text-muted-foreground font-normal">
-                {" ・ "}
-                {formatDistance(result.distanceMeters)}
-              </span>
+            <div className="flex flex-col items-center gap-1.5">
+              <div className="text-center text-sm">
+                <span className="font-semibold">
+                  {formatDuration(result.durationSeconds)}
+                </span>
+                <span className="text-muted-foreground font-normal">
+                  {" ・ "}
+                  {formatDistance(result.distanceMeters)}
+                </span>
+              </div>
+              <button
+                onClick={openInGoogleMaps}
+                className="flex items-center gap-1 text-xs text-primary hover:underline cursor-pointer"
+              >
+                Googleマップで開く
+                <ExternalLink className="size-3" />
+              </button>
             </div>
           ) : null}
         </div>

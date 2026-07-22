@@ -1,5 +1,6 @@
 "use client";
 
+import { toast } from "sonner";
 import { Crown, Shield, Pencil, Eye, Users } from "lucide-react";
 import {
   Sheet,
@@ -68,6 +69,7 @@ export function MemberManageSheet({
       .single();
     if (error) {
       console.error("Failed to update role:", error);
+      toast.error("ロールの変更に失敗しました");
       return;
     }
     onRoleChanged(data as RoomMember);

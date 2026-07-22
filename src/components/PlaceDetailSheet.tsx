@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import {
   Pencil,
   Trash2,
@@ -174,11 +175,14 @@ export function PlaceDetailSheet({
       .update({ deleted_at: new Date().toISOString() })
       .eq("id", place.id);
     setDeleting(false);
-    if (!error) {
-      setDeleteDialogOpen(false);
-      onOpenChange(false);
-      onDeleted(place.id);
+    if (error) {
+      console.error("Failed to delete place:", error);
+      toast.error("スポットの削除に失敗しました");
+      return;
     }
+    setDeleteDialogOpen(false);
+    onOpenChange(false);
+    onDeleted(place.id);
   }
 
   if (!place) return null;

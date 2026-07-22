@@ -7,7 +7,7 @@ import { supabase, type Room } from "@/lib/supabase";
 interface WelcomeScreenProps {
   initialCode?: string;
   userName: string;
-  onComplete: (name: string, room: Room, isCreator: boolean) => void;
+  onComplete: (name: string, room: Room, isCreator: boolean) => void | Promise<void>;
 }
 
 type Step = "select" | "create" | "join";
@@ -72,14 +72,15 @@ export function WelcomeScreen({ initialCode, userName, onComplete }: WelcomeScre
     setIsLoading(true);
     setError("");
     try {
+      // RLS 有効化後も参加前にルームを見つけられるよう RPC を使う
       const { data, error: dbError } = await supabase
-        .from("rooms")
-        .select()
-        .eq("share_code", shareCode.trim().toUpperCase())
-        .single();
+        .rpc("get_room_by_code", { p_code: shareCode.trim() })
+        .maybeSingle<Room>();
       if (dbError || !data) { setError("ルームが見つかりません"); setIsLoading(false); return; }
       if (!data.is_open) { setError("このルームは参加を受け付けていません"); setIsLoading(false); return; }
-      onComplete(userName, data as Room, false);
+      // 参加失敗（RLS 拒否等）時にローディングのまま固まらないよう await して解除
+      await onComplete(userName, data as Room, false);
+      setIsLoading(false);
     } catch {
       setError("接続に失敗しました");
       setIsLoading(false);

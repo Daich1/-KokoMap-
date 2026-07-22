@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { toast } from "sonner";
 import { type Place, type Room, type SpotStatus, type RoomRole, type RoomMember, supabase } from "@/lib/supabase";
 
 export interface CurrentUser {
@@ -96,6 +97,8 @@ export const useMapStore = create<MapStore>()(
 
       // ── ステータス管理 ──────────────────────────────────────────
       setSpotStatus: (placeId, status) => {
+        // 楽観更新：失敗時に戻せるよう元の値を保持
+        const prev = get().spotStatuses[placeId] ?? null;
         set((state) => ({
           spotStatuses: { ...state.spotStatuses, [placeId]: status },
         }));
@@ -112,11 +115,23 @@ export const useMapStore = create<MapStore>()(
             { onConflict: "user_id,place_id" }
           )
           .then(({ error }) => {
-            if (error) console.error("Failed to save spot status:", error);
+            if (error) {
+              console.error("Failed to save spot status:", error);
+              toast.error("ステータスの保存に失敗しました");
+              // ロールバック
+              set((state) => {
+                const next = { ...state.spotStatuses };
+                if (prev) next[placeId] = prev;
+                else delete next[placeId];
+                return { spotStatuses: next };
+              });
+            }
           });
       },
 
       removeSpotStatus: (placeId) => {
+        // 楽観更新：失敗時に戻せるよう元の値を保持
+        const prev = get().spotStatuses[placeId] ?? null;
         set((state) => {
           const next = { ...state.spotStatuses };
           delete next[placeId];
@@ -129,7 +144,16 @@ export const useMapStore = create<MapStore>()(
           .eq("user_id", currentUser.id)
           .eq("place_id", placeId)
           .then(({ error }) => {
-            if (error) console.error("Failed to remove spot status:", error);
+            if (error) {
+              console.error("Failed to remove spot status:", error);
+              toast.error("ステータスの解除に失敗しました");
+              // ロールバック
+              if (prev) {
+                set((state) => ({
+                  spotStatuses: { ...state.spotStatuses, [placeId]: prev },
+                }));
+              }
+            }
           });
       },
 
@@ -156,6 +180,7 @@ export const useMapStore = create<MapStore>()(
           .in("place_id", placeIds);
         if (error) {
           console.error("Failed to load all member statuses:", error);
+          toast.error("メンバーのステータス読み込みに失敗しました");
           return;
         }
         const grouped: Record<string, Record<string, SpotStatus>> = {};
@@ -175,6 +200,7 @@ export const useMapStore = create<MapStore>()(
           .eq("user_id", userId);
         if (error) {
           console.error("Failed to load spot statuses:", error);
+          toast.error("ステータスの読み込みに失敗しました");
           return;
         }
         if (data) {

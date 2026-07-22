@@ -17,7 +17,7 @@ interface RoomJoinDialogProps {
   open: boolean;
   currentUserName: string;
   initialCode?: string;
-  onJoined: (room: Room, userName: string, isCreator: boolean) => void;
+  onJoined: (room: Room, userName: string, isCreator: boolean) => void | Promise<void>;
   onClose?: () => void;
 }
 
@@ -120,11 +120,10 @@ export function RoomJoinDialog({
     setIsLoading(true);
     setError("");
     try {
+      // RLS 有効化後も参加前にルームを見つけられるよう RPC を使う
       const { data, error: dbError } = await supabase
-        .from("rooms")
-        .select()
-        .eq("share_code", shareCode.trim().toUpperCase())
-        .single();
+        .rpc("get_room_by_code", { p_code: shareCode.trim() })
+        .maybeSingle<Room>();
       if (dbError || !data) {
         setError("ルームが見つかりません。コードを確認してください");
         setIsLoading(false);
@@ -135,7 +134,9 @@ export function RoomJoinDialog({
         setIsLoading(false);
         return;
       }
-      onJoined(data as Room, userName.trim(), false);
+      // 参加失敗（RLS 拒否等）時にローディングのまま固まらないよう await して解除
+      await onJoined(data as Room, userName.trim(), false);
+      setIsLoading(false);
     } catch {
       setError("接続に失敗しました");
       setIsLoading(false);

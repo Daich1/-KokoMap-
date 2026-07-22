@@ -28,8 +28,11 @@ import { MyPageTab } from "@/components/tabs/MyPageTab";
 import { supabase, type Place, type Room, type SpotStatus, type RoomMember } from "@/lib/supabase";
 import type { User } from "@supabase/supabase-js";
 import { useMapStore } from "@/store/useMapStore";
+import { useShallow } from "zustand/react/shallow";
 import { toast } from "sonner";
 import { reverseGeocode } from "@/lib/geocoding";
+import { buildClusterIndex, CLUSTER_THRESHOLD, type PlacePointProps } from "@/lib/clustering";
+import type Supercluster from "supercluster";
 import { PRESET_CATEGORIES } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { calcDistance, formatDistance } from "@/lib/geo";
@@ -98,6 +101,8 @@ export default function Home() {
   const geoWatchRef = useRef<number | null>(null);
 
   // ── Zustand ストア ────────────────────────────────────
+  // セレクタ購読: Home が使う state のみ購読する
+  // （allMemberStatuses の Realtime 更新でシェル全体が再レンダーされるのを防ぐ）
   const {
     places,
     room,
@@ -106,6 +111,19 @@ export default function Home() {
     roomMembers,
     spotStatuses,
     userLocation,
+  } = useMapStore(
+    useShallow((s) => ({
+      places: s.places,
+      room: s.room,
+      currentUser: s.currentUser,
+      myRole: s.myRole,
+      roomMembers: s.roomMembers,
+      spotStatuses: s.spotStatuses,
+      userLocation: s.userLocation,
+    }))
+  );
+  // アクションは参照が安定しているため購読不要
+  const {
     setRoom,
     clearRoom,
     setMyRole,
@@ -122,7 +140,7 @@ export default function Home() {
     loadAllMemberStatuses,
     setMemberStatus,
     removeMemberStatus,
-  } = useMapStore();
+  } = useMapStore.getState();
 
   // 権限ヘルパー
   const canAdd = myRole !== "viewer" && myRole !== null;
@@ -183,7 +201,7 @@ export default function Home() {
           .from("room_members")
           .select("room_id, role, rooms(*)")
           .eq("user_id", userId)
-          .order("created_at", { ascending: false })
+          .order("joined_at", { ascending: false })
           .limit(1)
           .maybeSingle();
 
@@ -257,7 +275,7 @@ export default function Home() {
   const [filterOpenNow, setFilterOpenNow] = useState(false);
   const [filterStatus, setFilterStatus] = useState<SpotStatus | null>(null);
   const [filterCreatorId, setFilterCreatorId] = useState<string | null>(null);
-  const [sortOrder, setSortOrder] = useState<"default" | "distance">("default");
+  const [sortOrder, setSortOrder] = useState<"default" | "distance" | "newest" | "budget">("default");
 
   // ── 初期化: スポットステータスを読み込む ─────────────────
   useEffect(() => {
@@ -266,11 +284,16 @@ export default function Home() {
   }, [currentUser.id]);
 
   // ── 全メンバーのスポットステータスを読み込む ──────────────
+  // 件数ではなく id の集合をキーにする（件数据え置きで中身だけ変わった場合も再取得）
+  const placeIdsKey = useMemo(
+    () => places.map((p) => p.id).sort().join(","),
+    [places]
+  );
   useEffect(() => {
     if (!room || places.length === 0) return;
     loadAllMemberStatuses(places.map((p) => p.id));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [room?.id, places.length]);
+  }, [room?.id, placeIdsKey]);
 
   // ── 初期化: ルームのメンバー一覧とロールを取得 ──────────
   useEffect(() => {
@@ -371,9 +394,16 @@ export default function Home() {
 
     let result = places.filter((place) => {
       if (query) {
-        const name = (place.name ?? "").toLowerCase();
-        const note = (place.note ?? "").toLowerCase();
-        if (!name.includes(query) && !note.includes(query)) return false;
+        const haystack = [
+          place.name ?? "",
+          place.note ?? "",
+          place.address ?? "",
+          ...(place.categories ?? []),
+          ...(place.tags ?? []),
+        ]
+          .join(" ")
+          .toLowerCase();
+        if (!haystack.includes(query)) return false;
       }
       if (filterCategories.length > 0) {
         const hasMatch = place.categories?.some((cat) =>
@@ -403,12 +433,23 @@ export default function Home() {
       return true;
     });
 
-    // 近い順ソート
+    // 並び替え
     if (sortOrder === "distance" && userLocation) {
       result = [...result].sort((a, b) => {
         const da = calcDistance(userLocation.lat, userLocation.lng, a.lat, a.lng);
         const db = calcDistance(userLocation.lat, userLocation.lng, b.lat, b.lng);
         return da - db;
+      });
+    } else if (sortOrder === "newest") {
+      result = [...result].sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
+    } else if (sortOrder === "budget") {
+      // 予算(下限)の安い順。未設定は末尾へ
+      result = [...result].sort((a, b) => {
+        const ba = a.budget_min ?? Number.POSITIVE_INFINITY;
+        const bb = b.budget_min ?? Number.POSITIVE_INFINITY;
+        return ba - bb;
       });
     }
 
@@ -426,13 +467,98 @@ export default function Home() {
     );
   }, [filteredPlaces, userLocation]);
 
-  // filteredPlaces が変わったらマーカー表示/非表示を更新
-  useEffect(() => {
+  // ── マーカー表示更新 + クラスタリング ─────────────────────
+  // スポット数が CLUSTER_THRESHOLD 未満: 従来どおり全マーカー表示
+  // 以上: supercluster でズームに応じてクラスタ円マーカーに集約
+  const clusterIndexRef = useRef<Supercluster<PlacePointProps> | null>(null);
+  const clusterMarkersRef = useRef<Map<number, mapboxgl.Marker>>(new Map());
+
+  const refreshClusters = useCallback(() => {
+    const m = map.current;
+    if (!m) return;
     const filteredIds = new Set(filteredPlaces.map((p) => p.id));
+
+    // クラスタリング無効時: 既存動作（フィルタ通過分を全表示）
+    const index = clusterIndexRef.current;
+    if (!index || filteredPlaces.length < CLUSTER_THRESHOLD) {
+      clusterMarkersRef.current.forEach((mk) => mk.remove());
+      clusterMarkersRef.current.clear();
+      markers.current.forEach((marker, id) => {
+        marker.getElement().style.display = filteredIds.has(id) ? "" : "none";
+      });
+      return;
+    }
+
+    const b = m.getBounds();
+    if (!b) return;
+    const bbox: [number, number, number, number] = [
+      b.getWest(), b.getSouth(), b.getEast(), b.getNorth(),
+    ];
+    const clusters = index.getClusters(bbox, Math.floor(m.getZoom()));
+
+    const visibleLeafIds = new Set<string>();
+    const activeClusterIds = new Set<number>();
+
+    for (const c of clusters) {
+      const [lng, lat] = c.geometry.coordinates;
+      if (c.properties && "cluster" in c.properties && c.properties.cluster) {
+        const cid = c.properties.cluster_id as number;
+        activeClusterIds.add(cid);
+        let mk = clusterMarkersRef.current.get(cid);
+        if (!mk) {
+          const el = document.createElement("div");
+          el.className = "cluster-marker";
+          el.textContent = String(c.properties.point_count);
+          el.addEventListener("click", () => {
+            const zoom = Math.min(index.getClusterExpansionZoom(cid), 18);
+            m.easeTo({ center: [lng, lat], zoom });
+          });
+          mk = new mapboxgl.Marker({ element: el }).setLngLat([lng, lat]).addTo(m);
+          clusterMarkersRef.current.set(cid, mk);
+        } else {
+          mk.setLngLat([lng, lat]);
+        }
+      } else {
+        visibleLeafIds.add((c.properties as PlacePointProps).placeId);
+      }
+    }
+
+    // クラスタに吸収されたマーカーを隠す（画面外は元々描画されないので leaf のみ表示）
     markers.current.forEach((marker, id) => {
-      marker.getElement().style.display = filteredIds.has(id) ? "" : "none";
+      marker.getElement().style.display = visibleLeafIds.has(id) ? "" : "none";
+    });
+    // 消えたクラスタを除去
+    clusterMarkersRef.current.forEach((mk, cid) => {
+      if (!activeClusterIds.has(cid)) {
+        mk.remove();
+        clusterMarkersRef.current.delete(cid);
+      }
     });
   }, [filteredPlaces]);
+
+  // filteredPlaces が変わったらインデックス再構築 + 表示更新
+  useEffect(() => {
+    clusterIndexRef.current =
+      filteredPlaces.length >= CLUSTER_THRESHOLD
+        ? buildClusterIndex(filteredPlaces)
+        : null;
+    refreshClusters();
+  }, [filteredPlaces, refreshClusters]);
+
+  // 地図の移動・ズームでクラスタを再計算（ref 経由で最新の callback を呼ぶ）
+  const refreshClustersRef = useRef(refreshClusters);
+  refreshClustersRef.current = refreshClusters;
+  useEffect(() => {
+    const m = map.current;
+    if (!m || !mapLoaded) return;
+    const handler = () => refreshClustersRef.current();
+    m.on("moveend", handler);
+    m.on("zoomend", handler);
+    return () => {
+      m.off("moveend", handler);
+      m.off("zoomend", handler);
+    };
+  }, [mapLoaded]);
 
   function toggleFilterCategory(cat: string) {
     setFilterCategories((prev) =>
@@ -777,6 +903,10 @@ export default function Home() {
       .subscribe();
 
     // ── user_spot_status チャンネル（全メンバーのリアクション同期）──
+    // channel filter は付けない: place_id リストが動的なため貼り替えが多発する。
+    // RLS 有効化後は SELECT ポリシー（同室スポットのみ可視）で WALRUS が
+    // サーバー側配信を絞るため、実質「自分の所属ルーム分」だけが届く。
+    // 下の store.places チェックは複数ルーム跨ぎのための二重防御。
     const statusesChannel = supabase
       .channel(`room-statuses-${room.id}`)
       .on(
@@ -1002,16 +1132,23 @@ export default function Home() {
       role = existing.role as "leader" | "member";
     }
 
+    // 先に DB 登録し、成功した場合のみローカル state を更新する
+    // （RLS で拒否された場合に幽霊ルームに入った状態を防ぐ）
+    const { error: joinError } = await supabase.from("room_members").upsert(
+      { room_id: joinedRoom.id, user_id: updatedUser.id, user_name: userName, role },
+      { onConflict: "room_id,user_id" }
+    );
+    if (joinError) {
+      console.error("Failed to join room:", joinError);
+      toast.error("ルームへの参加に失敗しました");
+      return;
+    }
+
     setRoom(joinedRoom);
     setCurrentUser(updatedUser);
     setMyRole(role);
     setRoomDialogOpen(false);
     setUrlCode(undefined);
-
-    await supabase.from("room_members").upsert(
-      { room_id: joinedRoom.id, user_id: updatedUser.id, user_name: userName, role },
-      { onConflict: "room_id,user_id" }
-    );
   }
 
   // WelcomeScreen 用: 名前設定 + ルーム参加を一括処理
@@ -1019,11 +1156,51 @@ export default function Home() {
     await handleRoomJoined(joinedRoom, name, isCreator);
   }
 
+  // 別のマップに切り替える（メンバーシップは維持）
   function handleLeaveRoom() {
     clearRoom();
     markers.current.forEach((m) => m.remove());
     markers.current.clear();
     setRoomDialogOpen(true);
+  }
+
+  // このマップから抜ける（自分のメンバーシップを削除）
+  async function handleLeaveMap() {
+    const r = room;
+    if (!r) return;
+    const { error } = await supabase
+      .from("room_members")
+      .delete()
+      .eq("room_id", r.id)
+      .eq("user_id", currentUser.id);
+    if (error) {
+      console.error("Failed to leave map:", error);
+      toast.error("マップから抜けるのに失敗しました");
+      return;
+    }
+    markers.current.forEach((m) => m.remove());
+    markers.current.clear();
+    clearRoom();
+    toast.success("マップから抜けました");
+    // 他に所属マップがあれば自動で開き、無ければ選択ダイアログ
+    await restoreUserRoom(currentUser.id);
+  }
+
+  // このマップを削除（リーダーのみ・関連データも削除）
+  async function handleDeleteMap() {
+    const r = room;
+    if (!r) return;
+    const { error } = await supabase.rpc("delete_room", { p_room_id: r.id });
+    if (error) {
+      console.error("Failed to delete map:", error);
+      toast.error("マップの削除に失敗しました（リーダーのみ削除できます）");
+      return;
+    }
+    markers.current.forEach((m) => m.remove());
+    markers.current.clear();
+    clearRoom();
+    toast.success("マップを削除しました");
+    await restoreUserRoom(currentUser.id);
   }
 
   async function handleLogout() {
@@ -1070,6 +1247,7 @@ export default function Home() {
     const { error } = await supabase.from("rooms").update({ is_open: next }).eq("id", room.id);
     if (error) {
       console.error("Failed to update room:", error);
+      toast.error("参加受付の切り替えに失敗しました");
       return;
     }
     setRoom({ ...room, is_open: next });
@@ -1183,9 +1361,15 @@ export default function Home() {
 
       <div className="flex flex-col gap-1.5">
         <span className="text-xs font-medium text-muted-foreground">並び順</span>
-        <div className="flex gap-1.5">
+        <div className="flex flex-wrap gap-1.5">
           <Badge variant={sortOrder === "default" ? "default" : "outline"} className="cursor-pointer select-none text-xs transition-colors" onClick={() => setSortOrder("default")}>
             追加順
+          </Badge>
+          <Badge variant={sortOrder === "newest" ? "default" : "outline"} className="cursor-pointer select-none text-xs transition-colors" onClick={() => setSortOrder("newest")}>
+            新しい順
+          </Badge>
+          <Badge variant={sortOrder === "budget" ? "default" : "outline"} className="cursor-pointer select-none text-xs transition-colors" onClick={() => setSortOrder("budget")}>
+            予算が安い順
           </Badge>
           <Badge
             variant={sortOrder === "distance" ? "default" : "outline"}
@@ -1867,6 +2051,9 @@ export default function Home() {
         onOpenChange={setProfileOpen}
         onLogout={handleLogout}
         onLeaveRoom={handleLeaveRoom}
+        onLeaveMap={handleLeaveMap}
+        onDeleteMap={handleDeleteMap}
+        canDeleteMap={canManageRoom}
         userId={authUser?.id}
         currentEmail={authUser?.user_metadata?.recovery_email}
       />
@@ -1892,6 +2079,9 @@ export default function Home() {
         <MyPageTab
           onLogout={handleLogout}
           onLeaveRoom={handleLeaveRoom}
+          onLeaveMap={handleLeaveMap}
+          onDeleteMap={handleDeleteMap}
+          canDeleteMap={canManageRoom}
           userId={authUser?.id}
           currentEmail={authUser?.user_metadata?.recovery_email}
         />

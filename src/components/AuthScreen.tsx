@@ -212,7 +212,7 @@ export function AuthScreen({ onAuth }: AuthScreenProps) {
           ) : resetStep === "username" ? (
             <div className="flex flex-col gap-3">
               <div className="flex flex-col gap-1">
-                <label className="text-xs font-medium text-gray-600">ユーザー名</label>
+                <label className="text-xs font-medium text-muted-foreground">ユーザー名</label>
                 <input
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
@@ -241,7 +241,7 @@ export function AuthScreen({ onAuth }: AuthScreenProps) {
           ) : (
             <div className="flex flex-col gap-3">
               <div className="flex flex-col gap-1">
-                <label className="text-xs font-medium text-gray-600">リセットコード（6桁）</label>
+                <label className="text-xs font-medium text-muted-foreground">リセットコード（6桁）</label>
                 <input
                   value={resetCode}
                   onChange={(e) => setResetCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
@@ -254,7 +254,7 @@ export function AuthScreen({ onAuth }: AuthScreenProps) {
               </div>
 
               <div className="flex flex-col gap-1">
-                <label className="text-xs font-medium text-gray-600">新しいパスワード</label>
+                <label className="text-xs font-medium text-muted-foreground">新しいパスワード</label>
                 <input
                   type={showPass ? "text" : "password"}
                   value={password}
@@ -266,7 +266,7 @@ export function AuthScreen({ onAuth }: AuthScreenProps) {
               </div>
 
               <div className="flex flex-col gap-1">
-                <label className="text-xs font-medium text-gray-600">新しいパスワード（確認）</label>
+                <label className="text-xs font-medium text-muted-foreground">新しいパスワード（確認）</label>
                 <input
                   type={showPass ? "text" : "password"}
                   value={confirmPassword}
@@ -330,7 +330,7 @@ export function AuthScreen({ onAuth }: AuthScreenProps) {
                 onClick={() => switchMode(m)}
                 className={cn(
                   "flex-1 py-2 rounded-lg text-sm font-semibold transition-all",
-                  mode === m ? "bg-white shadow-sm text-foreground" : "text-muted-foreground"
+                  mode === m ? "bg-background shadow-sm text-foreground" : "text-muted-foreground"
                 )}
               >
                 {m === "login" ? "ログイン" : "新規登録"}
