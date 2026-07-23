@@ -1,13 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { Heart, CheckCircle2, MapPin, ChevronUp, ChevronDown, CalendarDays } from "lucide-react";
+import { Heart, CheckCircle2, MapPin, CalendarDays } from "lucide-react";
 import { useMapStore } from "@/store/useMapStore";
 import { getCategoryClass } from "@/lib/category";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { supabase, type Place } from "@/lib/supabase";
 import { toast } from "sonner";
+import { ItineraryView } from "@/components/tabs/ItineraryView";
 
 type PlanFilter = "all" | "want_to_go" | "visited" | "itinerary";
 
@@ -97,20 +98,7 @@ export function PlanTabContent({ onSelectPlace }: PlanTabProps) {
   const visitedCount = (placeId: string) =>
     Object.values(allMemberStatuses).filter((s) => s[placeId] === "visited").length;
 
-  // ── 日程（itinerary）: plan_day でグループ化 ───────────────
-  const maxDay = places.reduce((m, p) => Math.max(m, p.plan_day ?? 0), 0);
-  const sortByOrder = (a: Place, b: Place) =>
-    (a.plan_order ?? Number.MAX_SAFE_INTEGER) - (b.plan_order ?? Number.MAX_SAFE_INTEGER) ||
-    new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
-
-  const dayGroups: { day: number | null; label: string; items: Place[] }[] = [];
-  for (let d = 1; d <= maxDay; d++) {
-    const items = places.filter((p) => p.plan_day === d).sort(sortByOrder);
-    dayGroups.push({ day: d, label: `${d}日目`, items });
-  }
-  const unassigned = places.filter((p) => !p.plan_day).sort(sortByOrder);
-  dayGroups.push({ day: null, label: "未定", items: unassigned });
-
+  // ── 日程（itinerary）の永続化 ───────────────────────────
   async function persistPlan(place: Place, plan_day: number | null, plan_order: number | null) {
     const { error } = await supabase
       .from("places")
@@ -122,25 +110,6 @@ export function PlanTabContent({ onSelectPlace }: PlanTabProps) {
       return;
     }
     upsertPlace({ ...place, plan_day, plan_order });
-  }
-
-  async function assignDay(place: Place, day: number | null) {
-    const nextOrder =
-      day == null ? null : places.filter((p) => p.plan_day === day).length;
-    await persistPlan(place, day, nextOrder);
-  }
-
-  async function moveWithinDay(place: Place, dir: "up" | "down") {
-    const list = places.filter((p) => p.plan_day === place.plan_day).sort(sortByOrder);
-    const idx = list.findIndex((p) => p.id === place.id);
-    const swap = dir === "up" ? idx - 1 : idx + 1;
-    if (swap < 0 || swap >= list.length) return;
-    const reordered = [...list];
-    [reordered[idx], reordered[swap]] = [reordered[swap], reordered[idx]];
-    // その日を 0..n で振り直し、変わった分だけ更新
-    await Promise.all(
-      reordered.map((p, i) => (p.plan_order !== i ? persistPlan(p, p.plan_day, i) : null))
-    );
   }
 
   return (
@@ -166,87 +135,19 @@ export function PlanTabContent({ onSelectPlace }: PlanTabProps) {
 
       <div className="flex-1 overflow-y-auto">
         {activeFilter === "itinerary" ? (
-          // ── 日程ビュー ──────────────────────────────
+          // ── 日程ビュー（D&D 並べ替え + 移動時間）──────────
           places.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-48 text-muted-foreground text-sm gap-2">
               <CalendarDays className="size-8 opacity-40" />
               <p>まだスポットがありません</p>
             </div>
           ) : (
-            <div className="pb-6">
-              {!canPlan && (
-                <p className="text-[11px] text-muted-foreground px-4 py-2">
-                  日程の編集はリーダー・管理者のみ可能です。
-                </p>
-              )}
-              {dayGroups.map((group) => (
-                <div key={group.label} className="mb-2">
-                  <div className="sticky top-0 z-[1] bg-secondary/60 backdrop-blur px-4 py-1.5 text-xs font-bold text-secondary-foreground flex items-center gap-1.5">
-                    <CalendarDays className="size-3.5" />
-                    {group.label}
-                    <span className="text-muted-foreground font-normal">
-                      （{group.items.length}）
-                    </span>
-                  </div>
-                  {group.items.length === 0 ? (
-                    <p className="text-[11px] text-muted-foreground px-4 py-2">スポットなし</p>
-                  ) : (
-                    group.items.map((place, i) => (
-                      <div key={place.id} className="flex items-center border-b last:border-b-0">
-                        <button
-                          onClick={() => onSelectPlace(place)}
-                          className="flex-1 min-w-0 flex items-center gap-2 py-2.5 px-4 text-left hover:bg-muted/50 transition-colors cursor-pointer"
-                        >
-                          <span className="shrink-0 size-6 rounded-full bg-primary/10 text-primary text-xs font-bold flex items-center justify-center">
-                            {i + 1}
-                          </span>
-                          <span className="min-w-0">
-                            <span className="block text-sm font-semibold truncate">{place.name}</span>
-                            {place.address && (
-                              <span className="block text-[11px] text-muted-foreground truncate">{place.address}</span>
-                            )}
-                          </span>
-                        </button>
-                        {canPlan && (
-                          <div className="shrink-0 flex items-center gap-1 pr-3">
-                            {group.day != null && (
-                              <div className="flex flex-col">
-                                <button
-                                  onClick={() => moveWithinDay(place, "up")}
-                                  disabled={i === 0}
-                                  className="p-0.5 text-muted-foreground hover:text-foreground disabled:opacity-25 cursor-pointer"
-                                >
-                                  <ChevronUp className="size-4" />
-                                </button>
-                                <button
-                                  onClick={() => moveWithinDay(place, "down")}
-                                  disabled={i === group.items.length - 1}
-                                  className="p-0.5 text-muted-foreground hover:text-foreground disabled:opacity-25 cursor-pointer"
-                                >
-                                  <ChevronDown className="size-4" />
-                                </button>
-                              </div>
-                            )}
-                            <select
-                              value={place.plan_day ?? ""}
-                              onChange={(e) =>
-                                assignDay(place, e.target.value === "" ? null : Number(e.target.value))
-                              }
-                              className="text-xs border border-border rounded-lg px-1.5 py-1 bg-background outline-none cursor-pointer"
-                            >
-                              <option value="">未定</option>
-                              {Array.from({ length: maxDay + 1 }, (_, k) => k + 1).map((d) => (
-                                <option key={d} value={d}>{d}日目</option>
-                              ))}
-                            </select>
-                          </div>
-                        )}
-                      </div>
-                    ))
-                  )}
-                </div>
-              ))}
-            </div>
+            <ItineraryView
+              places={places}
+              canPlan={canPlan}
+              onSelectPlace={onSelectPlace}
+              persistPlan={persistPlan}
+            />
           )
         ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-48 text-muted-foreground text-sm gap-2">
