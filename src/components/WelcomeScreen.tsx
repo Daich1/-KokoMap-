@@ -62,7 +62,7 @@ export function WelcomeScreen({ initialCode, userName, onComplete }: WelcomeScre
       setIsLoading(false);
       setTimeout(() => onComplete(userName, data as Room, true), 1500);
     } catch {
-      setError("ルームの作成に失敗しました");
+      setError("マップの作成に失敗しました");
       setIsLoading(false);
     }
   }
@@ -76,8 +76,8 @@ export function WelcomeScreen({ initialCode, userName, onComplete }: WelcomeScre
       const { data, error: dbError } = await supabase
         .rpc("get_room_by_code", { p_code: shareCode.trim() })
         .maybeSingle<Room>();
-      if (dbError || !data) { setError("ルームが見つかりません"); setIsLoading(false); return; }
-      if (!data.is_open) { setError("このルームは参加を受け付けていません"); setIsLoading(false); return; }
+      if (dbError || !data) { setError("マップが見つかりません"); setIsLoading(false); return; }
+      if (!data.is_open) { setError("このマップは参加を受け付けていません"); setIsLoading(false); return; }
       // 参加失敗（RLS 拒否等）時にローディングのまま固まらないよう await して解除
       await onComplete(userName, data as Room, false);
       setIsLoading(false);
@@ -98,7 +98,7 @@ export function WelcomeScreen({ initialCode, userName, onComplete }: WelcomeScre
     <div className="fixed inset-0 z-50 flex flex-col overflow-hidden auth-bg">
       <div className="topo-overlay" />
 
-      {/* ── グループ選択 ── */}
+      {/* ── マップ選択 ── */}
       {step === "select" && (
         <>
           <div className="flex flex-col items-center justify-center flex-1 gap-4">
@@ -107,7 +107,7 @@ export function WelcomeScreen({ initialCode, userName, onComplete }: WelcomeScre
             </div>
             <div className="text-center">
               <h1 className="text-white font-extrabold text-2xl tracking-tight">Koko<span className="text-[var(--coral-300)]">Map</span></h1>
-              <p className="text-white/65 text-sm mt-1.5">グループでスポットをリアルタイム共有</p>
+              <p className="text-white/65 text-sm mt-1.5">仲間とスポットをリアルタイム共有</p>
             </div>
             <p className="text-sm text-white/80">
               こんにちは、<span className="font-semibold text-white">{userName}</span> さん
@@ -122,7 +122,7 @@ export function WelcomeScreen({ initialCode, userName, onComplete }: WelcomeScre
                 className="bg-primary text-primary-foreground rounded-[14px] py-[15px] font-bold w-full hover:opacity-90 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
               >
                 <Plus className="size-5" />
-                グループを作る
+                マップを作る
               </button>
               <button
                 onClick={() => { setError(""); setStep("join"); }}
@@ -136,7 +136,7 @@ export function WelcomeScreen({ initialCode, userName, onComplete }: WelcomeScre
         </>
       )}
 
-      {/* ── グループ作成 ── */}
+      {/* ── マップ作成 ── */}
       {step === "create" && (
         <>
           <div className="flex-1" />
@@ -153,11 +153,11 @@ export function WelcomeScreen({ initialCode, userName, onComplete }: WelcomeScre
             {!createdCode ? (
               <div className="flex flex-col gap-5">
                 <div className="text-center">
-                  <h2 className="text-xl font-bold">グループを作成</h2>
+                  <h2 className="text-xl font-bold">マップを作成</h2>
                 </div>
 
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-sm font-medium">グループ名（任意）</label>
+                  <label className="text-sm font-medium">マップ名（任意）</label>
                   <input
                     value={roomName}
                     onChange={(e) => setRoomName(e.target.value)}
@@ -211,7 +211,7 @@ export function WelcomeScreen({ initialCode, userName, onComplete }: WelcomeScre
                   <Check className="size-8 text-primary" />
                 </div>
                 <div className="text-center">
-                  <h2 className="text-xl font-bold">グループを作成しました！</h2>
+                  <h2 className="text-xl font-bold">マップを作成しました！</h2>
                   <p className="text-sm text-muted-foreground mt-1">招待コードを友達に共有してください</p>
                 </div>
                 <div className="w-full bg-secondary rounded-2xl p-5 flex flex-col items-center gap-3">

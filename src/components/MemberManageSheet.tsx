@@ -101,7 +101,7 @@ export function MemberManageSheet({
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5">
                     <span className="text-sm font-medium truncate">{member.user_name}</span>
-                    {isMe && <span className="text-[10px] text-muted-foreground">（自分）</span>}
+                    {isMe && <span className="text-[11px] text-muted-foreground">（自分）</span>}
                   </div>
                   <RoleBadge role={member.role} />
                 </div>

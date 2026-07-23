@@ -45,7 +45,7 @@ function PlaceRow({
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5 mb-0.5">
           {category && (
-            <Badge variant="outline" className={cn("text-[10px] px-1.5 py-0 h-4 shrink-0", getCategoryClass(category))}>
+            <Badge variant="outline" className={cn("text-[11px] px-1.5 py-0 h-4 shrink-0", getCategoryClass(category))}>
               {category}
             </Badge>
           )}
@@ -73,7 +73,8 @@ function PlaceRow({
   );
 }
 
-export function PlanTab({ onSelectPlace }: PlanTabProps) {
+// ── プランニングのコンテンツ本体（モバイル全画面 / PC サイドパネル共通）──
+export function PlanTabContent({ onSelectPlace }: PlanTabProps) {
   const [activeFilter, setActiveFilter] = useState<PlanFilter>("all");
   const { places, allMemberStatuses, spotStatuses, myRole, upsertPlace } = useMapStore();
 
@@ -143,29 +144,23 @@ export function PlanTab({ onSelectPlace }: PlanTabProps) {
   }
 
   return (
-    <div
-      className="md:hidden fixed inset-x-0 top-0 z-[42] bg-background flex flex-col overflow-hidden"
-      style={{ bottom: "calc(60px + env(safe-area-inset-bottom, 0px))" }}
-    >
-      <div className="shrink-0 border-b bg-background" style={{ paddingTop: "52px" }}>
-        <div className="px-4 pt-3 pb-0">
-          <h1 className="text-lg font-bold tracking-tight mb-3">プランニング</h1>
-          <div className="flex gap-1">
-            {FILTER_TABS.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveFilter(tab.id)}
-                className={cn(
-                  "px-3.5 py-2 text-sm font-medium rounded-t-lg border-b-2 transition-colors cursor-pointer",
-                  activeFilter === tab.id
-                    ? "text-primary border-primary"
-                    : "text-muted-foreground border-transparent hover:text-foreground"
-                )}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
+    <div className="flex flex-col h-full overflow-hidden">
+      <div className="shrink-0 border-b bg-background px-4 pt-1">
+        <div className="flex gap-1">
+          {FILTER_TABS.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveFilter(tab.id)}
+              className={cn(
+                "px-3.5 py-2 text-sm font-medium rounded-t-lg border-b-2 transition-colors cursor-pointer",
+                activeFilter === tab.id
+                  ? "text-primary border-primary"
+                  : "text-muted-foreground border-transparent hover:text-foreground"
+              )}
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -276,6 +271,23 @@ export function PlanTab({ onSelectPlace }: PlanTabProps) {
             ))}
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+// ── モバイル全画面ラッパー ──────────────────────────────────────────
+export function PlanTab({ onSelectPlace }: PlanTabProps) {
+  return (
+    <div
+      className="md:hidden fixed inset-x-0 top-0 z-[42] bg-background flex flex-col overflow-hidden"
+      style={{ bottom: "calc(60px + env(safe-area-inset-bottom, 0px))" }}
+    >
+      <div className="shrink-0 bg-background px-4 pb-0" style={{ paddingTop: "52px" }}>
+        <h1 className="text-lg font-bold tracking-tight pt-3 mb-1">プランニング</h1>
+      </div>
+      <div className="flex-1 overflow-hidden">
+        <PlanTabContent onSelectPlace={onSelectPlace} />
       </div>
     </div>
   );

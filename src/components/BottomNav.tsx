@@ -13,7 +13,7 @@ interface BottomNavProps {
 const TABS = [
   { id: "map" as TabId, icon: Map, label: "マップ" },
   { id: "plan" as TabId, icon: List, label: "プラン" },
-  { id: "group" as TabId, icon: Users, label: "グループ" },
+  { id: "group" as TabId, icon: Users, label: "メンバー" },
   { id: "mypage" as TabId, icon: User, label: "マイページ" },
 ] as const;
 
@@ -31,7 +31,7 @@ export function BottomNav({ activeTab, onTabChange }: BottomNavProps) {
           key={id}
           onClick={() => onTabChange(id)}
           className={cn(
-            "flex-1 flex flex-col items-center justify-center gap-0.5 text-[10px] font-medium transition-colors cursor-pointer",
+            "flex-1 flex flex-col items-center justify-center gap-0.5 text-[11px] font-medium transition-colors cursor-pointer",
             activeTab === id ? "text-primary" : "text-muted-foreground hover:text-foreground"
           )}
         >

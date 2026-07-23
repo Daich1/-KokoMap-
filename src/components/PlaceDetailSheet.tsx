@@ -572,7 +572,7 @@ export function PlaceDetailSheet({
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5">
                       <span className="text-xs font-semibold truncate">{c.user_name}</span>
-                      <span className="text-[10px] text-muted-foreground shrink-0">
+                      <span className="text-[11px] text-muted-foreground shrink-0">
                         {new Date(c.created_at).toLocaleDateString("ja-JP", { month: "numeric", day: "numeric" })}
                       </span>
                       {c.user_id === currentUser.id && !c.id.startsWith("tmp-") && (

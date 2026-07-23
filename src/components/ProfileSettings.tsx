@@ -172,7 +172,7 @@ export function ProfileSettingsContent({
               </Button>
             </div>
             <p className="text-[11px] text-muted-foreground mt-0.5">
-              この名前は同じマップ（ルーム）にいる他の参加者にも表示されます。
+              この名前は同じマップにいる他の参加者にも表示されます。
             </p>
           </div>
         </div>
@@ -269,7 +269,7 @@ export function ProfileSettingsContent({
         </section>
       )}
 
-      {/* ── ルーム＆アカウント操作 ── */}
+      {/* ── マップ＆アカウント操作 ── */}
       <section className="flex flex-col gap-2 mt-2 pt-6 border-t">
         {room && (
           <Button
@@ -364,7 +364,7 @@ export function ProfileSettingsContent({
             ログアウト
           </span>
         </Button>
-        <p className="text-[10px] text-muted-foreground text-center mt-1">
+        <p className="text-[11px] text-muted-foreground text-center mt-1">
           端末からログアウトし、現在のマップから一時的に出ます。
         </p>
       </section>

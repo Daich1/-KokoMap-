@@ -314,7 +314,7 @@ export function AuthScreen({ onAuth }: AuthScreenProps) {
         </div>
         <div className="text-center">
           <h1 className="text-white font-extrabold text-2xl tracking-tight">Koko<span className="text-[var(--coral-300)]">Map</span></h1>
-          <p className="text-white/65 text-sm mt-1.5">グループでスポットをリアルタイム共有</p>
+          <p className="text-white/65 text-sm mt-1.5">仲間とスポットをリアルタイム共有</p>
         </div>
       </div>
 

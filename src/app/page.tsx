@@ -16,8 +16,8 @@ import { AuthScreen } from "@/components/AuthScreen";
 import { MemberManageSheet } from "@/components/MemberManageSheet";
 import { ProfileSettings } from "@/components/ProfileSettings";
 import { BottomNav, type TabId } from "@/components/BottomNav";
-import { PlanTab } from "@/components/tabs/PlanTab";
-import { GroupTab } from "@/components/tabs/GroupTab";
+import { PlanTab, PlanTabContent } from "@/components/tabs/PlanTab";
+import { GroupTab, GroupTabContent } from "@/components/tabs/GroupTab";
 import { MyPageTab } from "@/components/tabs/MyPageTab";
 import { FilterPanel } from "@/components/FilterPanel";
 import { CategoryBar } from "@/components/CategoryBar";
@@ -83,6 +83,8 @@ export default function Home() {
 
   // ── ボトムナビタブ ─────────────────────────────────────
   const [activeTab, setActiveTab] = useState<TabId>("map");
+  // ── PC サイドパネルのタブ ──────────────────────────────
+  const [deskTab, setDeskTab] = useState<"spots" | "plan" | "members">("spots");
   function handleTabChange(tab: TabId) {
     if (tab === "map") setIsListExpanded(false);
     setActiveTab(tab);
@@ -797,6 +799,46 @@ export default function Home() {
             expanded ? "w-0" : "w-[420px]"
           )}
         >
+          {/* パネルタブ切替（スポット / プラン / メンバー） */}
+          <div className="shrink-0 flex border-b bg-background">
+            {([
+              { id: "spots", label: "スポット" },
+              { id: "plan", label: "プラン" },
+              { id: "members", label: "メンバー" },
+            ] as const).map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setDeskTab(tab.id)}
+                className={cn(
+                  "flex-1 py-2.5 text-sm font-medium border-b-2 transition-colors cursor-pointer",
+                  deskTab === tab.id
+                    ? "text-primary border-primary"
+                    : "text-muted-foreground border-transparent hover:text-foreground"
+                )}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          {deskTab === "plan" && room && (
+            <div className="flex-1 overflow-hidden">
+              <PlanTabContent onSelectPlace={handleSelectPlace} />
+            </div>
+          )}
+
+          {deskTab === "members" && room && (
+            <div className="flex-1 overflow-y-auto flex flex-col">
+              <GroupTabContent
+                onInvite={shareRoomUrl}
+                onManageMembers={() => setMemberManageOpen(true)}
+                canManageMembers={canManageMembers}
+                onSelectPlace={handleSelectPlace}
+              />
+            </div>
+          )}
+
+          {deskTab === "spots" && (<>
           <div className="shrink-0 bg-background">
             {/* タイトルバー */}
             <div className="flex items-center justify-between px-5 py-3.5 border-b">
@@ -873,6 +915,7 @@ export default function Home() {
               </div>
             )}
           </div>
+          </>)}
         </div>
 
       </div>

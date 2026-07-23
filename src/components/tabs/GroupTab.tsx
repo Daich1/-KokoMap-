@@ -37,7 +37,14 @@ interface GroupTabProps {
   onSelectPlace: (place: Place) => void;
 }
 
-export function GroupTab({ onInvite, onManageMembers, canManageMembers, onSelectPlace }: GroupTabProps) {
+// ── メンバー一覧のコンテンツ本体（モバイル全画面 / PC サイドパネル共通）──
+export function GroupTabContent({
+  onInvite,
+  onManageMembers,
+  canManageMembers,
+  onSelectPlace,
+  headerTopPadding,
+}: GroupTabProps & { headerTopPadding?: string }) {
   const { room, roomMembers, places, allMemberStatuses, currentUser } = useMapStore();
   const [expandedMemberId, setExpandedMemberId] = useState<string | null>(null);
 
@@ -51,28 +58,21 @@ export function GroupTab({ onInvite, onManageMembers, canManageMembers, onSelect
     Object.values(allMemberStatuses).some((s) => s[p.id] === "visited")
   ).length;
 
+  // 全メンバーをロール順に表示（スポット未登録のメンバーも含む）
   const sorted = [...roomMembers].sort((a, b) => {
     const order: Record<RoomRole, number> = { leader: 0, admin: 1, member: 2, viewer: 3 };
     return order[a.role] - order[b.role];
   });
 
-  // 1件以上スポットを登録したメンバーのみ表示
-  const activeMembers = sorted.filter((m) =>
-    places.some((p) => p.created_by_id === m.user_id)
-  );
-
   return (
-    <div
-      className="md:hidden fixed inset-x-0 top-0 z-[42] bg-background flex flex-col overflow-y-auto"
-      style={{ bottom: "calc(60px + env(safe-area-inset-bottom, 0px))" }}
-    >
-      {/* グループヘッダー */}
+    <>
+      {/* マップヘッダー */}
       <div
         className="shrink-0 bg-primary text-primary-foreground px-5 pb-5"
-        style={{ paddingTop: "calc(52px + 1.25rem)" }}
+        style={{ paddingTop: headerTopPadding ?? "1.25rem" }}
       >
         <p className="text-xs font-medium opacity-70 mb-0.5">コード: {room.share_code}</p>
-        <h1 className="text-xl font-bold truncate">{room.name ?? "マイグループ"}</h1>
+        <h1 className="text-xl font-bold truncate">{room.name ?? "マイマップ"}</h1>
 
         <div className="flex gap-6 mt-4">
           <div className="flex flex-col items-center">
@@ -101,7 +101,7 @@ export function GroupTab({ onInvite, onManageMembers, canManageMembers, onSelect
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-bold flex items-center gap-1.5">
             <Users className="size-4" />
-            登録者（{activeMembers.length}人）
+            メンバー（{sorted.length}人）
           </h2>
           <div className="flex gap-2">
             {canManageMembers && (
@@ -122,13 +122,13 @@ export function GroupTab({ onInvite, onManageMembers, canManageMembers, onSelect
           </div>
         </div>
 
-        {activeMembers.length === 0 ? (
+        {sorted.length === 0 ? (
           <p className="text-sm text-muted-foreground text-center py-8">
-            まだスポットを登録したメンバーがいません
+            まだメンバーがいません
           </p>
         ) : (
           <div className="flex flex-col rounded-2xl overflow-hidden border bg-card divide-y">
-            {activeMembers.map((member) => {
+            {sorted.map((member) => {
               const cfg = ROLE_CONFIG[member.role];
               const isMe = member.user_id === currentUser.id;
               const color = getCreatorColor(member.user_id, roomMembers);
@@ -151,13 +151,13 @@ export function GroupTab({ onInvite, onManageMembers, canManageMembers, onSelect
                       <div className="flex items-center gap-1.5">
                         <span className="text-sm font-semibold truncate">{member.user_name}</span>
                         {isMe && (
-                          <span className="text-[10px] text-muted-foreground shrink-0">（自分）</span>
+                          <span className="text-[11px] text-muted-foreground shrink-0">（自分）</span>
                         )}
                       </div>
                       <div className="flex items-center gap-2 mt-0.5">
                         <span
                           className={cn(
-                            "inline-flex items-center gap-0.5 text-[10px] font-medium rounded-full px-1.5 py-0.5 border",
+                            "inline-flex items-center gap-0.5 text-[11px] font-medium rounded-full px-1.5 py-0.5 border",
                             cfg.badgeClass
                           )}
                         >
@@ -179,32 +179,38 @@ export function GroupTab({ onInvite, onManageMembers, canManageMembers, onSelect
 
                   {isExpanded && (
                     <div className="bg-muted/30 border-t divide-y">
-                      {memberPlaces.map((place) => (
-                        <button
-                          key={place.id}
-                          onClick={() => onSelectPlace(place)}
-                          className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-muted/50 transition-colors text-left cursor-pointer"
-                        >
-                          <div className="shrink-0 size-9 rounded-xl overflow-hidden bg-background border flex items-center justify-center">
-                            {place.image_urls?.[0] ? (
-                              // eslint-disable-next-line @next/next/no-img-element
-                              <img
-                                src={place.image_urls[0]}
-                                alt={place.name}
-                                className="w-full h-full object-cover"
-                              />
-                            ) : (
-                              <MapPin className="size-3.5 text-muted-foreground" />
-                            )}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium truncate">{place.name}</p>
-                            {place.address && (
-                              <p className="text-xs text-muted-foreground truncate">{place.address}</p>
-                            )}
-                          </div>
-                        </button>
-                      ))}
+                      {memberPlaces.length === 0 ? (
+                        <p className="text-xs text-muted-foreground px-4 py-3">
+                          まだスポットを登録していません
+                        </p>
+                      ) : (
+                        memberPlaces.map((place) => (
+                          <button
+                            key={place.id}
+                            onClick={() => onSelectPlace(place)}
+                            className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-muted/50 transition-colors text-left cursor-pointer"
+                          >
+                            <div className="shrink-0 size-9 rounded-xl overflow-hidden bg-background border flex items-center justify-center">
+                              {place.image_urls?.[0] ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img
+                                  src={place.image_urls[0]}
+                                  alt={place.name}
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                <MapPin className="size-3.5 text-muted-foreground" />
+                              )}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium truncate">{place.name}</p>
+                              {place.address && (
+                                <p className="text-xs text-muted-foreground truncate">{place.address}</p>
+                              )}
+                            </div>
+                          </button>
+                        ))
+                      )}
                     </div>
                   )}
                 </div>
@@ -213,6 +219,18 @@ export function GroupTab({ onInvite, onManageMembers, canManageMembers, onSelect
           </div>
         )}
       </div>
+    </>
+  );
+}
+
+// ── モバイル全画面ラッパー ──────────────────────────────────────────
+export function GroupTab(props: GroupTabProps) {
+  return (
+    <div
+      className="md:hidden fixed inset-x-0 top-0 z-[42] bg-background flex flex-col overflow-y-auto"
+      style={{ bottom: "calc(60px + env(safe-area-inset-bottom, 0px))" }}
+    >
+      <GroupTabContent {...props} headerTopPadding="calc(52px + 1.25rem)" />
     </div>
   );
 }

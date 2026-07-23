@@ -103,7 +103,7 @@ export function RoomJoinDialog({
       // 少し見せてから遷移
       setTimeout(() => onJoined(data as Room, userName.trim(), true), 1500);
     } catch {
-      setError("ルームの作成に失敗しました");
+      setError("マップの作成に失敗しました");
       setIsLoading(false);
     }
   }
@@ -125,12 +125,12 @@ export function RoomJoinDialog({
         .rpc("get_room_by_code", { p_code: shareCode.trim() })
         .maybeSingle<Room>();
       if (dbError || !data) {
-        setError("ルームが見つかりません。コードを確認してください");
+        setError("マップが見つかりません。コードを確認してください");
         setIsLoading(false);
         return;
       }
       if (!data.is_open) {
-        setError("このルームは現在参加を受け付けていません");
+        setError("このマップは現在参加を受け付けていません");
         setIsLoading(false);
         return;
       }
@@ -173,7 +173,7 @@ export function RoomJoinDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-lg">
             <Map className="size-5" />
-            マップルームに参加
+            マップに参加
           </DialogTitle>
           <DialogDescription>
             共有コードを知っているメンバーと、同じマップをリアルタイムで共同編集できます。
@@ -202,7 +202,7 @@ export function RoomJoinDialog({
                 disabled={!userName.trim()}
               >
                 <Plus className="size-4" />
-                新しいルームを作成（管理者）
+                新しいマップを作成（管理者）
               </Button>
               <Button
                 variant="outline"
@@ -219,12 +219,12 @@ export function RoomJoinDialog({
             </div>
           )}
 
-          {/* ルーム作成 */}
+          {/* マップ作成 */}
           {mode === "create" && !createdCode && (
             <div className="flex flex-col gap-3">
               <div className="flex flex-col gap-1.5">
                 <label className="text-sm font-medium text-muted-foreground">
-                  ルーム名（任意）
+                  マップ名（任意）
                 </label>
                 <Input
                   value={roomName}
@@ -313,7 +313,7 @@ export function RoomJoinDialog({
             <div className="flex flex-col gap-3 items-center py-2">
               <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 rounded-lg px-3 py-2 w-full">
                 <Shield className="size-4 shrink-0" />
-                <span>管理者としてルームを作成しました</span>
+                <span>管理者としてマップを作成しました</span>
               </div>
               <p className="text-sm text-muted-foreground">
                 このコード（またはURL）を共有してください
