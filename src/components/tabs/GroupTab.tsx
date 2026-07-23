@@ -5,6 +5,7 @@ import { Crown, Shield, Pencil, Eye, Share2, Users, MapPin, Heart, CheckCircle2,
 import { useMapStore } from "@/store/useMapStore";
 import { getCreatorColor } from "@/lib/constants";
 import { cn } from "@/lib/utils";
+import { PublicShareControl } from "@/components/PublicShareControl";
 import type { RoomRole, Place } from "@/lib/supabase";
 
 const ROLE_CONFIG: Record<RoomRole, { label: string; icon: React.ReactNode; badgeClass: string }> = {
@@ -98,6 +99,9 @@ export function GroupTabContent({
 
       {/* メンバーセクション */}
       <div className="flex-1 px-4 py-4 pb-8 flex flex-col gap-4">
+        {/* 公開リンク（リーダーのみ表示） */}
+        <PublicShareControl />
+
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-bold flex items-center gap-1.5">
             <Users className="size-4" />

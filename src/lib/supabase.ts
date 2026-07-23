@@ -57,6 +57,8 @@ export type Room = {
   name: string | null;
   is_open: boolean;
   created_at: string;
+  // 公開閲覧リンク用トークン（sql/08 適用後に存在。null = 非公開）
+  public_token?: string | null;
 };
 
 export type Place = {
