@@ -40,10 +40,10 @@ export function RoomHeaderActions({
 
   const roleBadge = myRole && (
     <span className={`flex items-center gap-0.5 text-[11px] font-bold rounded-full px-1.5 py-0.5 shrink-0 border
-      ${myRole === "leader" ? "text-yellow-700 bg-yellow-50 border-yellow-200" :
-        myRole === "admin" ? "text-blue-700 bg-blue-50 border-blue-200" :
-          myRole === "viewer" ? "text-gray-500 bg-gray-50 border-gray-200" :
-            "text-green-700 bg-green-50 border-green-200"}`}>
+      ${myRole === "leader" ? "text-yellow-700 bg-yellow-50 border-yellow-200 dark:text-yellow-300 dark:bg-yellow-950/40 dark:border-yellow-800" :
+        myRole === "admin" ? "text-blue-700 bg-blue-50 border-blue-200 dark:text-blue-300 dark:bg-blue-950/40 dark:border-blue-800" :
+          myRole === "viewer" ? "text-gray-500 bg-gray-50 border-gray-200 dark:text-gray-400 dark:bg-gray-900/40 dark:border-gray-700" :
+            "text-green-700 bg-green-50 border-green-200 dark:text-green-300 dark:bg-green-950/40 dark:border-green-800"}`}>
       {myRole === "leader" ? <Crown className="size-2.5" /> :
         myRole === "admin" ? <Shield className="size-2.5" /> :
           myRole === "viewer" ? <Eye className="size-2.5" /> :
@@ -69,7 +69,9 @@ export function RoomHeaderActions({
             className={cn(
               btnPad,
               "transition-colors cursor-pointer",
-              room.is_open ? "text-green-600 hover:bg-green-50" : "text-red-500 hover:bg-red-50"
+              room.is_open
+                ? "text-green-600 hover:bg-green-50 dark:hover:bg-green-950/40"
+                : "text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40"
             )}
           >
             {room.is_open ? <Unlock className={iconSize} /> : <Lock className={iconSize} />}

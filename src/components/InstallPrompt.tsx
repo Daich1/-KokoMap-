@@ -44,10 +44,10 @@ export function InstallPrompt() {
     };
 
     return (
-        <div className="fixed top-4 left-4 right-4 z-[100] bg-white rounded-2xl shadow-xl shadow-black/10 border border-gray-100 p-4 flex flex-col gap-3 animate-in slide-in-from-top-4 fade-in duration-500">
+        <div className="fixed top-4 left-4 right-4 z-[100] bg-background rounded-2xl shadow-xl shadow-black/10 border border-border p-4 flex flex-col gap-3 animate-in slide-in-from-top-4 fade-in duration-500">
             <button
                 onClick={dismiss}
-                className="absolute top-3 right-3 p-1.5 text-gray-400 hover:text-gray-600 bg-gray-50 rounded-full transition-colors"
+                className="absolute top-3 right-3 p-1.5 text-muted-foreground hover:text-foreground bg-muted rounded-full transition-colors"
             >
                 <X className="w-4 h-4" />
             </button>
@@ -57,20 +57,20 @@ export function InstallPrompt() {
                     <img src="/apple-icon.png" alt="App Icon" className="w-9 h-9 rounded-lg" />
                 </div>
                 <div className="flex flex-col justify-center">
-                    <h3 className="font-bold text-sm text-gray-900 leading-none mb-1.5">アプリとしてインストール</h3>
+                    <h3 className="font-bold text-sm text-foreground leading-none mb-1.5">アプリとしてインストール</h3>
                     <p className="text-xs text-muted-foreground leading-relaxed">
                         ホーム画面に追加すると、フル画面でより快適にマップをご利用になれます。
                     </p>
                 </div>
             </div>
 
-            <div className="bg-gray-50 p-3 rounded-xl border border-gray-100 flex flex-col gap-2 mt-1">
+            <div className="bg-muted/50 p-3 rounded-xl border border-border flex flex-col gap-2 mt-1">
                 {isIOS ? (
-                    <div className="text-xs text-gray-700 font-medium flex items-center flex-wrap gap-x-1 gap-y-1.5">
-                        画面下の <Share className="w-4 h-4 text-blue-500 font-bold" /> から 「ホーム画面に追加<PlusSquare className="w-4 h-4 text-gray-600 ml-0.5" />」を選択してください。
+                    <div className="text-xs text-foreground/80 font-medium flex items-center flex-wrap gap-x-1 gap-y-1.5">
+                        画面下の <Share className="w-4 h-4 text-blue-500 font-bold" /> から 「ホーム画面に追加<PlusSquare className="w-4 h-4 text-muted-foreground ml-0.5" />」を選択してください。
                     </div>
                 ) : (
-                    <div className="text-xs text-gray-700 font-medium leading-relaxed">
+                    <div className="text-xs text-foreground/80 font-medium leading-relaxed">
                         ブラウザのメニュー（︙）から<br />
                         「ホーム画面に追加」を選択してください。
                     </div>

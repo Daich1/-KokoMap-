@@ -11,22 +11,22 @@ const ROLE_CONFIG: Record<RoomRole, { label: string; icon: React.ReactNode; badg
   leader: {
     label: "オーナー",
     icon: <Crown className="size-3" />,
-    badgeClass: "text-yellow-700 bg-yellow-50 border-yellow-200",
+    badgeClass: "text-yellow-700 bg-yellow-50 border-yellow-200 dark:text-yellow-300 dark:bg-yellow-950/40 dark:border-yellow-800",
   },
   admin: {
     label: "管理者",
     icon: <Shield className="size-3" />,
-    badgeClass: "text-blue-700 bg-blue-50 border-blue-200",
+    badgeClass: "text-blue-700 bg-blue-50 border-blue-200 dark:text-blue-300 dark:bg-blue-950/40 dark:border-blue-800",
   },
   member: {
     label: "メンバー",
     icon: <Pencil className="size-3" />,
-    badgeClass: "text-green-700 bg-green-50 border-green-200",
+    badgeClass: "text-green-700 bg-green-50 border-green-200 dark:text-green-300 dark:bg-green-950/40 dark:border-green-800",
   },
   viewer: {
     label: "閲覧者",
     icon: <Eye className="size-3" />,
-    badgeClass: "text-gray-500 bg-gray-50 border-gray-200",
+    badgeClass: "text-gray-500 bg-gray-50 border-gray-200 dark:text-gray-400 dark:bg-gray-900/40 dark:border-gray-700",
   },
 };
 

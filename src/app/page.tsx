@@ -642,7 +642,7 @@ export default function Home() {
                 <div className="hidden md:flex items-center gap-1 border-l pl-2">
                   <button
                     onClick={() => setProfileOpen(true)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-gray-700 hover:text-gray-900 hover:bg-gray-100 transition-colors cursor-pointer"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-foreground/80 hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
                     title="設定"
                   >
                     <Settings className="size-4 text-muted-foreground" />
@@ -689,7 +689,7 @@ export default function Home() {
           <div ref={mapContainer} className="w-full h-full" />
 
           {pickingMode && (
-            <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 bg-white rounded-full shadow-lg px-5 py-2.5 flex items-center gap-3 text-sm font-medium whitespace-nowrap">
+            <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 bg-background border rounded-full shadow-lg px-5 py-2.5 flex items-center gap-3 text-sm font-medium whitespace-nowrap">
               <span>地図をクリックして場所を指定してください</span>
               <button
                 onClick={cancelPicking}
@@ -1106,7 +1106,7 @@ export default function Home() {
 
       {/* ── 認証オーバーレイ（マップは背後で初期化し続ける） ── */}
       {authLoading && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-white">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background">
           <div className="flex flex-col items-center gap-3 text-muted-foreground">
             <div className="size-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
             <p className="text-sm">読み込み中...</p>

@@ -25,9 +25,9 @@ function applyPopupStatusStyles(
   status: SpotStatus | null
 ) {
   const base = "flex-1 text-xs rounded-full py-1.5 px-1 border transition-all duration-150 truncate font-medium cursor-pointer";
-  const activeWant = `${base} bg-amber-50 text-amber-700 border-amber-300 font-semibold shadow-sm`;
-  const activeVisit = `${base} bg-emerald-50 text-emerald-700 border-emerald-300 font-semibold shadow-sm`;
-  const inactive = `${base} text-gray-400 border-gray-200 hover:bg-gray-50 hover:text-gray-600 hover:border-gray-300`;
+  const activeWant = `${base} bg-amber-50 text-amber-700 border-amber-300 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-700 font-semibold shadow-sm`;
+  const activeVisit = `${base} bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-700 font-semibold shadow-sm`;
+  const inactive = `${base} text-muted-foreground/70 border-border hover:bg-muted hover:text-foreground hover:border-muted-foreground/40`;
 
   wantBtn.className = status === "want_to_go" ? activeWant : inactive;
   visitedBtn.className = status === "visited" ? activeVisit : inactive;
@@ -84,7 +84,7 @@ export function useMapMarkers({
     // ── 画像部分 ──
     const imageWrap = document.createElement("div");
     imageWrap.className =
-      "h-32 w-full overflow-hidden bg-gradient-to-br from-gray-100 to-gray-50 flex items-center justify-center popup-img-wrap";
+      "h-32 w-full overflow-hidden bg-gradient-to-br from-muted to-muted/60 flex items-center justify-center popup-img-wrap";
 
     if (place.image_urls && place.image_urls.length > 0) {
       const img = document.createElement("img");
@@ -136,7 +136,7 @@ export function useMapMarkers({
       place.categories.slice(0, 2).forEach((cat) => {
         const badge = document.createElement("span");
         badge.className =
-          "inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-600";
+          "inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground";
         badge.textContent = cat;
         metaRow.appendChild(badge);
         hasMeta = true;
@@ -150,7 +150,7 @@ export function useMapMarkers({
       budgetParts.push(`¥${place.budget_max.toLocaleString()}`);
     if (budgetParts.length > 0) {
       const budgetEl = document.createElement("span");
-      budgetEl.className = "text-[10px] text-gray-400 font-medium";
+      budgetEl.className = "text-[10px] text-muted-foreground/80 font-medium";
       budgetEl.textContent = budgetParts.join(" 〜 ");
       metaRow.appendChild(budgetEl);
       hasMeta = true;
