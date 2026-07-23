@@ -1,11 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import webpush from "web-push";
+import { requireUser } from "../_lib/auth";
 
 // ルームメンバーへ Web Push 通知を送る
-// body: { roomId, title, body, url?, excludeUserId? }
+// body: { roomId, title, body, url? }
+// 認証必須: 呼び出し元は対象ルームのメンバーであること。送信者自身は常に除外。
 export async function POST(req: NextRequest) {
-  const { roomId, title, body, url, excludeUserId } = await req.json();
+  const user = await requireUser(req);
+  if (!user) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+
+  const { roomId, title, body, url } = await req.json();
   if (!roomId || !title) {
     return NextResponse.json({ error: "roomId and title required" }, { status: 400 });
   }
@@ -29,8 +36,15 @@ export async function POST(req: NextRequest) {
     .from("room_members")
     .select("user_id")
     .eq("room_id", roomId);
-  let userIds = (members ?? []).map((m) => m.user_id as string);
-  if (excludeUserId) userIds = userIds.filter((id) => id !== excludeUserId);
+  const memberIds = (members ?? []).map((m) => m.user_id as string);
+
+  // 呼び出し元がルームメンバーでなければ拒否
+  if (!memberIds.includes(user.id)) {
+    return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  }
+
+  // 送信者自身は常に除外（クライアント指定の excludeUserId は信用しない）
+  const userIds = memberIds.filter((id) => id !== user.id);
   if (userIds.length === 0) return NextResponse.json({ sent: 0 });
 
   // 該当ユーザーの購読を取得

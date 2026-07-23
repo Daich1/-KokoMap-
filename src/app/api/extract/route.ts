@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
+import { requireUser } from "../_lib/auth";
+import { fetchPublicUrl } from "../_lib/safe-fetch";
 
 // HTML から OGP + 本文テキストを抽出するユーティリティ
 function extractTextFromHtml(html: string): string {
@@ -27,16 +29,21 @@ function extractTextFromHtml(html: string): string {
 }
 
 export async function POST(req: NextRequest) {
+  const user = await requireUser(req);
+  if (!user) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+
   const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
   const { url } = await req.json();
   if (!url?.trim()) {
     return NextResponse.json({ error: "URL が指定されていません" }, { status: 400 });
   }
 
-  // ── 1. URLのページを取得 ──────────────────────────
+  // ── 1. URLのページを取得（SSRF対策済み fetch）──────────
   let pageText = "";
   try {
-    const res = await fetch(url, {
+    const res = await fetchPublicUrl(url, {
       headers: {
         "User-Agent":
           "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",

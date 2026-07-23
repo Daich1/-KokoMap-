@@ -27,7 +27,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { supabase, type Place, type BusinessHours } from "@/lib/supabase";
+import { supabase, authHeaders, type Place, type BusinessHours } from "@/lib/supabase";
 import { PRESET_CATEGORIES, DURATION_OPTIONS } from "@/lib/constants";
 import { useMapStore } from "@/store/useMapStore";
 
@@ -337,7 +337,7 @@ export function AddPlaceSheet({
     try {
       const res = await fetch("/api/extract", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(await authHeaders()) },
         body: JSON.stringify({ url }),
       });
       const data = await res.json();
@@ -498,7 +498,7 @@ export function AddPlaceSheet({
       try {
         const res = await fetch("/api/places/parse-hours", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", ...(await authHeaders()) },
           body: JSON.stringify({ text: values.opening_hours_text }),
         });
         if (res.ok) {
@@ -585,17 +585,20 @@ export function AddPlaceSheet({
 
     // 新規追加時、ルームメンバーへプッシュ通知（本人は除外・失敗は無視）
     if (!isEdit && room?.id) {
-      fetch("/api/notify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          roomId: room.id,
-          title: "新しいスポットが追加されました",
-          body: `${currentUser.name || "メンバー"}さんが「${values.name}」を追加しました`,
-          url: "/",
-          excludeUserId: currentUser.id,
-        }),
-      }).catch(() => {});
+      authHeaders()
+        .then((headers) =>
+          fetch("/api/notify", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", ...headers },
+            body: JSON.stringify({
+              roomId: room.id,
+              title: "新しいスポットが追加されました",
+              body: `${currentUser.name || "メンバー"}さんが「${values.name}」を追加しました`,
+              url: "/",
+            }),
+          })
+        )
+        .catch(() => {});
     }
 
     onSaved(data as Place);

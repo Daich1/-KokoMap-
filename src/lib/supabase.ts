@@ -5,6 +5,13 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
+// 認証必須の自前 API ルート呼び出し用: Authorization ヘッダーを組み立てる
+export async function authHeaders(): Promise<Record<string, string>> {
+  const { data } = await supabase.auth.getSession();
+  const token = data.session?.access_token;
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
 export type SpotStatus = "want_to_go" | "visited";
 export type RoomRole = "leader" | "admin" | "member" | "viewer";
 
