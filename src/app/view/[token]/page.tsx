@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
+import Link from "next/link";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import MapboxLanguage from "@mapbox/mapbox-gl-language";
@@ -133,9 +134,9 @@ export default function PublicViewPage() {
           <p className="text-sm text-muted-foreground">
             公開が停止されたか、URLが間違っている可能性があります。
           </p>
-          <a href="/" className="mt-2 text-sm font-semibold text-primary underline underline-offset-4">
+          <Link href="/" className="mt-2 text-sm font-semibold text-primary underline underline-offset-4">
             KokoMap を開く
-          </a>
+          </Link>
         </div>
       </div>
     );
@@ -152,13 +153,13 @@ export default function PublicViewPage() {
             閲覧専用の共有ページです
           </p>
         </div>
-        <a
+        <Link
           href="/"
           className="shrink-0 flex items-center gap-1 text-xs font-semibold px-3 py-2 rounded-full bg-primary text-primary-foreground hover:opacity-90 transition-opacity"
         >
           <ExternalLink className="size-3" />
           KokoMap を使う
-        </a>
+        </Link>
       </header>
 
       {/* マップ + リスト */}
