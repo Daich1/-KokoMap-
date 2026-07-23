@@ -1,3 +1,10 @@
+export const ROLE_LABELS: Record<string, string> = {
+  leader: "リーダー",
+  admin: "管理者",
+  member: "メンバー",
+  viewer: "閲覧者",
+};
+
 export const PRESET_CATEGORIES = [
   "食事",
   "飲み",
