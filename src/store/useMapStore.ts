@@ -38,6 +38,14 @@ interface MapStore {
   loadAllMemberStatuses: (placeIds: string[]) => Promise<void>;
   setUserLocation: (loc: { lat: number; lng: number } | null) => void;
   loadSpotStatuses: (userId: string) => Promise<void>;
+
+  // 旅行設定（ローカル永続化）
+  tripStartDate: string | null;
+  tripDays: number | null;
+  defaultTransportMode: "WALK" | "BICYCLE" | "DRIVE" | "TRANSIT";
+  setTripStartDate: (date: string | null) => void;
+  setTripDays: (days: number | null) => void;
+  setDefaultTransportMode: (mode: "WALK" | "BICYCLE" | "DRIVE" | "TRANSIT") => void;
 }
 
 function generateId() {
@@ -55,6 +63,9 @@ export const useMapStore = create<MapStore>()(
       spotStatuses: {},
       allMemberStatuses: {},
       userLocation: null,
+      tripStartDate: null,
+      tripDays: null,
+      defaultTransportMode: "WALK" as const,
 
       setRoom: (room) => set({ room }),
       clearRoom: () => set({ room: null, places: [], myRole: null, roomMembers: [], allMemberStatuses: {} }),
@@ -193,6 +204,10 @@ export const useMapStore = create<MapStore>()(
 
       setUserLocation: (loc) => set({ userLocation: loc }),
 
+      setTripStartDate: (date) => set({ tripStartDate: date }),
+      setTripDays: (days) => set({ tripDays: days }),
+      setDefaultTransportMode: (mode) => set({ defaultTransportMode: mode }),
+
       loadSpotStatuses: async (userId) => {
         const { data, error } = await supabase
           .from("user_spot_status")
@@ -219,6 +234,9 @@ export const useMapStore = create<MapStore>()(
         currentUser: state.currentUser,
         myRole: state.myRole,
         spotStatuses: state.spotStatuses,
+        tripStartDate: state.tripStartDate,
+        tripDays: state.tripDays,
+        defaultTransportMode: state.defaultTransportMode,
       }),
     }
   )

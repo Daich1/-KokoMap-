@@ -60,6 +60,8 @@ export function AuthScreen({ onAuth }: AuthScreenProps) {
         if (signUpError) {
           if (signUpError.message.includes("already registered") || signUpError.message.includes("already been registered")) {
             setError("このユーザー名はすでに使われています");
+          } else if (signUpError.message.includes("not allowed") || signUpError.message.includes("Signups not allowed")) {
+            setError("新規登録が無効です。Supabase ダッシュボード → Authentication → Settings で「Allow new users to sign up」を有効にしてください");
           } else {
             setError(signUpError.message);
           }
@@ -67,10 +69,23 @@ export function AuthScreen({ onAuth }: AuthScreenProps) {
           return;
         }
 
+        // メール確認が有効だと identities が空 or session が null になる
+        if (data.user?.identities && data.user.identities.length === 0) {
+          setError("このユーザー名はすでに使われています");
+          setIsLoading(false);
+          return;
+        }
+
+        if (!data.session) {
+          setError("セッションを取得できませんでした。Supabase ダッシュボード → Authentication → Email で「Confirm email」を無効にしてください");
+          setIsLoading(false);
+          return;
+        }
+
         if (data.user) {
           onAuth(data.user);
         } else {
-          setError("Supabase ダッシュボードで「メール確認を無効化」してください（Authentication → Settings）");
+          setError("登録に失敗しました。もう一度お試しください");
         }
       } else {
         const { data, error: signInError } = await supabase.auth.signInWithPassword({ email, password });

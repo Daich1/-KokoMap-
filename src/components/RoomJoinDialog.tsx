@@ -83,11 +83,13 @@ export function RoomJoinDialog({
     setIsLoading(true);
     setError("");
     try {
-      const { data, error: dbError } = await supabase
+      // RLS の SELECT ポリシーが is_room_member を要求するため、
+      // .select().single() ではメンバー登録前のルームが返らない。
+      // ID をクライアント側で生成して SELECT を省略する。
+      const roomId = crypto.randomUUID();
+      const { error: dbError } = await supabase
         .from("rooms")
-        .insert({ share_code: code, name: roomName.trim() || null })
-        .select()
-        .single();
+        .insert({ id: roomId, share_code: code, name: roomName.trim() || null });
       if (dbError) {
         // コード重複エラー
         if (dbError.code === "23505") {
@@ -98,10 +100,17 @@ export function RoomJoinDialog({
         setIsLoading(false);
         return;
       }
+      const newRoom: Room = {
+        id: roomId,
+        share_code: code,
+        name: roomName.trim() || null,
+        is_open: true,
+        created_at: new Date().toISOString(),
+      };
       setCreatedCode(code);
       setIsLoading(false);
       // 少し見せてから遷移
-      setTimeout(() => onJoined(data as Room, userName.trim(), true), 1500);
+      setTimeout(() => onJoined(newRoom, userName.trim(), true), 1500);
     } catch {
       setError("マップの作成に失敗しました");
       setIsLoading(false);

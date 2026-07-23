@@ -31,6 +31,15 @@ export const DURATION_LABELS: Record<string, string> = {
   "full-day": "1日",
 };
 
+export type TransportMode = "WALK" | "BICYCLE" | "DRIVE" | "TRANSIT";
+
+export const TRANSPORT_MODES: { id: TransportMode; label: string }[] = [
+  { id: "WALK", label: "徒歩" },
+  { id: "BICYCLE", label: "自転車" },
+  { id: "DRIVE", label: "車" },
+  { id: "TRANSIT", label: "電車" },
+];
+
 export const PRESET_MARKER_COLORS = [
   "#F59E0B", // Amber
   "#3B82F6", // Blue

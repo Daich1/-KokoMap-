@@ -112,6 +112,19 @@ export function PlanTabContent({ onSelectPlace }: PlanTabProps) {
     upsertPlace({ ...place, plan_day, plan_order });
   }
 
+  async function persistPlanTime(place: Place, plan_time: string | null) {
+    const { error } = await supabase
+      .from("places")
+      .update({ plan_time })
+      .eq("id", place.id);
+    if (error) {
+      console.error("plan_time update failed:", error);
+      toast.error("時刻の更新に失敗しました");
+      return;
+    }
+    upsertPlace({ ...place, plan_time });
+  }
+
   return (
     <div className="flex flex-col h-full overflow-hidden">
       <div className="shrink-0 border-b bg-background px-4 pt-1">
@@ -147,6 +160,7 @@ export function PlanTabContent({ onSelectPlace }: PlanTabProps) {
               canPlan={canPlan}
               onSelectPlace={onSelectPlace}
               persistPlan={persistPlan}
+              persistPlanTime={persistPlanTime}
             />
           )
         ) : filtered.length === 0 ? (

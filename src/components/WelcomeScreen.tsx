@@ -47,20 +47,29 @@ export function WelcomeScreen({ initialCode, userName, onComplete }: WelcomeScre
     setIsLoading(true);
     setError("");
     try {
-      const { data, error: dbError } = await supabase
+      // RLS の SELECT ポリシーが is_room_member を要求するため、
+      // .select().single() ではメンバー登録前のルームが返らない。
+      // ID をクライアント側で生成して SELECT を省略する。
+      const roomId = crypto.randomUUID();
+      const { error: dbError } = await supabase
         .from("rooms")
-        .insert({ share_code: code, name: roomName.trim() || null })
-        .select()
-        .single();
+        .insert({ id: roomId, share_code: code, name: roomName.trim() || null });
       if (dbError) {
         if (dbError.code === "23505") setError("このコードは既に使われています");
         else throw dbError;
         setIsLoading(false);
         return;
       }
+      const newRoom: Room = {
+        id: roomId,
+        share_code: code,
+        name: roomName.trim() || null,
+        is_open: true,
+        created_at: new Date().toISOString(),
+      };
       setCreatedCode(code);
       setIsLoading(false);
-      setTimeout(() => onComplete(userName, data as Room, true), 1500);
+      setTimeout(() => onComplete(userName, newRoom, true), 1500);
     } catch {
       setError("マップの作成に失敗しました");
       setIsLoading(false);

@@ -83,4 +83,5 @@ export type Place = {
   opening_hours_text: string | null;
   plan_day: number | null;
   plan_order: number | null;
+  plan_time: string | null;
 };

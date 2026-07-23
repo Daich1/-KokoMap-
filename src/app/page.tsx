@@ -430,12 +430,18 @@ export default function Home() {
     // 先に DB 登録し、成功した場合のみローカル state を更新する
     // （RLS で拒否された場合に幽霊マップに入った状態を防ぐ）
     const { error: joinError } = await supabase.from("room_members").upsert(
-      { room_id: joinedRoom.id, user_id: updatedUser.id, user_name: userName, role },
+      {
+        room_id: joinedRoom.id,
+        user_id: updatedUser.id,
+        user_name: userName,
+        role,
+        joined_at: new Date().toISOString(),
+      },
       { onConflict: "room_id,user_id" }
     );
     if (joinError) {
       console.error("Failed to join room:", joinError);
-      toast.error("マップへの参加に失敗しました");
+      toast.error(`マップへの参加に失敗しました: ${joinError.message}`);
       return;
     }
 
