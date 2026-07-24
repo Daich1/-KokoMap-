@@ -58,6 +58,8 @@ sql/05_plan.sql            -- プラン(日程)用カラム
 sql/06_comments.sql        -- スポットコメント
 sql/07_push.sql            -- Push 購読テーブル
 sql/08_public_share.sql    -- 閲覧専用公開リンク
+sql/09_plan_enhancements.sql -- スポット別の予定時刻(plan_time)
+sql/10_trip_settings.sql   -- 旅行設定(開始日・日数・既定移動手段)のマップ共有
 ```
 
 ### 4. 起動

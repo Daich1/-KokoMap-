@@ -191,11 +191,28 @@ function estimateArrivalTimes(
 }
 
 // ── 旅行設定バー ──────────────────────────────────────────────
-function TripSettingsBar() {
+function TripSettingsBar({ canPlan }: { canPlan: boolean }) {
   const {
     tripStartDate, tripDays, defaultTransportMode,
     setTripStartDate, setTripDays, setDefaultTransportMode,
   } = useMapStore();
+
+  // 閲覧者・メンバーは読み取り専用（設定は leader/admin が共有）
+  if (!canPlan) {
+    const modeLabel = MODE_LABEL[defaultTransportMode];
+    return (
+      <div className="border-b bg-muted/30 px-4 py-2 flex items-center gap-3 flex-wrap text-xs text-muted-foreground">
+        <span className="flex items-center gap-1.5">
+          <Calendar className="size-3.5 shrink-0" />
+          {tripStartDate
+            ? formatDayDate(tripStartDate, 1).replace(/\(.*/, "") + " 出発"
+            : "日程未設定"}
+        </span>
+        {tripDays ? <span>{tripDays}日間</span> : null}
+        <span className="flex items-center gap-1">既定の移動手段: {modeLabel}</span>
+      </div>
+    );
+  }
 
   return (
     <div className="border-b bg-muted/30 px-4 py-2.5 space-y-2">
@@ -603,7 +620,7 @@ export function ItineraryView({
 
   return (
     <div className="flex flex-col h-full">
-      <TripSettingsBar />
+      <TripSettingsBar canPlan={canPlan} />
 
       <DndContext
         sensors={sensors}

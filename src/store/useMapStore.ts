@@ -39,17 +39,53 @@ interface MapStore {
   setUserLocation: (loc: { lat: number; lng: number } | null) => void;
   loadSpotStatuses: (userId: string) => Promise<void>;
 
-  // 旅行設定（ローカル永続化）
+  // 旅行設定（マップ単位でDB共有 / sql/10_trip_settings.sql）
   tripStartDate: string | null;
   tripDays: number | null;
-  defaultTransportMode: "WALK" | "BICYCLE" | "DRIVE" | "TRANSIT";
+  defaultTransportMode: TransportMode;
   setTripStartDate: (date: string | null) => void;
   setTripDays: (days: number | null) => void;
-  setDefaultTransportMode: (mode: "WALK" | "BICYCLE" | "DRIVE" | "TRANSIT") => void;
+  setDefaultTransportMode: (mode: TransportMode) => void;
+  // DBからの読み込み / Realtime 反映（再永続化しない）
+  loadTripSettings: (roomId: string) => Promise<void>;
+  applyTripSettings: (settings: Partial<TripSettings>) => void;
 }
+
+type TransportMode = "WALK" | "BICYCLE" | "DRIVE" | "TRANSIT";
+type TripSettings = {
+  tripStartDate: string | null;
+  tripDays: number | null;
+  defaultTransportMode: TransportMode;
+};
 
 function generateId() {
   return Math.random().toString(36).slice(2) + Date.now().toString(36);
+}
+
+// 旅行設定をDBへ楽観的に反映。失敗時は rollback を呼んで元に戻す。
+function persistTripSettings(
+  roomId: string | undefined,
+  patch: Partial<{
+    trip_start_date: string | null;
+    trip_days: number | null;
+    default_transport_mode: TransportMode;
+  }>,
+  rollback: () => void,
+) {
+  if (!roomId) return;
+  supabase
+    .from("room_trip_settings")
+    .upsert(
+      { room_id: roomId, ...patch, updated_at: new Date().toISOString() },
+      { onConflict: "room_id" },
+    )
+    .then(({ error }) => {
+      if (error) {
+        console.error("Failed to save trip settings:", error);
+        toast.error("旅行設定の保存に失敗しました");
+        rollback();
+      }
+    });
 }
 
 export const useMapStore = create<MapStore>()(
@@ -204,9 +240,47 @@ export const useMapStore = create<MapStore>()(
 
       setUserLocation: (loc) => set({ userLocation: loc }),
 
-      setTripStartDate: (date) => set({ tripStartDate: date }),
-      setTripDays: (days) => set({ tripDays: days }),
-      setDefaultTransportMode: (mode) => set({ defaultTransportMode: mode }),
+      // ── 旅行設定（DB共有・楽観更新）─────────────────────────────
+      setTripStartDate: (date) => {
+        const prev = get().tripStartDate;
+        set({ tripStartDate: date });
+        persistTripSettings(get().room?.id, { trip_start_date: date }, () =>
+          set({ tripStartDate: prev }),
+        );
+      },
+      setTripDays: (days) => {
+        const prev = get().tripDays;
+        set({ tripDays: days });
+        persistTripSettings(get().room?.id, { trip_days: days }, () =>
+          set({ tripDays: prev }),
+        );
+      },
+      setDefaultTransportMode: (mode) => {
+        const prev = get().defaultTransportMode;
+        set({ defaultTransportMode: mode });
+        persistTripSettings(get().room?.id, { default_transport_mode: mode }, () =>
+          set({ defaultTransportMode: prev }),
+        );
+      },
+
+      applyTripSettings: (settings) => set(settings),
+
+      loadTripSettings: async (roomId) => {
+        const { data, error } = await supabase
+          .from("room_trip_settings")
+          .select("trip_start_date, trip_days, default_transport_mode")
+          .eq("room_id", roomId)
+          .maybeSingle();
+        if (error) {
+          console.error("Failed to load trip settings:", error);
+          return;
+        }
+        set({
+          tripStartDate: data?.trip_start_date ?? null,
+          tripDays: data?.trip_days ?? null,
+          defaultTransportMode: (data?.default_transport_mode as TransportMode) ?? "WALK",
+        });
+      },
 
       loadSpotStatuses: async (userId) => {
         const { data, error } = await supabase
@@ -234,9 +308,6 @@ export const useMapStore = create<MapStore>()(
         currentUser: state.currentUser,
         myRole: state.myRole,
         spotStatuses: state.spotStatuses,
-        tripStartDate: state.tripStartDate,
-        tripDays: state.tripDays,
-        defaultTransportMode: state.defaultTransportMode,
       }),
     }
   )

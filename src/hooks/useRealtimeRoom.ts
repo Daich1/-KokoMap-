@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { toast } from "sonner";
-import { supabase, type Place, type RoomMember, type SpotStatus } from "@/lib/supabase";
+import { supabase, type Place, type RoomMember, type SpotStatus, type TransportMode } from "@/lib/supabase";
 import { useMapStore } from "@/store/useMapStore";
 import { ROLE_LABELS } from "@/lib/constants";
 
@@ -111,10 +111,33 @@ export function useRealtimeRoom({
       )
       .subscribe();
 
+    // ── room_trip_settings チャンネル（旅行設定の共有）──
+    const tripSettingsChannel = supabase
+      .channel(`room-trip-${roomId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "room_trip_settings", filter: `room_id=eq.${roomId}` },
+        (payload) => {
+          if (payload.eventType === "DELETE") return;
+          const s = payload.new as {
+            trip_start_date: string | null;
+            trip_days: number | null;
+            default_transport_mode: string;
+          };
+          useMapStore.getState().applyTripSettings({
+            tripStartDate: s.trip_start_date ?? null,
+            tripDays: s.trip_days ?? null,
+            defaultTransportMode: (s.default_transport_mode as TransportMode) ?? "WALK",
+          });
+        }
+      )
+      .subscribe();
+
     return () => {
       supabase.removeChannel(placesChannel);
       supabase.removeChannel(membersChannel);
       supabase.removeChannel(statusesChannel);
+      supabase.removeChannel(tripSettingsChannel);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomId]);

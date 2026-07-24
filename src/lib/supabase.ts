@@ -14,6 +14,16 @@ export async function authHeaders(): Promise<Record<string, string>> {
 
 export type SpotStatus = "want_to_go" | "visited";
 export type RoomRole = "leader" | "admin" | "member" | "viewer";
+export type TransportMode = "WALK" | "BICYCLE" | "DRIVE" | "TRANSIT";
+
+// マップ単位で共有される旅行設定（sql/10_trip_settings.sql）
+export type RoomTripSettings = {
+  room_id: string;
+  trip_start_date: string | null;
+  trip_days: number | null;
+  default_transport_mode: TransportMode;
+  updated_at?: string;
+};
 
 export type RoomMember = {
   room_id: string;

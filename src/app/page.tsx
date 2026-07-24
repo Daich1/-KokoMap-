@@ -74,6 +74,7 @@ export default function Home() {
     setCurrentUser,
     loadSpotStatuses,
     loadAllMemberStatuses,
+    loadTripSettings,
   } = useMapStore.getState();
 
   // 権限ヘルパー
@@ -185,6 +186,7 @@ export default function Home() {
         const me = data.find((m: RoomMember) => m.user_id === currentUser.id);
         if (me) setMyRole(me.role);
       });
+    loadTripSettings(room.id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [room?.id, currentUser.id]);
 
