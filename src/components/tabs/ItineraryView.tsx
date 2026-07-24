@@ -16,7 +16,7 @@ import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-
 import { CSS } from "@dnd-kit/utilities";
 import {
   CalendarDays, GripVertical, Footprints, Clock, Car, Train,
-  Bike, Plus, Calendar,
+  Bike, Plus, Calendar, Map as MapIcon,
 } from "lucide-react";
 import type { Place } from "@/lib/supabase";
 import { calcDistance } from "@/lib/geo";
@@ -430,12 +430,13 @@ function SortableItem({
 
 // ── 日グループ（droppable）─────────────────────────────────────
 function DayGroup({
-  group, children, summary, dateLabel,
+  group, children, summary, dateLabel, onViewOnMap,
 }: {
   group: { day: number | null; label: string; items: Place[] };
   children: React.ReactNode;
   summary: string | null;
   dateLabel: string | null;
+  onViewOnMap?: () => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: `group:${group.day ?? "none"}` });
 
@@ -451,9 +452,22 @@ function DayGroup({
           （{group.items.length}件）
         </span>
         {summary && (
-          <span className="ml-auto text-[11px] text-muted-foreground font-normal truncate max-w-[45%]">
+          <span className="ml-auto text-[11px] text-muted-foreground font-normal truncate max-w-[40%]">
             {summary}
           </span>
+        )}
+        {onViewOnMap && group.items.length > 0 && (
+          <button
+            onClick={onViewOnMap}
+            className={cn(
+              "shrink-0 flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[11px] font-medium bg-background/70 border text-muted-foreground hover:text-primary hover:border-primary/40 transition-colors cursor-pointer",
+              summary ? "ml-1.5" : "ml-auto"
+            )}
+            title="この日の経路を地図で見る"
+          >
+            <MapIcon className="size-3" />
+            地図
+          </button>
         )}
       </div>
       {children}
@@ -468,10 +482,11 @@ interface ItineraryViewProps {
   onSelectPlace: (place: Place) => void;
   persistPlan: (place: Place, day: number | null, order: number | null) => Promise<void>;
   persistPlanTime: (place: Place, time: string | null) => Promise<void>;
+  onViewDayOnMap?: (day: number) => void;
 }
 
 export function ItineraryView({
-  places, canPlan, onSelectPlace, persistPlan, persistPlanTime,
+  places, canPlan, onSelectPlace, persistPlan, persistPlanTime, onViewDayOnMap,
 }: ItineraryViewProps) {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [legModeOverrides, setLegModeOverrides] = useState<Record<string, TransportMode>>({});
@@ -651,6 +666,11 @@ export function ItineraryView({
                   group.day != null && tripStartDate
                     ? formatDayDate(tripStartDate, group.day)
                     : null
+                }
+                onViewOnMap={
+                  group.day != null && onViewDayOnMap
+                    ? () => onViewDayOnMap(group.day!)
+                    : undefined
                 }
               >
                 {group.items.length === 0 ? (

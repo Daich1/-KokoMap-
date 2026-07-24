@@ -431,6 +431,25 @@ body[style*="pointer-events: none"] {
   transform: scale(1.08);
 }
 
+/* ─── プラン（日程）の番号ピン ───────────────────────────────────────── */
+.plan-pin {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: #E85D04;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1;
+  border: 2.5px solid #ffffff;
+  box-shadow: 0 2px 8px oklch(0 0 0 / 0.35);
+  cursor: pointer;
+  z-index: 5;
+}
+
 /* ─── アクセシビリティ: モーション低減設定を尊重 ───────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
   *,

@@ -34,6 +34,7 @@ import { useGeolocation } from "@/hooks/useGeolocation";
 import { useMapMarkers } from "@/hooks/useMapMarkers";
 import { useRealtimeRoom } from "@/hooks/useRealtimeRoom";
 import { usePlaceFilters } from "@/hooks/usePlaceFilters";
+import { usePlanRoute } from "@/hooks/usePlanRoute";
 
 export default function Home() {
   const pickingModeRef = useRef(false);
@@ -106,6 +107,8 @@ export default function Home() {
   const [urlCode, setUrlCode] = useState<string | undefined>(undefined);
   const [profileOpen, setProfileOpen] = useState(false);
   const [codeCopied, setCodeCopied] = useState(false);
+  // プランの「この日を地図で見る」で表示中の日（null = 非表示）
+  const [focusedPlanDay, setFocusedPlanDay] = useState<number | null>(null);
 
   // ── 認証セッション + 所属マップ復元 ──────────────────────────
   const handleRoomMissing = useCallback(() => setRoomDialogOpen(true), []);
@@ -216,6 +219,18 @@ export default function Home() {
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mapLoaded, room?.id, setPlaces]);
+
+  // ── プランの経路ライン + 番号ピンを描画 ──────────────────
+  usePlanRoute(map, mapLoaded, places, focusedPlanDay);
+  // マップを切り替えたら経路表示は解除
+  useEffect(() => { setFocusedPlanDay(null); }, [room?.id]);
+
+  // 「この日を地図で見る」: 該当日をハイライトし、モバイルはマップタブへ
+  const handleViewDayOnMap = useCallback((day: number) => {
+    setFocusedPlanDay((prev) => (prev === day ? null : day));
+    setActiveTab("map");
+    setIsListExpanded(false);
+  }, []);
 
   // ── Supabase Realtime 購読 ───────────────────────────
   useRealtimeRoom({
@@ -708,6 +723,24 @@ export default function Home() {
             </div>
           )}
 
+          {/* プラン経路を表示中のインジケーター */}
+          {focusedPlanDay != null && !pickingMode && (
+            <div
+              className="absolute left-1/2 -translate-x-1/2 z-10 bg-background border rounded-full shadow-lg pl-4 pr-2 py-1.5 flex items-center gap-2 text-sm font-medium whitespace-nowrap"
+              style={{ top: "calc(env(safe-area-inset-top, 0px) + 1rem)" }}
+            >
+              <span className="size-2 rounded-full bg-accent" />
+              <span>{focusedPlanDay}日目の経路</span>
+              <button
+                onClick={() => setFocusedPlanDay(null)}
+                className="size-5 rounded-full hover:bg-muted flex items-center justify-center text-muted-foreground cursor-pointer transition-colors"
+                title="経路表示を消す"
+              >
+                <X className="size-3.5" />
+              </button>
+            </div>
+          )}
+
 
           {/* PC: リスト切替・経路検索ボタン群 */}
           <div className="hidden md:flex absolute top-4 right-3 z-10 items-center gap-2">
@@ -831,7 +864,7 @@ export default function Home() {
 
           {deskTab === "plan" && room && (
             <div className="flex-1 overflow-hidden">
-              <PlanTabContent onSelectPlace={handleSelectPlace} />
+              <PlanTabContent onSelectPlace={handleSelectPlace} onViewDayOnMap={handleViewDayOnMap} />
             </div>
           )}
 
@@ -1152,6 +1185,7 @@ export default function Home() {
             setDetailPlace(place);
             setDetailOpen(true);
           }}
+          onViewDayOnMap={handleViewDayOnMap}
         />
       )}
       {activeTab === "group" && room && (

@@ -47,6 +47,30 @@ export function useMapInstance(
         layout: { "line-cap": "round", "line-join": "round" },
         paint: { "line-color": "#008f81", "line-width": 5 },
       });
+
+      // ── プラン（日程）の経路: 訪問順を結ぶ点線 ──
+      map.current!.addSource("plan-route", {
+        type: "geojson",
+        data: { type: "FeatureCollection", features: [] },
+      });
+      map.current!.addLayer({
+        id: "plan-route-halo",
+        type: "line",
+        source: "plan-route",
+        layout: { "line-cap": "round", "line-join": "round" },
+        paint: { "line-color": "#ffffff", "line-width": 6, "line-opacity": 0.9 },
+      });
+      map.current!.addLayer({
+        id: "plan-route-line",
+        type: "line",
+        source: "plan-route",
+        layout: { "line-cap": "round", "line-join": "round" },
+        paint: {
+          "line-color": "#E85D04",
+          "line-width": 3.5,
+          "line-dasharray": [1.5, 1.2],
+        },
+      });
       setMapLoaded(true);
     });
 

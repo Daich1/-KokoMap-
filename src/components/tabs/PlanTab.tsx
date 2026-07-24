@@ -14,6 +14,7 @@ type PlanFilter = "all" | "want_to_go" | "visited" | "itinerary";
 
 interface PlanTabProps {
   onSelectPlace: (place: Place) => void;
+  onViewDayOnMap?: (day: number) => void;
 }
 
 function PlaceRow({
@@ -75,7 +76,7 @@ function PlaceRow({
 }
 
 // ── プランニングのコンテンツ本体（モバイル全画面 / PC サイドパネル共通）──
-export function PlanTabContent({ onSelectPlace }: PlanTabProps) {
+export function PlanTabContent({ onSelectPlace, onViewDayOnMap }: PlanTabProps) {
   const [activeFilter, setActiveFilter] = useState<PlanFilter>("all");
   const { places, allMemberStatuses, spotStatuses, myRole, upsertPlace } = useMapStore();
 
@@ -161,6 +162,7 @@ export function PlanTabContent({ onSelectPlace }: PlanTabProps) {
               onSelectPlace={onSelectPlace}
               persistPlan={persistPlan}
               persistPlanTime={persistPlanTime}
+              onViewDayOnMap={onViewDayOnMap}
             />
           )
         ) : filtered.length === 0 ? (
@@ -192,7 +194,7 @@ export function PlanTabContent({ onSelectPlace }: PlanTabProps) {
 }
 
 // ── モバイル全画面ラッパー ──────────────────────────────────────────
-export function PlanTab({ onSelectPlace }: PlanTabProps) {
+export function PlanTab({ onSelectPlace, onViewDayOnMap }: PlanTabProps) {
   return (
     <div
       className="md:hidden fixed inset-x-0 top-0 z-[42] bg-background flex flex-col overflow-hidden"
@@ -202,7 +204,7 @@ export function PlanTab({ onSelectPlace }: PlanTabProps) {
         <h1 className="text-lg font-bold tracking-tight pt-3 mb-1">プランニング</h1>
       </div>
       <div className="flex-1 overflow-hidden">
-        <PlanTabContent onSelectPlace={onSelectPlace} />
+        <PlanTabContent onSelectPlace={onSelectPlace} onViewDayOnMap={onViewDayOnMap} />
       </div>
     </div>
   );
