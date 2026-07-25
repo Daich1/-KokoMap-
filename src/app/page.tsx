@@ -416,12 +416,18 @@ export default function Home() {
     const updatedUser = { ...currentUser, name: userName };
 
     // 既存の権限があればそれを優先（リーダーからの降格を防ぐ）
-    const { data: existing } = await supabase
+    // NOTE: RLS の SELECT ポリシー (is_room_member) によりメンバーでなければ
+    // 0 行が返るだけでエラーにはならない。ネットワーク障害等の例外はログのみ。
+    const { data: existing, error: selectError } = await supabase
       .from("room_members")
       .select("role")
       .eq("room_id", joinedRoom.id)
       .eq("user_id", updatedUser.id)
       .maybeSingle();
+
+    if (selectError) {
+      console.warn("membership check failed, treating as new member:", selectError);
+    }
 
     if (existing && existing.role) {
       role = existing.role as "leader" | "member";
@@ -429,16 +435,28 @@ export default function Home() {
 
     // 先に DB 登録し、成功した場合のみローカル state を更新する
     // （RLS で拒否された場合に幽霊マップに入った状態を防ぐ）
-    const { error: joinError } = await supabase.from("room_members").upsert(
-      {
+    // NOTE: upsert は使わない。RLS の INSERT ポリシーが conflict 判定より先に
+    // 評価されるため、既存メンバーの再参加で INSERT が拒否されてしまう。
+    let joinError: { message: string } | null = null;
+    if (existing) {
+      // 既存メンバー → UPDATE（名前だけ更新、ロールは維持）
+      const { error } = await supabase
+        .from("room_members")
+        .update({ user_name: userName })
+        .eq("room_id", joinedRoom.id)
+        .eq("user_id", updatedUser.id);
+      joinError = error;
+    } else {
+      // 新規参加 → INSERT
+      const { error } = await supabase.from("room_members").insert({
         room_id: joinedRoom.id,
         user_id: updatedUser.id,
         user_name: userName,
         role,
         joined_at: new Date().toISOString(),
-      },
-      { onConflict: "room_id,user_id" }
-    );
+      });
+      joinError = error;
+    }
     if (joinError) {
       console.error("Failed to join room:", joinError);
       toast.error(`マップへの参加に失敗しました: ${joinError.message}`);

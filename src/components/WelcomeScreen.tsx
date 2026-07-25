@@ -53,7 +53,7 @@ export function WelcomeScreen({ initialCode, userName, onComplete }: WelcomeScre
       const roomId = crypto.randomUUID();
       const { error: dbError } = await supabase
         .from("rooms")
-        .insert({ id: roomId, share_code: code, name: roomName.trim() || null });
+        .insert({ id: roomId, share_code: code, name: roomName.trim() || null, is_open: true });
       if (dbError) {
         if (dbError.code === "23505") setError("このコードは既に使われています");
         else throw dbError;

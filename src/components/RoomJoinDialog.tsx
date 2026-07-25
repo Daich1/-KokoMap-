@@ -89,7 +89,7 @@ export function RoomJoinDialog({
       const roomId = crypto.randomUUID();
       const { error: dbError } = await supabase
         .from("rooms")
-        .insert({ id: roomId, share_code: code, name: roomName.trim() || null });
+        .insert({ id: roomId, share_code: code, name: roomName.trim() || null, is_open: true });
       if (dbError) {
         // コード重複エラー
         if (dbError.code === "23505") {
